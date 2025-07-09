@@ -225,32 +225,8 @@ def main():
     
     print(f"\nUsing weather data: {weather_name}")
     
-    # Get fraction of water to remain as outflow
-    print("\nFraction of water to remain as outflow:")
-    print("Enter the fraction (between 0 and 0.99) of inlet water that should leave as liquid outflow.")
-    print("For example, 0.3 means 30% of inlet water leaves as liquid, 70% is evaporated.")
-    print("0 means 100% evaporation (no liquid outflow).")
-    print("Default is 0.3 (30% outflow, 70% evaporated)")
-    fraction_outflow_input = input("Fraction of water to remain as outflow: ").strip()
+    m = build(processed_weather_file)
     
-    if fraction_outflow_input:
-        try:
-            fraction_outflow = float(fraction_outflow_input)
-            if not (0 <= fraction_outflow < 1):
-                print("Input out of range. Using default of 0.3.")
-                fraction_outflow = 0.3
-            else:
-                print(f"Using fraction outflow: {fraction_outflow}")
-        except ValueError:
-            print("Invalid input. Using default of 0.3.")
-            fraction_outflow = 0.3
-    else:
-        fraction_outflow = 0.3
-        print("Using default fraction outflow: 0.3")
-    
-    m = build(processed_weather_file, fraction_outflow=fraction_outflow)
-    
-    # Set fraction of water to remain as outflow
     set_operating_conditions(m)
     m.fs.pond.number_evaporation_ponds.fix(300)
     assert_degrees_of_freedom(m, 0)
@@ -272,12 +248,9 @@ def main():
     assert_optimal_termination(results)
     display_costing_results(m)
 
-def build(weather_data_path, fraction_outflow=0.0):
+def build(weather_data_path):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-
-    # Store the fraction_outflow as a flowsheet parameter
-    m.fs.fraction_outflow = pyo.Param(initialize=fraction_outflow, mutable=True)
 
     props = {
         "non_volatile_solute_list": ["TDS"],
@@ -305,16 +278,16 @@ def build(weather_data_path, fraction_outflow=0.0):
 
 def set_operating_conditions(m):
     flow_vol = 1.051 * pyunits.m**3 / pyunits.s
+    fraction_outflow = 0.0
     conc_tds_inlet = 370 * pyunits.kg / pyunits.m**3
     rho = 1227 * pyunits.kg / pyunits.m**3
-    
-    # Get fraction_outflow from the flowsheet parameter
-    fraction_outflow = value(m.fs.fraction_outflow)
     
     # Calculate fraction evaporated
     fraction_evaporated_val = 1 - fraction_outflow
     print(f"Fraction of water evaporated: {fraction_evaporated_val:.3f}")
     print(f"Fraction of water as outflow: {fraction_outflow:.3f}")
+    m.fs.fraction_outflow = pyo.Param(initialize=fraction_outflow, mutable=True)
+
     
     prop_in = m.fs.pond.properties_in[0]
     prop_in.pressure.fix(101325)

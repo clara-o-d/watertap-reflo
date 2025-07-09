@@ -26,40 +26,46 @@ def build_model(**kwargs):
     claras_evap_fs.process_costing(m)
     return m
 
-# Parameters to sweep - using more reasonable ranges to avoid nan values
+# Parameters to sweep - tighter bounds and a few more parameters
 def build_sweep_params(m, num_samples=3, **kwargs):
     sweep_params = dict()
-    
-    # 1. Evaporation rate enhancement factor - more conservative range
-    # This affects evaporation rate directly, but too high values can cause issues
+    # 1. Evaporation rate enhancement factor (default ~1.08)
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.unfix()
     sweep_params['evaporation enhancement factor'] = LinearSample(
         m.fs.pond.evaporation_rate_enhancement_adjustment_factor, 
-        1.0, 1.2, num_samples  # More conservative range
+        1.0, 1.15, num_samples  # Tighter range
     )
-    
-    # 2. Salinity adjustment factor - affects evaporation for high TDS
-    # Higher values mean less reduction in evaporation due to salinity
-    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)  # Reset to default
+    # 2. Salinity adjustment factor (default ~0.75)
+    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
     sweep_params['salinity adjustment factor'] = LinearSample(
         m.fs.pond.evaporation_rate_salinity_adjustment_factor, 
-        0.65, 0.85, num_samples  # More conservative range
+        0.7, 0.8, num_samples  # Tighter range
     )
-    
-    # 3. Pond depth - affects heat storage and temperature dynamics
-    # Deeper ponds have more thermal mass but may have different evaporation characteristics
+    # 3. Pond depth (default 18 inches)
     sweep_params['pond depth (inches)'] = LinearSample(
         m.fs.pond.evaporation_pond_depth, 
-        16, 20, num_samples  # More conservative range around default of 18
+        17, 19, num_samples  # Tighter range
     )
-    
-    # 4. Solids precipitation rate parameters - affect maintenance costs
-    # These affect the rate at which solids precipitate, which impacts pond design
+    # 4. Solids precipitation a1 (default 4.12e-6)
     sweep_params['solids precipitation a1'] = LinearSample(
         m.fs.pond.solids_precipitation_rate_a1, 
-        3e-6, 5e-6, num_samples  # More conservative range around default of 4.12e-6
+        3.5e-6, 4.5e-6, num_samples  # Tighter range
     )
-    
+    # 5. Area correction factor base (default depends on dike height, e.g. 2.0512 for 8 ft)
+    sweep_params['area correction factor base'] = LinearSample(
+        m.fs.pond.area_correction_factor_base, 
+        2.0, 2.1, num_samples
+    )
+    # 6. Water activity param1 (default -0.00056678)
+    sweep_params['water activity param1'] = LinearSample(
+        m.fs.pond.water_activity_param1, 
+        -0.0006, -0.0005, num_samples
+    )
+    # 7. Shortwave albedo (default 0.05)
+    sweep_params['shortwave albedo'] = LinearSample(
+        m.fs.pond.shortwave_albedo, 
+        0.04, 0.06, num_samples
+    )
     return sweep_params
 
 # Outputs - only pond capital cost
