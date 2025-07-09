@@ -46,26 +46,26 @@ def build_sweep_params(m, num_samples=3, **kwargs):
         m.fs.pond.evaporation_pond_depth, 
         17, 19, num_samples  # Tighter range
     )
-    # 4. Solids precipitation a1 (default 4.12e-6)
-    sweep_params['solids precipitation a1'] = LinearSample(
-        m.fs.pond.solids_precipitation_rate_a1, 
-        3.5e-6, 4.5e-6, num_samples  # Tighter range
-    )
-    # 5. Area correction factor base (default depends on dike height, e.g. 2.0512 for 8 ft)
-    sweep_params['area correction factor base'] = LinearSample(
-        m.fs.pond.area_correction_factor_base, 
-        2.0, 2.1, num_samples
-    )
-    # 6. Water activity param1 (default -0.00056678)
-    sweep_params['water activity param1'] = LinearSample(
-        m.fs.pond.water_activity_param1, 
-        -0.0006, -0.0005, num_samples
-    )
-    # 7. Shortwave albedo (default 0.05)
-    sweep_params['shortwave albedo'] = LinearSample(
-        m.fs.pond.shortwave_albedo, 
-        0.04, 0.06, num_samples
-    )
+    # # 4. Solids precipitation a1 (default 4.12e-6)
+    # sweep_params['solids precipitation a1'] = LinearSample(
+    #     m.fs.pond.solids_precipitation_rate_a1, 
+    #     3.5e-6, 4.5e-6, num_samples  # Tighter range
+    # )
+    # # 5. Area correction factor base (default depends on dike height, e.g. 2.0512 for 8 ft)
+    # sweep_params['area correction factor base'] = LinearSample(
+    #     m.fs.pond.area_correction_factor_base, 
+    #     2.0, 2.1, num_samples
+    # )
+    # # 6. Water activity param1 (default -0.00056678)
+    # sweep_params['water activity param1'] = LinearSample(
+    #     m.fs.pond.water_activity_param1, 
+    #     -0.0006, -0.0005, num_samples
+    # )
+    # # 7. Shortwave albedo (default 0.05)
+    # sweep_params['shortwave albedo'] = LinearSample(
+    #     m.fs.pond.shortwave_albedo, 
+    #     0.04, 0.06, num_samples
+    # )
     return sweep_params
 
 # Outputs - only pond capital cost
