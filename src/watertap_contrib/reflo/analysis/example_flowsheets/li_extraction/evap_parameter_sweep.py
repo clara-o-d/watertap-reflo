@@ -4,7 +4,7 @@ import os
 
 
 # Build model
-def build_model(**kwargs):
+def build_model(**kwargs): # Should decide whether model initializes and/or builds before
     # Get the directory where this script is located
     this_dir = os.path.dirname(os.path.abspath(__file__))
     
@@ -17,8 +17,7 @@ def build_model(**kwargs):
     
     # Build the model with the weather data
     m = claras_evap_fs.build(weather_data_path)
-    claras_evap_fs.set_operating_conditions(m)
-    claras_evap_fs.initialize_system(m)
+    # They put initialization in build
     claras_evap_fs.solve(m)
     # Add and initialize costing
     claras_evap_fs.add_costing(m)
@@ -27,7 +26,7 @@ def build_model(**kwargs):
     return m
 
 # Parameters to sweep - tighter bounds and a few more parameters
-def build_sweep_params(m, num_samples=3, **kwargs):
+def build_sweep_params(m, num_samples=3, **kwargs): # Choose num_samples manually for each parameter
     sweep_params = dict()
     # 1. Evaporation rate enhancement factor (default ~1.08)
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.unfix()
@@ -46,11 +45,11 @@ def build_sweep_params(m, num_samples=3, **kwargs):
         m.fs.pond.evaporation_pond_depth, 
         17, 19, num_samples  # Tighter range
     )
-    # # 4. Solids precipitation a1 (default 4.12e-6)
-    # sweep_params['solids precipitation a1'] = LinearSample(
-    #     m.fs.pond.solids_precipitation_rate_a1, 
-    #     3.5e-6, 4.5e-6, num_samples  # Tighter range
-    # )
+    # 4. Solids precipitation a1 (default 4.12e-6)
+    sweep_params['solids precipitation a1'] = LinearSample(
+        m.fs.pond.solids_precipitation_rate_a1, 
+        3.5e-6, 4.5e-6, num_samples  # Tighter range
+    )
     # # 5. Area correction factor base (default depends on dike height, e.g. 2.0512 for 8 ft)
     # sweep_params['area correction factor base'] = LinearSample(
     #     m.fs.pond.area_correction_factor_base, 
@@ -72,6 +71,10 @@ def build_sweep_params(m, num_samples=3, **kwargs):
 def build_outputs(m, **kwargs):
     outputs = dict()
     outputs['pond capital cost (USD_2023)'] = m.fs.pond.costing.capital_cost
+    outputs['resultant evaporation enhancement factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
+    outputs['resultant salinity adjustment factor'] = m.fs.pond.evaporation_rate_salinity_adjustment_factor
+    outputs['resultant pond depth (inches)'] = m.fs.pond.evaporation_pond_depth
+    outputs['resultant solids precipitation a1'] = m.fs.pond.solids_precipitation_rate_a1
     return outputs
 
 # Perform sweep
