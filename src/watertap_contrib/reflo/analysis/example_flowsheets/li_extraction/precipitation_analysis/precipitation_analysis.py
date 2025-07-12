@@ -5,42 +5,22 @@ import re
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
-# Simple periodic table for molar mass lookup (g/mol)
-PERIODIC_TABLE = {
-    'H': 1.0079,
-    'O': 15.999,
-    'Na': 22.9898,
-    'Cl': 35.453,
-    'Mg': 24.305,
-    'S': 32.065,
-    'K': 39.0983,
-    'Ca': 40.078,
-    'B': 10.81,
-    'Li': 6.94,
-    'C': 12.011,
+MOLAR_MASS_LOOKUP = {
+    'NaCl_Halite': (22.990 + 35.453, 22.990 + 35.453),
+    'MgSO4.7H2O_Epsomite': (24.305 + 32.06 + 4*15.999, 24.305 + 32.06 + 4*15.999 + 7*18.015),
+    'MgSO4.1H2O_Kieserite': (24.305 + 32.06 + 4*15.999, 24.305 + 32.06 + 4*15.999 + 1*18.015),
+    'MgCl2.6H2O_Bischofite': (24.305 + 2*35.453, 24.305 + 2*35.453 + 6*18.015),
+    'MgB6O10.7.5H2O': (24.305 + 6*10.81 + 10*15.999, 24.305 + 6*10.81 + 10*15.999 + 7.5*18.015),
+    'Li2SO4.H2O': (2*6.94 + 32.06 + 4*15.999, 2*6.94 + 32.06 + 4*15.999 + 18.015),
+    'KCl.MgSO4.3H2O_Kainite': (39.098 + 35.45 + 24.305 + 32.06 + 4*15.999, 39.098 + 35.45 + 24.305 + 32.06 + 4*15.999 + 3*18.015),
+    'KCl.MgCl2.6H2O_Carnallite': (39.098 + 35.45 + 24.305 + 2*35.453, 39.098 + 35.45 + 24.305 + 2*35.453 + 6*18.015),
+    'KCl_sylvite': (39.098 + 35.45, 39.098 + 35.45),
+    'K2SO4.MgSO4.2CaSO4.2H2O_Polyhalite': (2*39.098 + 32.06 + 4*15.999 + 24.305 + 32.06 + 4*15.999 + 2*(40.078 + 32.06 + 4*15.999), 2*39.098 + 32.06 + 4*15.999 + 24.305 + 32.06 + 4*15.999 + 2*(40.078 + 32.06 + 4*15.999) + 2*18.015),
+    'K2SO4.CaSO4.1H2O_Syngenite': (2*39.098 + 32.06 + 4*15.999 + 40.078 + 32.06 + 4*15.999, 2*39.098 + 32.06 + 4*15.999 + 40.078 + 32.06 + 4*15.999 + 18.015),
+    'K2SO4.5CaSO4.H2O_Gorgeyite': (2*39.098 + 32.06 + 4*15.999 + 5*(40.078 + 32.06 + 4*15.999), 2*39.098 + 32.06 + 4*15.999 + 5*(40.078 + 32.06 + 4*15.999) + 18.015),
+    'CaSO4_Anhydrite': (40.078 + 32.06 + 4*15.999, 40.078 + 32.06 + 4*15.999),
+    'B_OH_3': (10.81 + 3*(15.999 + 1.008), 10.81 + 3*(15.999 + 1.008)),
 }
-
-def parse_formula(formula):
-    parts = re.split(r'[_.]', formula)
-    elements = {}
-    for part in parts:
-        matches = re.findall(r'([A-Z][a-z]*)([0-9\.]*)(?=[A-Z]|$)', part)
-        for elem, count in matches:
-            if count == '' or count == '.':
-                count = 1
-            else:
-                count = float(count)
-            elements[elem] = elements.get(elem, 0) + count
-    return elements
-
-def molar_mass(formula):
-    elements = parse_formula(formula)
-    mass = 0.0
-    for elem, count in elements.items():
-        if elem not in PERIODIC_TABLE:
-            raise ValueError(f"Element {elem} not in periodic table.")
-        mass += PERIODIC_TABLE[elem] * count
-    return mass
 
 def get_precipitation_vs_volume(solid_phase_dir):
     solid_files = [f for f in os.listdir(solid_phase_dir) if f.endswith('.csv') and f != 'Solid Phase Formed.csv']
@@ -58,23 +38,12 @@ def get_precipitation_vs_volume(solid_phase_dir):
     # Sum incremental dry salt mass for each step
     incremental_dry_salt_mass = np.zeros_like(master_vols)
     for fname in solid_files:
-        salt_formula = fname.replace('.csv', '')
-        salt_formula = re.sub(r'_[^_]*_$', '', salt_formula)
-        hydrate_match = re.search(r'(.*?)([0-9]*\.?[0-9]*)H2O', salt_formula)
-        if hydrate_match:
-            base_formula = hydrate_match.group(1).rstrip('.')
-            n_h2o = float(hydrate_match.group(2)) if hydrate_match.group(2) else 1.0
-            hydrate_formula = f"{base_formula}{n_h2o}H2O"
-            anhydrous_formula = base_formula
-        else:
-            anhydrous_formula = salt_formula
-            n_h2o = 0.0
-            hydrate_formula = salt_formula
-        try:
-            M_hydrate = molar_mass(hydrate_formula)
-        except Exception:
-            M_hydrate = molar_mass(salt_formula)
-        M_anhydrous = molar_mass(anhydrous_formula)
+        salt_key = fname.replace('.csv', '')
+        salt_key = salt_key.rstrip('_')  # Remove trailing underscores for matching
+        if salt_key not in MOLAR_MASS_LOOKUP:
+            raise ValueError(f"No molar mass entry for {salt_key}")
+        M_anhydrous, M_hydrate = MOLAR_MASS_LOOKUP[salt_key]
+        print(f"{salt_key}: M_anhydrous={M_anhydrous}, M_hydrate={M_hydrate}")
         with open(os.path.join(solid_phase_dir, fname), 'r') as f:
             reader = csv.reader(f)
             rows = [row for row in reader if len(row) >= 2]
@@ -82,15 +51,15 @@ def get_precipitation_vs_volume(solid_phase_dir):
             mass_mt = np.array([float(row[1]) for row in rows])
             mass_kg = mass_mt * 1000
             dry_mass_kg = mass_kg * (M_anhydrous / M_hydrate)
-            interp_func = interp1d(vols, dry_mass_kg, kind='linear', bounds_error=False, fill_value=0.0)
-            dry_mass_on_master = interp_func(master_vols)
-            incremental_dry_salt_mass += dry_mass_on_master
-    # Compute cumulative sum as volume decreases
+            for i, vol in enumerate(vols):
+                closest_idx = np.argmin(np.abs(master_vols - vol))
+                incremental_dry_salt_mass[closest_idx] += dry_mass_kg[i]
+    # Ensure volumes are sorted in decreasing order for cumulative calculation
     if master_vols[0] < master_vols[-1]:
-        cumulative_dry_salt_mass = np.cumsum(incremental_dry_salt_mass[::-1])[::-1]
-    else:
-        cumulative_dry_salt_mass = np.cumsum(incremental_dry_salt_mass)
-    return master_vols, cumulative_dry_salt_mass
+        master_vols = master_vols[::-1]
+        incremental_dry_salt_mass = incremental_dry_salt_mass[::-1]
+    cumulative_dry_salt_mass = np.cumsum(incremental_dry_salt_mass)
+    return master_vols, cumulative_dry_salt_mass, incremental_dry_salt_mass
 
 def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
     initial_concentrations_g_per_kg = {
@@ -104,7 +73,7 @@ def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
         'B_OH_3_': 3.5,   
         'HCO3_-1_': 0.22,
     }
-    brine_density = 1200  # kg/m^3
+    brine_density = 1300  # kg/m^3
     initial_volume = 1000
     initial_masses = {}
     for ion, conc_g_per_kg in initial_concentrations_g_per_kg.items():
@@ -117,7 +86,7 @@ def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
 if __name__ == "__main__":
     folder = os.path.dirname(__file__)
     solid_phase_dir = os.path.join(folder, 'solid_phase_data')
-    master_vols, cumulative_dry_salt_mass = get_precipitation_vs_volume(solid_phase_dir)
+    master_vols, cumulative_dry_salt_mass, incremental_dry_salt_mass = get_precipitation_vs_volume(solid_phase_dir)
     master_vols, TDS = get_tds_vs_volume(master_vols, cumulative_dry_salt_mass)
 
     # Diagnostics for mass balance
@@ -131,8 +100,21 @@ if __name__ == "__main__":
     if np.any(cumulative_dry_salt_mass > initial_total_mass_kg):
         print("WARNING: Cumulative dry salt mass exceeds initial total dissolved mass! This will cause negative TDS.")
 
+    # For TDS, use the left volume's TDS for each interval
+    TDS_mid = TDS[:-1]
+    precip_kg = incremental_dry_salt_mass[1:]
+
+    # Fit quadratic: precip_kg = a1 * TDS^2 + a2 * TDS + intercept
+    fit_mask = (TDS_mid > 0) & (precip_kg > 0)
+    TDS_fit = TDS_mid[fit_mask]
+    precip_fit = precip_kg[fit_mask]
+    coeffs = np.polyfit(TDS_fit, precip_fit, 2)
+    a1, a2, intercept = coeffs
+    fit_curve = a1 * TDS_fit**2 + a2 * TDS_fit + intercept
+
     # Plotting
-    fig, ax1 = plt.subplots(figsize=(7, 5))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    # (1) TDS vs water volume
     ax1.plot(master_vols, TDS, 'm-', linewidth=2, label='TDS (from dry salts)')
     ax1.set_xlabel('Water Volume (m³)')
     ax1.set_ylabel('Total Dissolved Solids (g/L)')
@@ -140,5 +122,23 @@ if __name__ == "__main__":
     ax1.grid(True, alpha=0.3)
     ax1.legend()
     ax1.set_xlim(1000, 0)
+    # (2) Incremental precipitation (kg) vs water volume
+    ax2.plot(master_vols[1:], precip_kg, 'b-', linewidth=2, label='Incremental Precipitation (kg)')
+    ax2.set_xlabel('Water Volume (m³)')
+    ax2.set_ylabel('Incremental Precipitation (kg)')
+    ax2.set_title('Incremental Precipitation vs Water Volume')
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
+    ax2.set_xlim(1000, 0)
+    # (3) Incremental precipitation (kg) vs TDS (with fit)
+    ax3.plot(TDS_mid, precip_kg, 'go', markersize=3, label='Incremental Precipitation (kg)')
+    ax3.plot(TDS_fit, fit_curve, 'k-', linewidth=2, label=f'Fit: {a1:.2e}*C² + {a2:.2e}*C + {intercept:.2e}')
+    ax3.set_xlabel('TDS (g/L)')
+    ax3.set_ylabel('Incremental Precipitation (kg)')
+    ax3.set_title('Incremental Precipitation vs TDS')
+    ax3.grid(True, alpha=0.3)
+    ax3.legend()
     plt.tight_layout()
     plt.show()
+
+    print(f"Quadratic fit: precipitation [kg] = {a1:.4e} * TDS^2 + {a2:.4e} * TDS + {intercept:.4e}")
