@@ -73,7 +73,7 @@ def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
         'B_OH_3_': 3.5,   
         'HCO3_-1_': 0.22,
     }
-    brine_density = 1300  # kg/m^3
+    brine_density = 1397  # kg/m^3
     initial_volume = 1000
     initial_masses = {}
     for ion, conc_g_per_kg in initial_concentrations_g_per_kg.items():
