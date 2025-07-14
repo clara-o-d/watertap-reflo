@@ -73,7 +73,7 @@ def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
         'B_OH_3_': 3.5,   
         'HCO3_-1_': 0.22,
     }
-    brine_density = 1397  # kg/m^3
+    brine_density = 1300  # kg/m^3
     initial_volume = 1000
     initial_masses = {}
     for ion, conc_g_per_kg in initial_concentrations_g_per_kg.items():
@@ -103,6 +103,8 @@ if __name__ == "__main__":
     # For TDS, use the left volume's TDS for each interval
     TDS_mid = TDS[:-1]
     precip_kg = incremental_dry_salt_mass[1:]
+    vols_mid = master_vols[1:]  # Corresponding volumes for precipitation data
+    cumulative_precip_kg = cumulative_dry_salt_mass[1:]  # Cumulative precipitation data
 
     # Fit quadratic: precip_kg = a1 * TDS^2 + a2 * TDS + intercept
     fit_mask = (TDS_mid > 0) & (precip_kg > 0)
@@ -112,8 +114,28 @@ if __name__ == "__main__":
     a1, a2, intercept = coeffs
     fit_curve = a1 * TDS_fit**2 + a2 * TDS_fit + intercept
 
+    # Fit cumulative precipitation vs water volume
+    # Linear fit
+    vol_fit_mask = (vols_mid > 0) & (cumulative_precip_kg > 0)
+    vol_fit = vols_mid[vol_fit_mask]
+    cumulative_precip_vol_fit = cumulative_precip_kg[vol_fit_mask]
+    
+    # Linear fit: cumulative_precip = a * volume + b
+    linear_coeffs = np.polyfit(vol_fit, cumulative_precip_vol_fit, 1)
+    slope, intercept = linear_coeffs
+    vol_linear_curve = slope * vol_fit + intercept
+    
+    # Calculate R-squared for linear fit
+    def r_squared(y_true, y_pred):
+        ss_res = np.sum((y_true - y_pred) ** 2)
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+        return 1 - (ss_res / ss_tot)
+    
+    r2_linear = r_squared(cumulative_precip_vol_fit, vol_linear_curve)
+
     # Plotting
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+    
     # (1) TDS vs water volume
     ax1.plot(master_vols, TDS, 'm-', linewidth=2, label='TDS (from dry salts)')
     ax1.set_xlabel('Water Volume (m³)')
@@ -122,6 +144,7 @@ if __name__ == "__main__":
     ax1.grid(True, alpha=0.3)
     ax1.legend()
     ax1.set_xlim(1000, 0)
+    
     # (2) Incremental precipitation (kg) vs water volume
     ax2.plot(master_vols[1:], precip_kg, 'b-', linewidth=2, label='Incremental Precipitation (kg)')
     ax2.set_xlabel('Water Volume (m³)')
@@ -130,6 +153,7 @@ if __name__ == "__main__":
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     ax2.set_xlim(1000, 0)
+    
     # (3) Incremental precipitation (kg) vs TDS (with fit)
     ax3.plot(TDS_mid, precip_kg, 'go', markersize=3, label='Incremental Precipitation (kg)')
     ax3.plot(TDS_fit, fit_curve, 'k-', linewidth=2, label=f'Fit: {a1:.2e}*C² + {a2:.2e}*C + {intercept:.2e}')
@@ -138,7 +162,20 @@ if __name__ == "__main__":
     ax3.set_title('Incremental Precipitation vs TDS')
     ax3.grid(True, alpha=0.3)
     ax3.legend()
+    
+    # (4) Cumulative precipitation (kg) vs water volume (with fits)
+    ax4.plot(vols_mid, cumulative_precip_kg, 'ro', markersize=3, label='Cumulative Precipitation (kg)')
+    ax4.plot(vol_fit, vol_linear_curve, 'b-', linewidth=2, 
+             label=f'Linear: {slope:.2e}*V + {intercept:.2e}\nR² = {r2_linear:.4f}')
+    ax4.set_xlabel('Water Volume (m³)')
+    ax4.set_ylabel('Cumulative Precipitation (kg)')
+    ax4.set_title('Cumulative Precipitation vs Water Volume (with fits)')
+    ax4.grid(True, alpha=0.3)
+    ax4.legend()
+    ax4.set_xlim(1000, 0)
+    
     plt.tight_layout()
     plt.show()
 
-    print(f"Quadratic fit: precipitation [kg] = {a1:.4e} * TDS^2 + {a2:.4e} * TDS + {intercept:.4e}")
+    print(f"Quadratic fit (TDS): precipitation [kg] = {a1:.4e} * TDS^2 + {a2:.4e} * TDS + {intercept:.4e}")
+    print(f"Linear fit (Volume): cumulative precipitation [kg] = {slope:.4e} * V + {intercept:.4e} (R² = {r2_linear:.4f})")

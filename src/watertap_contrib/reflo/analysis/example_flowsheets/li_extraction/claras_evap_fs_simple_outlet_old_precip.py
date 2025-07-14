@@ -232,43 +232,6 @@ def set_operating_conditions(m):
     m.fs.water_outflow = pyo.Expression(
         expr=prop_in.flow_mass_phase_comp["Liq", "H2O"] * (1 - m.fs.fraction_evaporated)
     )
-    # Overwrite mass_flow_precipitate with annual_solid_precipitate
-    # precipitate concentration [kg/m³] = a * (V_remaining/V_original) + b [kg/m³]
-    m.fs.pond.annual_solid_precipitate_a = pyo.Param(
-        initialize=-3.1473e-01, mutable=True, doc="Linear fit coefficient a [kg/m³]",
-        units=pyunits.kg/pyunits.m**3
-    )
-    m.fs.pond.annual_solid_precipitate_b = pyo.Param(
-        initialize=3.5704e-01, mutable=True, doc="Linear fit intercept b [kg/m³]",
-        units=pyunits.kg/pyunits.m**3
-    )
-
-    # Remaining water fraction (1 - evaporation ratio)
-    remaining_ratio = 1 - m.fs.fraction_evaporated
-    
-    # precipitate concentration = a * (remaining_water_ratio) + b
-    precipitate_concentration = m.fs.pond.annual_solid_precipitate_a * remaining_ratio + m.fs.pond.annual_solid_precipitate_b  # kg/m³
-    
-    # Convert precipitate concentration to annual mass flow rate
-    original_water_volume = prop_in.flow_mass_phase_comp["Liq", "H2O"] / rho  # m³/s
-    annual_mass_flow_precipitate = pyunits.convert(
-        precipitate_concentration * original_water_volume, 
-        to_units=pyunits.kg/pyunits.year
-    )
-    
-    # Debug: Print intermediate values
-    print(f"DEBUG: remaining_ratio = {value(remaining_ratio):.3f}")
-    print(f"DEBUG: precipitate_concentration = {value(precipitate_concentration):.2f} kg/m³")
-    print(f"DEBUG: original_water_volume = {value(original_water_volume):.3f} m³/s")
-    print(f"DEBUG: annual_mass_flow_precipitate = {value(annual_mass_flow_precipitate):.0f} kg/year")
-    
-    # Remove the original mass_flow_precipitate Expression and replace it with the new one
-    if hasattr(m.fs.pond, 'mass_flow_precipitate'):
-        m.fs.pond.del_component('mass_flow_precipitate')
-    m.fs.pond.mass_flow_precipitate = pyo.Expression(
-        expr=annual_mass_flow_precipitate,
-        doc="Annual mass flow of precipitate (kg/year) from precipitate concentration per original water volume"
-    )
     
     # Calculate TDS in outflow (accounting for precipitation)
     m.fs.tds_precipitated = pyo.Expression(
@@ -343,6 +306,8 @@ def set_operating_conditions(m):
             b.total_evaporative_area_required * b.mass_flux_water_vapor_average
             == m.fs.water_evaporated
         )
+
+    
 
 def initialize_system(m):
     try:
@@ -529,17 +494,13 @@ def plot_precipitation_functions(m):
     dens_solids = value(m.fs.pond.dens_solids)  # g/cm³
     area_acre = value(m.fs.pond.total_pond_area_acre)
     
-    # Get new precipitate concentration coefficients
-    concentration_a = value(m.fs.pond.annual_solid_precipitate_a)
-    concentration_b = value(m.fs.pond.annual_solid_precipitate_b)
-    
     # TDS range (g/L)
     tds_range = np.linspace(0, 500, 200)  # 0 to 500 g/L
     
-    # Calculate precipitation rate (ft/yr) - original function
+    # Calculate precipitation rate (ft/yr)
     precip_rate = a1 * tds_range**2 + a2 * tds_range + intercept
     
-    # Calculate mass flow (kg/yr) - original function
+    # Calculate mass flow (kg/yr)
     # dens_solids: g/cm³ -> kg/m³ (1 g/cm³ = 1000 kg/m³)
     dens_solids_kg_m3 = dens_solids * 1000
     # 1 acre = 4046.86 m², 1 ft = 0.3048 m
@@ -547,25 +508,14 @@ def plot_precipitation_functions(m):
     precip_rate_m = precip_rate * 0.3048  # ft/yr to m/yr
     mass_flow_kg_yr = area_m2 * precip_rate_m * dens_solids_kg_m3  # kg/yr
     
-    # Calculate new precipitate concentration (kg/m³) - new function
-    # Evaporation ratio range (dimensionless)
-    remaining_ratio_range = np.linspace(0, 1, 200)  # 0 to 1 (0% to 100% evaporation)
-    precipitate_concentration = concentration_a * remaining_ratio_range + concentration_b  # kg/m³
-    
-    # Convert precipitate concentration to annual mass flow rate
-    # Use the same original water volume as in the model
-    original_water_volume_m3_s = value(m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O']) / 1227  # m³/s
-    annual_mass_flow_precipitate = precipitate_concentration * original_water_volume_m3_s * 3600 * 24 * 365  # kg/year
-    
-    # Get current model values for comparison
+    # Get current model values
     current_tds_conc = value(m.fs.pond.properties_in[0].conc_mass_phase_comp['Liq', 'TDS']) / 1000  # Convert kg/m³ to g/L
-    current_evap_ratio = value(m.fs.water_evaporated / m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O'])
-    original_mass_flow = value(m.fs.pond.mass_flow_precipitate)  # This is the new custom calculation
+    original_mass_flow = value(m.fs.pond.mass_flow_precipitate)  # This is the original calculation
     
     # Plot precipitation rate vs TDS
-    plt.figure(figsize=(15, 8))
+    plt.figure(figsize=(15, 10))
     
-    plt.subplot(2, 3, 1)
+    plt.subplot(2, 2, 1)
     plt.plot(tds_range, precip_rate)
     plt.axvline(x=current_tds_conc, color='red', linestyle='--', label=f'Current TDS: {current_tds_conc:.1f} g/L')
     plt.xlabel("TDS concentration (g/L)")
@@ -574,55 +524,31 @@ def plot_precipitation_functions(m):
     plt.legend()
     plt.grid(True)
     
-    # Plot mass flow vs TDS - original function
-    plt.subplot(2, 3, 2)
+    # Plot mass flow vs TDS
+    plt.subplot(2, 2, 2)
     plt.plot(tds_range, mass_flow_kg_yr)
     plt.axvline(x=current_tds_conc, color='red', linestyle='--', label=f'Current TDS: {current_tds_conc:.1f} g/L')
-    plt.axhline(y=original_mass_flow, color='green', linestyle=':', label=f'New calc: {original_mass_flow:.0f} kg/yr')
+    plt.axhline(y=original_mass_flow, color='blue', linestyle=':', label=f'Original calc: {original_mass_flow:.0f} kg/yr')
     plt.xlabel("TDS concentration (g/L)")
     plt.ylabel("Mass flow of precipitate (kg/yr)")
     plt.title("Original: Mass Flow Precipitate vs TDS")
     plt.legend()
     plt.grid(True)
     
-    # Plot new precipitate concentration vs remaining water ratio
-    plt.subplot(2, 3, 3)
-    plt.plot(remaining_ratio_range * 100, precipitate_concentration)  # Convert to percentage
-    current_remaining_ratio = 1 - current_evap_ratio
-    plt.axvline(x=current_remaining_ratio * 100, color='red', linestyle='--', label=f'Current remaining: {current_remaining_ratio*100:.1f}%')
-    plt.xlabel("Remaining water ratio (%)")
-    plt.ylabel("Precipitate concentration (kg/m³)")
-    plt.title("New: Precipitate Concentration vs Remaining Water Ratio")
-    plt.legend()
-    plt.grid(True)
+    # Current value analysis
+    plt.subplot(2, 2, 3)
+    # Calculate what the original would be at current TDS
+    current_precip_rate = a1 * current_tds_conc**2 + a2 * current_tds_conc + intercept
+    current_precip_rate_m = current_precip_rate * 0.3048  # ft/yr to m/yr
+    calculated_mass_flow = area_m2 * current_precip_rate_m * dens_solids_kg_m3  # kg/yr
     
-    # Plot new annual mass flow vs remaining water ratio
-    plt.subplot(2, 3, 4)
-    plt.plot(remaining_ratio_range * 100, annual_mass_flow_precipitate)  # Convert to percentage
-    current_remaining_ratio = 1 - current_evap_ratio
-    plt.axvline(x=current_remaining_ratio * 100, color='red', linestyle='--', label=f'Current remaining: {current_remaining_ratio*100:.1f}%')
-    plt.axhline(y=original_mass_flow, color='green', linestyle=':', label=f'New calc: {original_mass_flow:.0f} kg/yr')
-    plt.xlabel("Remaining water ratio (%)")
-    plt.ylabel("Annual mass flow precipitate (kg/year)")
-    plt.title("New: Annual Mass Flow vs Remaining Water Ratio")
-    plt.legend()
-    plt.grid(True)
-    
-    # Comparison plot: Original vs New mass flow
-    plt.subplot(2, 3, 5)
-    # Get the original pond's mass_flow_precipitate before we overwrote it
-    # We need to calculate what the original would have been
-    original_precip_rate = a1 * current_tds_conc**2 + a2 * current_tds_conc + intercept
-    original_precip_rate_m = original_precip_rate * 0.3048  # ft/yr to m/yr
-    original_mass_flow_calc = area_m2 * original_precip_rate_m * dens_solids_kg_m3  # kg/yr
-    
-    comparison_data = ['Original\nCalculation', 'New\nCalculation']
-    comparison_values = [original_mass_flow_calc, original_mass_flow]
+    comparison_data = ['Model\nValue', 'Calculated\nValue']
+    comparison_values = [original_mass_flow, calculated_mass_flow]
     colors = ['blue', 'green']
     
     bars = plt.bar(comparison_data, comparison_values, color=colors, alpha=0.7)
     plt.ylabel("Mass flow precipitate (kg/year)")
-    plt.title("Comparison: Original vs New Mass Flow")
+    plt.title("Original Model: Model vs Calculated Mass Flow")
     plt.grid(True, axis='y')
     
     # Add value labels on bars
@@ -631,41 +557,46 @@ def plot_precipitation_functions(m):
                 f'{value:.0f}', ha='center', va='bottom', fontweight='bold')
     
     # Summary table
-    plt.subplot(2, 3, 6)
+    plt.subplot(2, 2, 4)
     plt.axis('off')
     
     # Create summary text
     summary_text = f"""
-MASS FLOW PRECIPITATE COMPARISON
+ORIGINAL MASS FLOW PRECIPITATE ANALYSIS
 
 Current Conditions:
 • TDS concentration: {current_tds_conc:.1f} g/L
-• Evaporation ratio: {current_evap_ratio*100:.1f}%
-• Remaining water ratio: {(1-current_evap_ratio)*100:.1f}%
-• Original water volume: {original_water_volume_m3_s:.3f} m³/s
+• Total pond area: {area_acre:.1f} acres
+• Solids density: {dens_solids:.2f} g/cm³
+
+Original Function Parameters:
+• a1: {a1:.2e} ft/yr/(g/L)²
+• a2: {a2:.2e} ft/yr/(g/L)
+• intercept: {intercept:.2e} ft/yr
 
 Results:
-• Original calculation: {original_mass_flow_calc:.0f} kg/year
-• New calculation: {original_mass_flow:.0f} kg/year
-• Difference: {original_mass_flow - original_mass_flow_calc:.0f} kg/year
-• Ratio (New/Original): {original_mass_flow/original_mass_flow_calc:.2f}x
+• Precipitation rate: {current_precip_rate:.4f} ft/yr
+• Model mass_flow_precipitate: {original_mass_flow:.0f} kg/year
+• Calculated mass flow: {calculated_mass_flow:.0f} kg/year
+• Difference: {original_mass_flow - calculated_mass_flow:.0f} kg/year
+• Ratio (Model/Calc): {original_mass_flow/calculated_mass_flow:.2f}x
 
-New Function Parameters:
-• concentration_a: {concentration_a:.3e} kg/m³
-• concentration_b: {concentration_b:.3e} kg/m³
-• Precipitate concentration: {concentration_a * (1-current_evap_ratio) + concentration_b:.3f} kg/m³
+Area Calculations:
+• Area in m²: {area_m2:.0f} m²
+• Precipitation rate in m/yr: {current_precip_rate_m:.4f} m/yr
+• Solids density in kg/m³: {dens_solids_kg_m3:.0f} kg/m³
 """
     
     plt.text(0.05, 0.95, summary_text, transform=plt.gca().transAxes, 
-             fontsize=10, verticalalignment='top', fontfamily='monospace',
-             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
+             fontsize=9, verticalalignment='top', fontfamily='monospace',
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8))
     
     plt.tight_layout()
     plt.show()
     
     # Print comparison information
     print("\n" + "="*80)
-    print("PRECIPITATION FUNCTION COMPARISON")
+    print("ORIGINAL PRECIPITATION FUNCTION ANALYSIS")
     print("="*80)
     print(f"Original function coefficients:")
     print(f"  a1 = {a1:.2e} ft/yr/(g/L)²")
@@ -674,19 +605,13 @@ New Function Parameters:
     print(f"  dens_solids = {dens_solids:.2f} g/cm³")
     print(f"  area_acre = {area_acre:.1f} acres")
     print()
-    print(f"New precipitate concentration function coefficients:")
-    print(f"  concentration_a = {concentration_a:.2e} kg/m³")
-    print(f"  concentration_b = {concentration_b:.2e} kg/m³")
-    print()
     print(f"Current model values:")
     print(f"  TDS concentration = {current_tds_conc:.1f} g/L")
-    print(f"  Evaporation ratio = {current_evap_ratio:.3f}")
-    print(f"  Remaining water ratio = {1-current_evap_ratio:.3f}")
-    print(f"  Original water volume = {original_water_volume_m3_s:.3f} m³/s")
-    print(f"  Original mass_flow_precipitate = {original_mass_flow_calc:.0f} kg/year")
-    print(f"  New mass_flow_precipitate = {original_mass_flow:.0f} kg/year")
-    print(f"  Difference = {original_mass_flow - original_mass_flow_calc:.0f} kg/year")
-    print(f"  Ratio (New/Original) = {original_mass_flow/original_mass_flow_calc:.2f}x")
+    print(f"  Precipitation rate = {current_precip_rate:.4f} ft/yr")
+    print(f"  Model mass_flow_precipitate = {original_mass_flow:.0f} kg/year")
+    print(f"  Calculated mass flow = {calculated_mass_flow:.0f} kg/year")
+    print(f"  Difference = {original_mass_flow - calculated_mass_flow:.0f} kg/year")
+    print(f"  Ratio (Model/Calc) = {original_mass_flow/calculated_mass_flow:.2f}x")
     print("="*80)
 
 
