@@ -1,5 +1,5 @@
 from parameter_sweep import parameter_sweep, LinearSample
-import claras_evap_fs as claras_evap_fs
+import claras_evap_fs_simple_outlet as claras_evap_fs
 import os
 
 
@@ -26,29 +26,29 @@ def build_model(**kwargs): # Should decide whether model initializes and/or buil
     return m
 
 # Parameters to sweep - tighter bounds and a few more parameters
-def build_sweep_params(m, num_samples=3, **kwargs): # Choose num_samples manually for each parameter
+def build_sweep_params(m, **kwargs): # Choose num_samples manually for each parameter
     sweep_params = dict()
     # 1. Evaporation rate enhancement factor (default ~1.08)
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.unfix()
     sweep_params['evaporation enhancement factor'] = LinearSample(
         m.fs.pond.evaporation_rate_enhancement_adjustment_factor, 
-        1.0, 1.15, num_samples  # Tighter range
+        1.08, 1.15, 2  # Tighter range
     )
     # 2. Salinity adjustment factor (default ~0.75)
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
     sweep_params['salinity adjustment factor'] = LinearSample(
         m.fs.pond.evaporation_rate_salinity_adjustment_factor, 
-        0.7, 0.8, num_samples  # Tighter range
+        0.72, 0.78, 3  # Tighter range
     )
     # 3. Pond depth (default 18 inches)
     sweep_params['pond depth (inches)'] = LinearSample(
         m.fs.pond.evaporation_pond_depth, 
-        17, 19, num_samples  # Tighter range
+        17, 19, 2  # Tighter range
     )
     # 4. Solids precipitation a1 (default 4.12e-6)
     sweep_params['solids precipitation a1'] = LinearSample(
         m.fs.pond.solids_precipitation_rate_a1, 
-        3.5e-6, 4.5e-6, num_samples  # Tighter range
+        3.5e-6, 4.5e-6, 3  # Tighter range
     )
     # # 5. Area correction factor base (default depends on dike height, e.g. 2.0512 for 8 ft)
     # sweep_params['area correction factor base'] = LinearSample(
@@ -61,16 +61,16 @@ def build_sweep_params(m, num_samples=3, **kwargs): # Choose num_samples manuall
     #     -0.0006, -0.0005, num_samples
     # )
     # # 7. Shortwave albedo (default 0.05)
-    # sweep_params['shortwave albedo'] = LinearSample(
-    #     m.fs.pond.shortwave_albedo, 
-    #     0.04, 0.06, num_samples
-    # )
+    sweep_params['shortwave albedo'] = LinearSample(
+        m.fs.pond.shortwave_albedo, 
+        0.04, 0.06, 2
+    )
     return sweep_params
 
 # Outputs - only pond capital cost
 def build_outputs(m, **kwargs):
     outputs = dict()
-    outputs['pond capital cost (USD_2023)'] = m.fs.pond.costing.capital_cost
+    outputs['levelized cost of lithium (USD_2023/m^3)'] = m.fs.costing.LCOLi
     outputs['resultant evaporation enhancement factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
     outputs['resultant salinity adjustment factor'] = m.fs.pond.evaporation_rate_salinity_adjustment_factor
     outputs['resultant pond depth (inches)'] = m.fs.pond.evaporation_pond_depth

@@ -228,10 +228,17 @@ def set_operating_conditions(m):
     
     # Calculate TDS in outflow (accounting for precipitation)
     m.fs.tds_precipitated = pyo.Expression(
-        expr=m.fs.pond.mass_flow_precipitate / (365 * 24 * 3600)  # kg/s
+        expr=pyunits.convert(m.fs.pond.mass_flow_precipitate, to_units=pyunits.kg/pyunits.s)
     )
     m.fs.tds_outflow = pyo.Expression(
         expr=prop_in.flow_mass_phase_comp["Liq", "TDS"] - m.fs.tds_precipitated
+    )
+    # Add Li+ precipitation and outflow expressions for LCOLi
+    m.fs.li_precipitated = pyo.Expression(
+        expr=m.fs.tds_precipitated * (prop_in.flow_mass_phase_comp["Liq", "Li+"] / prop_in.flow_mass_phase_comp["Liq", "TDS"]) * 0.01 if value(prop_in.flow_mass_phase_comp["Liq", "TDS"]) > 0 else 0
+    )
+    m.fs.li_outflow = pyo.Expression(
+        expr=prop_in.flow_mass_phase_comp["Liq", "Li+"] - m.fs.li_precipitated
     )
     
     # Handle TDS concentration calculation for zero outflow case
@@ -428,7 +435,20 @@ def initialize_costing(m):
 
 
 def process_costing(m):
-    pass
+    # Use add_LCOW to get LCOLi in $/m³ Li outflow, then convert to $/kg
+    density_concentrated_brine = 1323 * pyunits.kg / pyunits.m**3  # Li handbook pg 110
+    vol_flow_li = m.fs.li_outflow / density_concentrated_brine  # m³/s
+    m.fs.costing.add_LCOW(vol_flow_li, name="LCOLi")
+    # # Add variable and constraint for $/kg
+    # m.fs.costing.LCOLi_mass = pyo.Var(
+    #     initialize=1,
+    #     units=m.fs.costing.base_currency / pyunits.kg,
+    #     bounds=(0, None),
+    #     doc="Levelized cost of lithium by mass ($/kg)"
+    # )
+    # m.fs.costing.LCOLi_mass_constraint = pyo.Constraint(
+    #     expr=m.fs.costing.LCOLi_mass == m.fs.costing.LCOLi * density_concentrated_brine
+    # )
 
 
 def display_costing_results(m):
@@ -444,6 +464,11 @@ def display_costing_results(m):
             print(f"Total capital cost: ${value(m.fs.costing.total_capital_cost):,.0f}")
         if hasattr(m.fs.costing, 'total_operating_cost'):
             print(f"Total operating cost: ${value(m.fs.costing.total_operating_cost):,.0f}/year")
+        if hasattr(m.fs.costing, 'LCOLi'):
+            lcoli_vol = value(m.fs.costing.LCOLi)
+            # lcoli_mass = value(m.fs.costing.LCOLi_mass)
+            print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_vol:.2f} per m³ Li")
+            # print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_mass:.2f} per kg Li")
     except Exception as e:
         print(f"Error displaying costing results: {e}")
     print("="*50)

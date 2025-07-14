@@ -9,22 +9,28 @@ def load_and_process_data(filename):
     df = pd.read_csv(filename)
     df.columns = df.columns.str.strip()
     
+    # Remove leading '# ' from the first column name and its values
+    first_col = df.columns[0]
+    if isinstance(first_col, str) and first_col.startswith('# '):
+        new_col = first_col.lstrip('# ').strip()
+        df = df.rename(columns={first_col: new_col})
+        # Also strip leading '# ' from the values in this column if they are strings
+        if df[new_col].dtype == object:
+            df[new_col] = df[new_col].str.lstrip('# ').str.strip()
+    
     # Print available columns for debugging
     print(f"Available columns: {list(df.columns)}")
     
     return df
 
-def oat_sensitivity(df, target_col='pond capital cost (USD_2023)'):
+def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)'):
     """
     One-at-a-time sensitivity analysis that handles nan values
-    
-    Args:
-        df: DataFrame with parameter sweep results
-        target_col: Column name for the target variable to analyze
+    Excludes 'resultant' variables from sensitivity analysis.
     """
-    # Get parameter columns (exclude output columns)
+    # Get parameter columns (exclude output columns and 'resultant' variables)
     output_cols = [target_col]
-    param_cols = [col for col in df.columns if col not in output_cols]
+    param_cols = [col for col in df.columns if col not in output_cols and not col.startswith('resultant ')]
     
     print(f"Analyzing sensitivity of '{target_col}' to {len(param_cols)} parameters:")
     for col in param_cols:
@@ -92,11 +98,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
     
     # Sort by the largest absolute effect (either direction)
-    sensitivity_df = sensitivity_df.sort_values(
-        by=['pct_per_pct_increase', 'pct_per_pct_decrease'],
-        key=lambda x: np.abs(x),
-        ascending=True
-    )
+    sensitivity_df['max_abs_sensitivity'] = sensitivity_df[['pct_per_pct_increase', 'pct_per_pct_decrease']].abs().max(axis=1)
+    sensitivity_df = sensitivity_df.sort_values(by='max_abs_sensitivity', ascending=True)
     
     fig, ax = plt.subplots(figsize=(12, 8))
     y_pos = np.arange(len(sensitivity_df))
@@ -131,7 +134,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
     plt.tight_layout()
     return fig, ax
 
-def create_data_summary_plot(df, target_col='pond capital cost (USD_2023)'):
+def create_data_summary_plot(df, target_col='levelized cost of lithium (USD_2023/m^3)'):
     """Create a summary plot showing data availability and basic statistics"""
     param_cols = [col for col in df.columns if col != target_col]
     
@@ -175,7 +178,7 @@ def create_data_summary_plot(df, target_col='pond capital cost (USD_2023)'):
     return fig, (ax1, ax2)
 
 def main():
-    target_col = 'pond capital cost (USD_2023)'
+    target_col = 'levelized cost of lithium (USD_2023/m^3)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
     
@@ -194,6 +197,22 @@ def main():
         print("Error: No parameter sweep results found. Please run the parameter sweep first.")
         print("Expected files: pond_sensitivity.csv or test_pond_sensitivity.csv")
         return
+
+    # Confirm input/output match for each parameter
+    input_vars = [
+        'evaporation enhancement factor',
+        'salinity adjustment factor',
+        'pond depth (inches)',
+        'solids precipitation a1'
+    ]
+    for var in input_vars:
+        resultant_var = f"resultant {var}"
+        if resultant_var in df.columns and var in df.columns:
+            mismatch = (df[var] != df[resultant_var]) & ~(df[var].isna() | df[resultant_var].isna())
+            if mismatch.any():
+                print(f"WARNING: Mismatch found between '{var}' and '{resultant_var}' in {mismatch.sum()} rows.")
+            else:
+                print(f"OK: '{var}' matches '{resultant_var}' for all valid rows.")
     
     # Check data quality
     total_points = len(df)
@@ -226,13 +245,13 @@ def main():
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
                                     title=f"Evaporation Pond Sensitivity Analysis: {target_col}")
         if fig is not None:
-            plt.savefig('tornado_plot_pond_capital_cost.png', dpi=300, bbox_inches='tight')
-            print("Tornado plot saved as 'tornado_plot_pond_capital_cost.png'")
+            plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
+            print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")
             plt.show()
         
         # Save sensitivity data with additional info
-        sensitivity_df.to_csv('sensitivity_analysis_pond_capital_cost.csv', index=False)
-        print("Sensitivity analysis results saved to 'sensitivity_analysis_pond_capital_cost.csv'")
+        sensitivity_df.to_csv('sensitivity_analysis_pond_lcoli.csv', index=False)
+        print("Sensitivity analysis results saved to 'sensitivity_analysis_pond_lcoli.csv'")
         
         # Print summary of findings
         print(f"\nSensitivity Analysis Summary:")
