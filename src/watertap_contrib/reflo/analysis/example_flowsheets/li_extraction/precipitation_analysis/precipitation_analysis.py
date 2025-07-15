@@ -169,7 +169,7 @@ if __name__ == "__main__":
              label=f'Linear: {slope:.2e}*V + {intercept:.2e}\nR² = {r2_linear:.4f}')
     ax4.set_xlabel('Water Volume (m³)')
     ax4.set_ylabel('Cumulative Precipitation (kg)')
-    ax4.set_title('Cumulative Precipitation vs Water Volume (with fits)')
+    ax4.set_title('Cumulative Precipitation vs Water Volume (with fit)')
     ax4.grid(True, alpha=0.3)
     ax4.legend()
     ax4.set_xlim(1000, 0)

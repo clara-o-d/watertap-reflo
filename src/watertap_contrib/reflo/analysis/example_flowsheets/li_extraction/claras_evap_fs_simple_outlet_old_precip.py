@@ -197,7 +197,7 @@ def build(weather_data_path):
 
 def set_operating_conditions(m):
     flow_vol = 1.051 * pyunits.m**3 / pyunits.s
-    fraction_outflow = 0
+    fraction_outflow = 0.05
     conc_tds_inlet = 370 * pyunits.kg / pyunits.m**3
     conc_li_inlet = 1.57 * pyunits.kg / pyunits.m**3 
     rho = 1227 * pyunits.kg / pyunits.m**3
@@ -509,7 +509,7 @@ def plot_precipitation_functions(m):
     mass_flow_kg_yr = area_m2 * precip_rate_m * dens_solids_kg_m3  # kg/yr
     
     # Get current model values
-    current_tds_conc = value(m.fs.pond.properties_in[0].conc_mass_phase_comp['Liq', 'TDS']) / 1000  # Convert kg/m³ to g/L
+    current_tds_conc = value(m.fs.pond.properties_in[0].conc_mass_phase_comp['Liq', 'TDS']) 
     original_mass_flow = value(m.fs.pond.mass_flow_precipitate)  # This is the original calculation
     
     # Plot precipitation rate vs TDS
