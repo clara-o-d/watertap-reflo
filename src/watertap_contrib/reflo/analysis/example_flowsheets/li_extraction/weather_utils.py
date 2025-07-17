@@ -412,27 +412,39 @@ def compare_weather_datasets(dataset_results):
 
 
 def create_comparison_plots(dataset_results):
-    """Create comparison plots for multiple weather datasets"""
+    """Create comparison plots for multiple weather datasets (weekly averages)"""
     print(f"\nCreating comparison plots for {len(dataset_results)} datasets...")
     
     # Create figure with subplots
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('Weather Dataset Comparison', fontsize=16)
+    fig.suptitle('Weather Dataset Comparison (Weekly Averages)', fontsize=16)
     
-    # Convert day of year to dates for plotting
+    # Weekly x-axis: 52 weeks, week start dates
     start_date = datetime(2024, 1, 1)
-    dates = [start_date + timedelta(days=int(day)) for day in range(365)]
+    week_starts = [start_date + timedelta(days=7 * i) for i in range(52)]
     
     colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown']
+    
+    # Helper to downsample to weekly means
+    def weekly_avg(arr):
+        arr = np.array(arr)
+        n = 52
+        # Truncate or pad to 364 days (52*7)
+        if len(arr) > 364:
+            arr = arr[:364]
+        elif len(arr) < 364:
+            arr = np.pad(arr, (0, 364 - len(arr)), mode='edge')
+        arr = arr.reshape((52, 7))
+        return arr.mean(axis=1)
     
     # Plot 1: Temperature comparison
     for i, (weather_name, timeseries_data, stats) in enumerate(dataset_results):
         air_temp_c = [t - 273.15 for t in timeseries_data['temperature_air']]
-        axes[0, 0].plot(dates, air_temp_c, color=colors[i % len(colors)], 
+        weekly_temp = weekly_avg(air_temp_c)
+        axes[0, 0].plot(week_starts, weekly_temp, color=colors[i % len(colors)], 
                        linewidth=1.5, label=weather_name)
-    
     axes[0, 0].set_ylabel('Air Temperature (°C)')
-    axes[0, 0].set_title('Daily Air Temperature Comparison')
+    axes[0, 0].set_title('Weekly Air Temperature Comparison')
     axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
     axes[0, 0].xaxis.set_major_formatter(mdates.DateFormatter('%b'))
@@ -440,11 +452,11 @@ def create_comparison_plots(dataset_results):
     
     # Plot 2: Evaporation rate comparison
     for i, (weather_name, timeseries_data, stats) in enumerate(dataset_results):
-        axes[0, 1].plot(dates, timeseries_data['evaporation_rate'], 
+        weekly_evap = weekly_avg(timeseries_data['evaporation_rate'])
+        axes[0, 1].plot(week_starts, weekly_evap, 
                        color=colors[i % len(colors)], linewidth=1.5, label=weather_name)
-    
     axes[0, 1].set_ylabel('Evaporation Rate (m/s)')
-    axes[0, 1].set_title('Daily Evaporation Rate Comparison')
+    axes[0, 1].set_title('Weekly Evaporation Rate Comparison')
     axes[0, 1].legend()
     axes[0, 1].grid(True, alpha=0.3)
     axes[0, 1].xaxis.set_major_formatter(mdates.DateFormatter('%b'))
@@ -452,11 +464,11 @@ def create_comparison_plots(dataset_results):
     
     # Plot 3: Solar radiation comparison
     for i, (weather_name, timeseries_data, stats) in enumerate(dataset_results):
-        axes[1, 0].plot(dates, timeseries_data['shortwave_radiation'], 
+        weekly_solar = weekly_avg(timeseries_data['shortwave_radiation'])
+        axes[1, 0].plot(week_starts, weekly_solar, 
                        color=colors[i % len(colors)], linewidth=1.5, label=weather_name)
-    
     axes[1, 0].set_ylabel('Solar Radiation (MJ/day/m²)')
-    axes[1, 0].set_title('Daily Solar Radiation Comparison')
+    axes[1, 0].set_title('Weekly Solar Radiation Comparison')
     axes[1, 0].legend()
     axes[1, 0].grid(True, alpha=0.3)
     axes[1, 0].xaxis.set_major_formatter(mdates.DateFormatter('%b'))
@@ -465,11 +477,11 @@ def create_comparison_plots(dataset_results):
     # Plot 4: Relative humidity comparison
     for i, (weather_name, timeseries_data, stats) in enumerate(dataset_results):
         rh_percent = [rh * 100 for rh in timeseries_data['relative_humidity']]
-        axes[1, 1].plot(dates, rh_percent, color=colors[i % len(colors)], 
+        weekly_rh = weekly_avg(rh_percent)
+        axes[1, 1].plot(week_starts, weekly_rh, color=colors[i % len(colors)], 
                        linewidth=1.5, label=weather_name)
-    
     axes[1, 1].set_ylabel('Relative Humidity (%)')
-    axes[1, 1].set_title('Daily Relative Humidity Comparison')
+    axes[1, 1].set_title('Weekly Relative Humidity Comparison')
     axes[1, 1].legend()
     axes[1, 1].grid(True, alpha=0.3)
     axes[1, 1].xaxis.set_major_formatter(mdates.DateFormatter('%b'))
@@ -510,17 +522,22 @@ def run_all_datasets_and_compare(this_dir):
             "processed_file": os.path.join(this_dir, "openmeteo_processed_weather.csv"),
             "data_type": "openmeteo",
             "needs_preprocessing": True
+        },
+        {
+            "name": "Test Data",
+            "processed_file": os.path.join(this_dir, "evaporation_pond_test_data.csv"),
+            "needs_preprocessing": False
         }
     ]
     
     dataset_results = []
     
     for i, dataset in enumerate(datasets):
-        print(f"\nProcessing dataset {i+1}/2: {dataset['name']}")
+        print(f"\nProcessing dataset {i+1}/{len(datasets)}: {dataset['name']}")
         print("-" * 40)
         
         # Check if files exist
-        if dataset['needs_preprocessing']:
+        if dataset.get('needs_preprocessing', False):
             if not os.path.exists(dataset['raw_file']):
                 print(f"Warning: Raw file not found: {dataset['raw_file']}")
                 print("Skipping this dataset...")
@@ -543,7 +560,10 @@ def run_all_datasets_and_compare(this_dir):
         # Build and solve model
         try:
             # Import here to avoid circular imports
-            from claras_evap_fs import build, set_operating_conditions, initialize_system, solve
+            try:
+                from .claras_evap_fs import build, set_operating_conditions, initialize_system, solve
+            except ImportError:
+                from claras_evap_fs import build, set_operating_conditions, initialize_system, solve
             from watertap.core.util.initialization import assert_degrees_of_freedom
             from pyomo.environ import assert_optimal_termination
             

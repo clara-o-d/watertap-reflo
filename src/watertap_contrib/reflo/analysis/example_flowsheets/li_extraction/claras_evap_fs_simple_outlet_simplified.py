@@ -41,6 +41,35 @@ from weather_utils import (
     test_plotting_functionality
 )
 
+# Utility function to compute required evaporation fraction for a target Li+ concentration
+from scipy.optimize import root_scalar
+
+def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
+    prop_in = m.fs.pond.properties_in[0]
+    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
+    water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
+    rho_val = value(m.fs.rho)
+    a = 88.1606
+    b_ = -169.2358
+    c = 81.4783
+
+    def li_conc_at_evap(evap_frac):
+        li_mass_frac = max(0, min(a * evap_frac**2 + b_ * evap_frac + c, 1))
+        li_outflow = li_inlet_flow * li_mass_frac
+        water_outflow = water_inlet_flow * (1 - evap_frac)
+        if water_outflow < 1e-12:
+            return 0
+        return li_outflow / water_outflow * rho_val
+
+    sol = root_scalar(
+        lambda evap_frac: li_conc_at_evap(evap_frac) - target_li_conc,
+        bracket=[0.01, 0.99],
+        method='bisect'
+    )
+    if not sol.converged:
+        raise RuntimeError("Could not find evaporation fraction for target Li+ concentration")
+    return sol.root
+
 def main():
     # Choose weather data source
     print("Available weather data sources:")
@@ -309,9 +338,9 @@ def define_operating_params_and_vars(m):
     )
 
     m.fs.target_li_concentration = pyo.Param(
-        initialize=3.500,
+        initialize=0.01,
         mutable=True,
-        units=pyunits.kg / pyunits.m**3,
+        units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
     )
     
@@ -337,12 +366,12 @@ def define_operating_params_and_vars(m):
         doc="Water flow rate in the outflow stream"
     )
     
-    # m.fs.tds_outflow = pyo.Var(
-    #     initialize=0.5,
-    #     bounds=(0, None),
-    #     units=pyunits.kg / pyunits.s,
-    #     doc="TDS flow rate in the outflow stream"
-    # )
+    m.fs.tds_outflow = pyo.Var(
+        initialize=0.5,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="TDS flow rate in the outflow stream"
+    )
 
     # Remove the original mass_flow_precipitate Expression and replace it with a variable
     if hasattr(m.fs.pond, 'mass_flow_precipitate'):
@@ -355,19 +384,19 @@ def define_operating_params_and_vars(m):
         doc="Annual mass flow of precipitate"
     )
     
-    # m.fs.tds_concentration_outflow = pyo.Var(
-    #     initialize=1000,
-    #     bounds=(0, None),
-    #     units=pyunits.kg / pyunits.m**3,
-    #     doc="TDS concentration in the outflow stream"
-    # )
+    m.fs.tds_concentration_outflow = pyo.Var(
+        initialize=1000,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.m**3,
+        doc="TDS concentration in the outflow stream"
+    )
     
-    # m.fs.li_outflow = pyo.Var(
-    #     initialize=0.001,
-    #     bounds=(0, None),
-    #     units=pyunits.kg / pyunits.s,
-    #     doc="Lithium flow rate in the outflow stream"
-    # )
+    m.fs.li_outflow = pyo.Var(
+        initialize=0.001,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="Lithium flow rate in the outflow stream"
+    )
 
     m.fs.li_concentration_outflow = pyo.Var(
         initialize=3.500,
@@ -393,7 +422,7 @@ def set_operating_conditions(m):
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(value(m.fs.evaporation_rate_enhancement_adjustment_factor))
 
-    m.fs.fraction_evaporated.fix(0.95)
+    # m.fs.fraction_evaporated.fix(0.95) # This is now handled by compute_evaporation_fraction_for_target_li_conc
 
     @m.fs.Constraint(doc="Fraction of outflow water")
     def eq_fraction_outflow(b):
@@ -413,7 +442,7 @@ def set_operating_conditions(m):
 
     @m.fs.Constraint(doc="Water outflow mass balance")
     def eq_water_outflow(b):
-        return b.water_outflow == prop_in.flow_mass_phase_comp["Liq", "H2O"] * (1 - b.fraction_evaporated)
+        return b.water_outflow == prop_in.flow_mass_phase_comp["Liq", "H2O"] * b.fraction_outflow
 
     @m.fs.pond.Constraint(doc="Annual mass flow of precipitate from concentration and water volume")
     def eq_mass_flow_precipitate(b):
@@ -425,13 +454,13 @@ def set_operating_conditions(m):
         annual_mass_flow = pyunits.convert(precipitate_concentration * original_water_volume, to_units=pyunits.kg/pyunits.year)
         return b.mass_flow_precipitate == annual_mass_flow
 
-    # @m.fs.Constraint(doc="TDS outflow mass balance")
-    # def eq_tds_outflow(b):
-    #     return b.tds_outflow == prop_in.flow_mass_phase_comp["Liq", "TDS"] - b.tds_precipitated
+    @m.fs.Constraint(doc="TDS outflow mass balance")
+    def eq_tds_outflow(b):
+        return b.tds_outflow == prop_in.flow_mass_phase_comp["Liq", "TDS"] - b.tds_precipitated
 
-    # @m.fs.Constraint(doc="TDS concentration in outflow")
-    # def eq_tds_concentration_outflow(b):
-    #     return b.tds_concentration_outflow == b.tds_outflow / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
+    @m.fs.Constraint(doc="TDS concentration in outflow")
+    def eq_tds_concentration_outflow(b):
+        return b.tds_concentration_outflow == b.tds_outflow / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
 
     # Li+ outflow and concentration constraint (all logic here, no li_precipitated var)
     @m.fs.Constraint(doc="Li+ outflow and concentration using polynomial mass fraction")
@@ -455,27 +484,29 @@ def set_operating_conditions(m):
         c = 81.4783
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
-        from idaes.core.util.math import smooth_min
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
         li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         li_out = li_in * mass_frac
         return li_in - li_out
     m.fs.li_precipitated = pyo.Expression(expr=li_precipitated_expr())
     
-    @m.fs.Constraint(doc="Evaporation fraction from final li concentration")
-    def eq_evaporation_fraction(b):
-        return b.li_concentration_outflow == m.fs.target_li_concentration
-    
     # Modify the pond model to only evaporate the calculated fraction
     if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
         m.fs.pond.eq_total_evaporative_area_required.deactivate()
     
-    # @m.fs.pond.Constraint(doc="Total evaporative area required for partial evaporation")
-    # def eq_total_evaporative_area_required_partial(b):
-    #     return (
-    #         b.total_evaporative_area_required * b.mass_flux_water_vapor_average
-    #         == m.fs.water_evaporated
-    #     )
+    @m.fs.pond.Constraint(doc="Total evaporative area required for partial evaporation")
+    def eq_total_evaporative_area_required_partial(b):
+        return (
+            b.total_evaporative_area_required * b.mass_flux_water_vapor_average
+            == m.fs.water_evaporated
+        )
+
+    # Compute and fix the required evaporation fraction for the target Li+ concentration
+    target_li_conc = value(m.fs.target_li_concentration * m.fs.rho)
+    evap_frac = compute_evaporation_fraction_for_target_li_conc(m, target_li_conc)
+    #m.fs.li_concentration_outflow.fix(target_li_conc)
+    m.fs.fraction_evaporated.fix(evap_frac)
+    print(f"Fixed evaporation fraction to {evap_frac:.2f} to achieve target Li+ concentration {(target_li_conc * 100 / value(m.fs.rho)):.2f}%")
 
 def initialize_system(m):
     try:
@@ -761,7 +792,7 @@ def calculate_max_feasible_li_concentration(m):
     # Test across evaporation fraction range
     evap_fractions = np.linspace(0.01, 0.99, 50)
     concentrations = []
-    print(f"{'Evap Fraction':<15} {'Li+ Mass Fraction':<18} {'Li+ Outflow (kg/s)':<18} {'Li+ Conc (kg/m³)':<15}")
+    print(f"{'Evap Fraction':<15} {'Li+ Mass Fraction':<18} {'Li+ Outflow (kg/s)':<18} {'Li+ Conc (kg/m³)':<15} {'Li+ Conc (wt%)':<15}")
     print("-" * 70)
     for evap_frac in evap_fractions:
         # Calculate Li+ mass fraction using polynomial, clipped to [0, 1]
@@ -770,7 +801,7 @@ def calculate_max_feasible_li_concentration(m):
         water_outflow = water_inlet_flow * (1 - evap_frac)
         li_conc = li_outflow / (water_outflow + 1e-12) * rho_val if water_outflow > 1e-12 else 0
         concentrations.append(li_conc)
-        print(f"{evap_frac:<15.2f} {li_mass_frac:<18.4f} {li_outflow:<18.6f} {li_conc:<15.4f}")
+        print(f"{evap_frac:<15.2f} {li_mass_frac:<18.4f} {li_outflow:<18.6f} {li_conc:<15.4f} {(li_conc * 100 / rho_val):<15.4f}")
     max_conc = max(concentrations)
     min_conc = min(concentrations)
     print(f"\nAchievable Li+ concentration range: {min_conc:.4f} to {max_conc:.4f} kg/m³")

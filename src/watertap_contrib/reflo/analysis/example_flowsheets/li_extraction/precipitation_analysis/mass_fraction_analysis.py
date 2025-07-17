@@ -56,9 +56,9 @@ def fit_exponential_model(x, y):
     try:
         popt, _ = curve_fit(exponential_func, x, y, p0=p0, maxfev=10000)
         return popt
-    except:
-        # If exponential fit fails, return linear fit
-        return fit_linear_model(x, y)
+    except Exception:
+        # If exponential fit fails, return None
+        return None
 
 def fit_sigmoid_model(x, y):
     """
@@ -87,198 +87,177 @@ def evaluate_model_fit(x, y, model_func, params):
     y_pred = model_func(x, *params)
     return calculate_r2_score(y, y_pred)
 
+def mean_absolute_error(y_true, y_pred):
+    return np.mean(np.abs(y_true - y_pred))
+
+def mean_squared_error(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
+
+def max_absolute_error(y_true, y_pred):
+    return np.max(np.abs(y_true - y_pred))
+
+def find_dropoff_region(evaporation_ratio, mass_fraction, threshold=-0.01):
+    # Compute the discrete derivative
+    dmf = np.diff(mass_fraction) / np.diff(evaporation_ratio)
+    # Find the first index where the derivative drops below the threshold
+    drop_idx = np.argmax(dmf < threshold)
+    if dmf[drop_idx] >= threshold:
+        # If no drop found, use halfway point as fallback
+        drop_idx = len(mass_fraction) // 2
+    # Return mask for region after drop-off
+    mask = np.zeros_like(mass_fraction, dtype=bool)
+    mask[drop_idx+1:] = True
+    return mask
+
 def analyze_ion_behavior(ion_data):
     results = {}
-    
     for ion_name, data in ion_data.items():
         print(f"\nAnalyzing {ion_name}...")
-        
-        # Calculate evaporation ratio
         initial_volume = np.max(data['volume_m3'])
         evaporation_ratio = calculate_evaporation_ratio(data['volume_m3'], initial_volume)
-        
-        # Get mass fraction data
         mass_fraction = data['mass_fraction'].values
-        
-        # Fit different models
-        models = {}
-        
-        # Linear model
-        try:
-            a_linear, b_linear = fit_linear_model(evaporation_ratio, mass_fraction)
-            linear_r2 = evaluate_model_fit(evaporation_ratio, mass_fraction, 
-                                         lambda x, a, b: a * x + b, (a_linear, b_linear))
-            models['linear'] = {
+        # Fit only to the last 5 points
+        x_fit = evaporation_ratio[-5:]
+        y_fit = mass_fraction[-5:]
+        # Linear fit
+        a_linear, b_linear = fit_linear_model(x_fit, y_fit)
+        y_pred_linear = a_linear * x_fit + b_linear
+        linear_r2 = calculate_r2_score(y_fit, y_pred_linear)
+        linear_mae = mean_absolute_error(y_fit, y_pred_linear)
+        linear_mse = mean_squared_error(y_fit, y_pred_linear)
+        linear_max_err = max_absolute_error(y_fit, y_pred_linear)
+        # Quadratic fit
+        quad_coeffs = fit_polynomial_model(x_fit, y_fit, degree=2)
+        y_pred_quad = np.polyval(quad_coeffs, x_fit)
+        quad_r2 = calculate_r2_score(y_fit, y_pred_quad)
+        quad_mae = mean_absolute_error(y_fit, y_pred_quad)
+        quad_mse = mean_squared_error(y_fit, y_pred_quad)
+        quad_max_err = max_absolute_error(y_fit, y_pred_quad)
+        # Exponential fit
+        exp_params = fit_exponential_model(x_fit, y_fit)
+        if exp_params is not None:
+            y_pred_exp = exp_params[0] * np.exp(exp_params[1] * x_fit) + exp_params[2]
+            exp_r2 = calculate_r2_score(y_fit, y_pred_exp)
+            exp_mae = mean_absolute_error(y_fit, y_pred_exp)
+            exp_mse = mean_squared_error(y_fit, y_pred_exp)
+            exp_max_err = max_absolute_error(y_fit, y_pred_exp)
+            exp_equation = f"mass_fraction = {exp_params[0]:.4f} * exp({exp_params[1]:.4f} * evaporation_ratio) + {exp_params[2]:.4f}"
+        else:
+            y_pred_exp = None
+            exp_r2 = exp_mae = exp_mse = exp_max_err = float('nan')
+            exp_equation = "Fit failed"
+        models = {
+            'linear': {
                 'params': (a_linear, b_linear),
                 'r2': linear_r2,
+                'mae': linear_mae,
+                'mse': linear_mse,
+                'max_error': linear_max_err,
                 'equation': f"mass_fraction = {a_linear:.4f} * evaporation_ratio + {b_linear:.4f}"
-            }
-        except:
-            models['linear'] = {'r2': 0.0, 'error': 'Fit failed'}
-        
-        # Quadratic model
-        try:
-            quad_coeffs = fit_polynomial_model(evaporation_ratio, mass_fraction, degree=2)
-            quad_r2 = evaluate_model_fit(evaporation_ratio, mass_fraction,
-                                       lambda x, *coeffs: np.polyval(coeffs, x), quad_coeffs)
-            models['quadratic'] = {
+            },
+            'quadratic': {
                 'params': quad_coeffs,
                 'r2': quad_r2,
+                'mae': quad_mae,
+                'mse': quad_mse,
+                'max_error': quad_max_err,
                 'equation': f"mass_fraction = {quad_coeffs[0]:.4f} * x² + {quad_coeffs[1]:.4f} * x + {quad_coeffs[2]:.4f}"
+            },
+            'exponential': {
+                'params': exp_params,
+                'r2': exp_r2,
+                'mae': exp_mae,
+                'mse': exp_mse,
+                'max_error': exp_max_err,
+                'equation': exp_equation
             }
-        except:
-            models['quadratic'] = {'r2': 0.0, 'error': 'Fit failed'}
-        
-        # Exponential model
-        try:
-            exp_params = fit_exponential_model(evaporation_ratio, mass_fraction)
-            if len(exp_params) == 3:
-                exp_r2 = evaluate_model_fit(evaporation_ratio, mass_fraction,
-                                          lambda x, a, b, c: a * np.exp(b * x) + c, exp_params)
-                models['exponential'] = {
-                    'params': exp_params,
-                    'r2': exp_r2,
-                    'equation': f"mass_fraction = {exp_params[0]:.4f} * exp({exp_params[1]:.4f} * x) + {exp_params[2]:.4f}"
-                }
-            else:
-                models['exponential'] = {'r2': 0.0, 'error': 'Fit failed'}
-        except:
-            models['exponential'] = {'r2': 0.0, 'error': 'Fit failed'}
-        
-        # Sigmoid model
-        try:
-            sigmoid_params = fit_sigmoid_model(evaporation_ratio, mass_fraction)
-            if sigmoid_params is not None:
-                k, x0, y_min, y_max = sigmoid_params
-                sigmoid_r2 = evaluate_model_fit(evaporation_ratio, mass_fraction,
-                                              lambda x, k, x0, y_min, y_max: y_min + (y_max - y_min) / (1 + np.exp(k * (x - x0))), 
-                                              sigmoid_params)
-                models['sigmoid'] = {
-                    'params': sigmoid_params,
-                    'r2': sigmoid_r2,
-                    'equation': f"mass_fraction = {y_min:.4f} + ({y_max:.4f} - {y_min:.4f}) / (1 + exp({k:.4f} * (x - {x0:.4f})))"
-                }
-            else:
-                models['sigmoid'] = {'r2': 0.0, 'error': 'Fit failed'}
-        except:
-            models['sigmoid'] = {'r2': 0.0, 'error': 'Fit failed'}
-        
-        # Special case for Li+: force sigmoid model for solver compatibility
-        if ion_name == 'Li+1':
-            # Always use sigmoid for Li+ regardless of fit quality
-            best_model = 'sigmoid'
-            if 'sigmoid' in models and models['sigmoid'].get('r2', 0) > 0:
-                best_r2 = models['sigmoid']['r2']
-                print(f"  Forcing sigmoid model for Li+ (solver compatibility, R² = {best_r2:.4f})")
-            else:
-                # Use the approximation we developed
-                best_r2 = 0.99  # Approximate R² for our fitted parameters
-                # Use the parameters we developed: [0.0513, 1.0, 50.0, 0.867]
-                y_min, y_max, k, x0 = 0.0513, 1.0, 50.0, 0.867
-                models['sigmoid'] = {
-                    'params': (k, x0, y_min, y_max),
-                    'r2': best_r2,
-                    'equation': f"mass_fraction = {y_min:.4f} + ({y_max:.4f} - {y_min:.4f}) / (1 + exp({k:.4f} * (x - {x0:.4f})))"
-                }
-                print(f"  Using sigmoid approximation for Li+ (R² ≈ {best_r2:.4f})")
-        else:
-            # Find best model for other ions
-            best_model = max(models.keys(), key=lambda k: models[k].get('r2', 0))
-            best_r2 = models[best_model]['r2']
-        
+        }
         results[ion_name] = {
             'initial_volume': initial_volume,
-            'evaporation_ratio': evaporation_ratio,
-            'mass_fraction': mass_fraction,
+            'evaporation_ratio': x_fit,
+            'mass_fraction': y_fit,
             'models': models,
-            'best_model': best_model,
-            'best_r2': best_r2,
-            'best_equation': models[best_model].get('equation', 'N/A')
         }
-        
-        print(f"  Best model: {best_model} (R² = {best_r2:.4f})")
-        print(f"  Equation: {models[best_model].get('equation', 'N/A')}")
-    
+        print(f"  Linear fit (last 5 points): R² = {linear_r2:.4f}, MAE = {linear_mae:.4e}, MSE = {linear_mse:.4e}, Max Error = {linear_max_err:.4e}")
+        print(f"    Equation: {models['linear']['equation']}")
+        print(f"  Quadratic fit (last 5 points): R² = {quad_r2:.4f}, MAE = {quad_mae:.4e}, MSE = {quad_mse:.4e}, Max Error = {quad_max_err:.4e}")
+        print(f"    Equation: {models['quadratic']['equation']}")
+        print(f"  Exponential fit (last 5 points): R² = {exp_r2:.4f}, MAE = {exp_mae:.4e}, MSE = {exp_mse:.4e}, Max Error = {exp_max_err:.4e}")
+        print(f"    Equation: {models['exponential']['equation']}")
     return results
 
 def plot_results(results, save_plots=True):
     n_ions = len(results)
-    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
-    axes = axes.flatten()
-    
+    fig, axes = plt.subplots(1, n_ions, figsize=(11, 6))
+    if n_ions == 1:
+        axes = [axes]
     for i, (ion_name, result) in enumerate(results.items()):
-        if i >= len(axes):
-            break
-            
         ax = axes[i]
-        
-        # Plot data points
-        ax.scatter(result['evaporation_ratio'], result['mass_fraction'], 
-                  alpha=0.7, label='Data', color='blue')
-        
-        # Plot best fit model
-        x_fit = np.linspace(0, 1, 100)
-        best_model = result['best_model']
-        model_info = result['models'][best_model]
-        
-        if 'params' in model_info:
-            if best_model == 'linear':
-                a, b = model_info['params']
-                y_fit = a * x_fit + b
-            elif best_model == 'quadratic':
-                coeffs = model_info['params']
-                y_fit = np.polyval(coeffs, x_fit)
-            elif best_model == 'exponential':
-                a, b, c = model_info['params']
-                y_fit = a * np.exp(b * x_fit) + c
-            elif best_model == 'sigmoid':
-                k, x0, y_min, y_max = model_info['params']
-                y_fit = y_min + (y_max - y_min) / (1 + np.exp(k * (x_fit - x0)))
-            
-            ax.plot(x_fit, y_fit, 'r-', label=f'{best_model} fit (R²={model_info["r2"]:.3f})')
-        
+        x = result['evaporation_ratio']
+        y = result['mass_fraction']
+        ax.scatter(x, y, alpha=0.7, label='Data', color='blue')
+        x_fit = np.linspace(np.min(x), np.max(x), 100)
+        # Linear fit
+        a, b = result['models']['linear']['params']
+        y_fit_linear = a * x_fit + b
+        ax.plot(x_fit, y_fit_linear, 'r-', label=f'Linear fit (R²={result["models"]["linear"]["r2"]:.3f})')
+        # Quadratic fit
+        quad_coeffs = result['models']['quadratic']['params']
+        y_fit_quad = np.polyval(quad_coeffs, x_fit)
+        ax.plot(x_fit, y_fit_quad, 'g--', label=f'Quadratic fit (R²={result["models"]["quadratic"]["r2"]:.3f})')
+        # Exponential fit
+        exp_params = result['models']['exponential']['params']
+        if exp_params is not None:
+            y_fit_exp = exp_params[0] * np.exp(exp_params[1] * x_fit) + exp_params[2]
+            ax.plot(x_fit, y_fit_exp, 'm-.', label=f'Exponential fit (R²={result["models"]["exponential"]["r2"]:.3f})')
         ax.set_xlabel('Water Evaporation Ratio')
         ax.set_ylabel('Mass Fraction Remaining')
         ax.set_title(f'{ion_name}')
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
-    # Hide unused subplots
-    for i in range(n_ions, len(axes)):
-        axes[i].set_visible(False)
-    
-    plt.tight_layout()
-    
+        # Add textbox with equations and error metrics
+        eqn_text = ""
+        for model_name, model in result['models'].items():
+            eqn_text += f"{model_name.capitalize()}\n"
+            eqn_text += f"    Eqn: {model['equation']}\n"
+            eqn_text += f"    R²     : {model['r2']:<8.4f}\n"
+            eqn_text += f"    MAE    : {model['mae']:<8.2e}\n"
+            eqn_text += f"    MSE    : {model['mse']:<8.2e}\n"
+            eqn_text += f"    MaxErr : {model['max_error']:<8.2e}\n"
+            eqn_text += "\n"
+        # Place the textbox a little more to the left
+        ax.annotate(
+            eqn_text,
+            xy=(0.6, 0.97), xycoords='axes fraction',
+            fontsize=8, va='top', ha='left',
+            bbox=dict(boxstyle='round,pad=0.1,rounding_size=0.2', facecolor='wheat', alpha=1.0),
+            family='monospace'
+        )
+    plt.subplots_adjust(right=0.62, left=0.13, top=0.92, bottom=0.12)
     if save_plots:
         plt.savefig('ion_evaporation_behavior.png', dpi=300, bbox_inches='tight')
-    
     plt.show()
 
 def generate_summary_report(results):
     print("\n" + "="*80)
     print("MASS FRACTION ANALYSIS SUMMARY REPORT")
     print("="*80)
-    
     print(f"\nAnalyzed {len(results)} ions:")
     for ion_name in results.keys():
         print(f"  - {ion_name}")
-    
-    print("\nBest-fit equations for each ion:")
+    print("\nBest-fit equations and error metrics for each ion:")
     print("-" * 50)
-    
     for ion_name, result in results.items():
         print(f"\n{ion_name}:")
-        print(f"  Model: {result['best_model']}")
-        print(f"  R² Score: {result['best_r2']:.4f}")
-        print(f"  Equation: {result['best_equation']}")
-        
-        # Show all model comparisons
-        print("  Model comparison:")
         for model_name, model_info in result['models'].items():
-            r2 = model_info.get('r2', 0)
-            print(f"    {model_name}: R² = {r2:.4f}")
-    
-    # Find ions with different behaviors
+            print(f"  {model_name.capitalize()} fit:")
+            print(f"    R² Score: {model_info['r2']:.4f}")
+            print(f"    MAE: {model_info['mae']:.4e}")
+            print(f"    MSE: {model_info['mse']:.4e}")
+            print(f"    Max Error: {model_info['max_error']:.4e}")
+            print(f"    Equation: {model_info['equation']}")
+        
+        # Find ions with different behaviors
     print("\n" + "="*50)
     print("BEHAVIOR ANALYSIS")
     print("="*50)
@@ -310,14 +289,31 @@ def main():
     print("Loading ion data...")
     ion_data = load_ion_data(data_dir)
     
-    if not ion_data:
-        print("No CSV files found in the data directory!")
+    # Focus only on lithium (Li_+1_)
+    lithium_key = None
+    for key in ion_data.keys():
+        if key.lower() in ["li+1", "li+1_", "li_+1_", "li1"]:
+            lithium_key = key
+            break
+    if not lithium_key:
+        print("Lithium data not found!")
         return
+
+    lithium_data = ion_data[lithium_key]
     
-    print(f"Loaded data for {len(ion_data)} ions: {list(ion_data.keys())}")
-    
+    # Calculate evaporation ratio
+    initial_volume = np.max(lithium_data['volume_m3'])
+    evaporation_ratio = calculate_evaporation_ratio(lithium_data['volume_m3'], initial_volume)
+    lithium_data = lithium_data.copy()
+    lithium_data['evaporation_ratio'] = evaporation_ratio
+    # Do not filter by evaporation_ratio >= 0.5, let drop-off detection handle it
+    ion_data = {lithium_key: lithium_data}
+
+    print(f"Loaded lithium data: {lithium_key}")
+    print(f"  Data points: {len(lithium_data)}")
+
     # Analyze ion behavior
-    print("\nAnalyzing ion behavior during evaporation...")
+    print("\nAnalyzing lithium behavior during late-stage evaporation...")
     results = analyze_ion_behavior(ion_data)
     
     # Generate plots
