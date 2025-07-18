@@ -231,7 +231,7 @@ def build(weather_data_path):
         add_enhancement=True,
     )
 
-    # Set operating conditions
+    define_operating_params_and_vars(m)
     set_operating_conditions(m)
     m.fs.pond.number_evaporation_ponds.fix(300)
     assert_degrees_of_freedom(m, 0)
@@ -239,11 +239,11 @@ def build(weather_data_path):
     iscale.calculate_scaling_factors(m)
     initialize_system(m)
     
-    # Pause after initialization to inspect model state
-    print("\n" + "="*50)
-    print("MODEL INITIALIZED - PRESS ENTER TO CONTINUE")
-    print("="*50)
-    input()
+    # # Pause after initialization to inspect model state
+    # print("\n" + "="*50)
+    # print("MODEL INITIALIZED - PRESS ENTER TO CONTINUE")
+    # print("="*50)
+    # input()
     
     return m
 
@@ -338,7 +338,7 @@ def define_operating_params_and_vars(m):
     )
 
     m.fs.target_li_concentration = pyo.Param(
-        initialize=0.01,
+        initialize=0.02,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
@@ -406,9 +406,6 @@ def define_operating_params_and_vars(m):
     )
 
 def set_operating_conditions(m):
-    # Define all parameters and variables first
-    define_operating_params_and_vars(m)
-
     prop_in = m.fs.pond.properties_in[0]
     prop_in.pressure.fix(value(m.fs.pressure_inlet))
     prop_in.temperature["Liq"].fix(value(m.fs.temperature_liquid_inlet))
@@ -476,6 +473,18 @@ def set_operating_conditions(m):
         li_out = li_in * mass_frac
         return b.li_concentration_outflow == li_out / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
 
+    @m.fs.Constraint(doc="Li+ outflow mass flow rate")
+    def eq_li_outflow(b):
+        evap_ratio = b.fraction_evaporated
+        a = 88.1606
+        b_ = -169.2358
+        c = 81.4783
+        mass_frac_before = 1.0
+        mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
+        mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
+        return b.li_outflow == li_in * mass_frac
+    
     # Li+ precipitated as an Expression
     def li_precipitated_expr():
         evap_ratio = m.fs.fraction_evaporated

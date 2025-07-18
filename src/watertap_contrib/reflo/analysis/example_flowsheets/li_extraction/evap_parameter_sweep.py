@@ -1,80 +1,59 @@
 from parameter_sweep import parameter_sweep, LinearSample
-import claras_evap_fs_simple_outlet as claras_evap_fs
+import claras_evap_fs_simple_outlet_simplified as claras_evap_fs
 import os
 
 
 # Build model
-def build_model(**kwargs): # Should decide whether model initializes and/or builds before
-    # Get the directory where this script is located
+def build_model(**kwargs): 
     this_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Use the processed weather data file (choose one that exists)
     weather_data_path = os.path.join(this_dir, "station34_processed_weather.csv")
     
-    # Check if the file exists, otherwise try alternative
     if not os.path.exists(weather_data_path):
         weather_data_path = os.path.join(this_dir, "evaporation_pond_test_data.csv")
     
-    # Build the model with the weather data
     m = claras_evap_fs.build(weather_data_path)
-    # They put initialization in build
     claras_evap_fs.solve(m)
-    # Add and initialize costing
     claras_evap_fs.add_costing(m)
     claras_evap_fs.initialize_costing(m)
     claras_evap_fs.process_costing(m)
     return m
 
-# Parameters to sweep - tighter bounds and a few more parameters
-def build_sweep_params(m, **kwargs): # Choose num_samples manually for each parameter
+def build_sweep_params(m, **kwargs):
     sweep_params = dict()
-    # 1. Evaporation rate enhancement factor (default ~1.08)
-    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.unfix()
-    sweep_params['evaporation enhancement factor'] = LinearSample(
-        m.fs.pond.evaporation_rate_enhancement_adjustment_factor, 
-        1.08, 1.15, 2  # Tighter range
+    pond = m.fs.pond
+
+    sweep_params['liner thickness (mil)'] = LinearSample(
+        pond.liner_thickness, 40, 80, 3
     )
-    # 2. Salinity adjustment factor (default ~0.75)
-    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
-    sweep_params['salinity adjustment factor'] = LinearSample(
-        m.fs.pond.evaporation_rate_salinity_adjustment_factor, 
-        0.72, 0.78, 3  # Tighter range
+    sweep_params['liner replacement frequency (years)'] = LinearSample(
+        pond_cost.liner_replacement_frequency, 10, 30, 3
     )
-    # 3. Pond depth (default 18 inches)
-    sweep_params['pond depth (inches)'] = LinearSample(
-        m.fs.pond.evaporation_pond_depth, 
-        17, 19, 2  # Tighter range
+    sweep_params['land cost (USD_2001/acre)'] = LinearSample(
+        pond_cost.land_cost, 2000, 10000, 3
     )
-    # 4. Solids precipitation a1 (default 4.12e-6)
-    sweep_params['solids precipitation a1'] = LinearSample(
-        m.fs.pond.solids_precipitation_rate_a1, 
-        3.5e-6, 4.5e-6, 3  # Tighter range
+    sweep_params['recovered solids handling cost (USD_2023/kg)'] = LinearSample(
+        pond_cost.recovered_solids_handling_cost, 0, 0.10, 3
     )
-    # # 5. Area correction factor base (default depends on dike height, e.g. 2.0512 for 8 ft)
-    # sweep_params['area correction factor base'] = LinearSample(
-    #     m.fs.pond.area_correction_factor_base, 
-    #     2.0, 2.1, num_samples
-    # )
-    # # 6. Water activity param1 (default -0.00056678)
-    # sweep_params['water activity param1'] = LinearSample(
-    #     m.fs.pond.water_activity_param1, 
-    #     -0.0006, -0.0005, num_samples
-    # )
-    # # 7. Shortwave albedo (default 0.05)
-    sweep_params['shortwave albedo'] = LinearSample(
-        m.fs.pond.shortwave_albedo, 
-        0.04, 0.06, 2
+    sweep_params['enhancement dose basis (gallon/acre)'] = LinearSample(
+        pond_cost.enhancement_dose_basis, 0.1, 1.0, 3
     )
     return sweep_params
 
-# Outputs - only pond capital cost
+# Outputs - expanded to include more relevant outputs
 def build_outputs(m, **kwargs):
     outputs = dict()
+    pond_cost = m.fs.pond.costing.costing_package.evaporation_pond
+
     outputs['levelized cost of lithium (USD_2023/m^3)'] = m.fs.costing.LCOLi
-    outputs['resultant evaporation enhancement factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
-    outputs['resultant salinity adjustment factor'] = m.fs.pond.evaporation_rate_salinity_adjustment_factor
-    outputs['resultant pond depth (inches)'] = m.fs.pond.evaporation_pond_depth
-    outputs['resultant solids precipitation a1'] = m.fs.pond.solids_precipitation_rate_a1
+    outputs['pond capital cost (USD_2023)'] = m.fs.pond.costing.capital_cost
+
+    outputs['resultant liner thickness (mil)'] = pond_cost.liner_thickness
+    outputs['resultant liner replacement frequency (years)'] = pond_cost.liner_replacement_frequency
+    outputs['resultant land cost (USD_2001/acre)'] = pond_cost.land_cost
+    outputs['resultant recovered solids handling cost (USD_2023/kg)'] = pond_cost.recovered_solids_handling_cost
+    outputs['resultant enhancement dose basis (gallon/acre)'] = pond_cost.enhancement_dose_basis
+
     return outputs
 
 # Perform sweep

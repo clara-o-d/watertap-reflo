@@ -23,21 +23,30 @@ def load_and_process_data(filename):
     
     return df
 
-def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)'):
+def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', input_params=None):
     """
     One-at-a-time sensitivity analysis that handles nan values
-    Excludes 'resultant' variables from sensitivity analysis.
+    Only analyzes the specified input parameters.
     """
-    # Get parameter columns (exclude output columns and 'resultant' variables)
-    output_cols = [target_col]
-    param_cols = [col for col in df.columns if col not in output_cols and not col.startswith('resultant ')]
+    if input_params is None:
+        # Default to the current parameter sweep inputs
+        input_params = [
+            'evaporation enhancement factor',
+            'pond depth (inches)',
+            'inlet lithium concentration (kg/m³)',
+            'target Li+ concentration (g/kg)'
+        ]
     
-    print(f"Analyzing sensitivity of '{target_col}' to {len(param_cols)} parameters:")
-    for col in param_cols:
+    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters:")
+    for col in input_params:
         print(f"  - {col}")
     
     sensitivity_data = []
-    for var in param_cols:
+    for var in input_params:
+        if var not in df.columns:
+            print(f"  Warning: Parameter '{var}' not found in data columns, skipping")
+            continue
+            
         # Filter out rows with nan values for this parameter and target
         valid_mask = ~(df[var].isna() | df[target_col].isna())
         if valid_mask.sum() < 3:  # Need at least 3 valid points
@@ -198,13 +207,14 @@ def main():
         print("Expected files: pond_sensitivity.csv or test_pond_sensitivity.csv")
         return
 
-    # Confirm input/output match for each parameter
+    # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
-        'evaporation enhancement factor',
-        'salinity adjustment factor',
         'pond depth (inches)',
-        'solids precipitation a1'
+        'inlet lithium concentration (kg/m³)',
+        'target Li+ concentration (g/kg)',
     ]
+    
+    # Confirm input/output match for each parameter
     for var in input_vars:
         resultant_var = f"resultant {var}"
         if resultant_var in df.columns and var in df.columns:
@@ -213,6 +223,10 @@ def main():
                 print(f"WARNING: Mismatch found between '{var}' and '{resultant_var}' in {mismatch.sum()} rows.")
             else:
                 print(f"OK: '{var}' matches '{resultant_var}' for all valid rows.")
+        elif var in df.columns:
+            print(f"OK: '{var}' found in data (no resultant variable expected).")
+        else:
+            print(f"WARNING: '{var}' not found in data columns.")
     
     # Check data quality
     total_points = len(df)
@@ -239,11 +253,11 @@ def main():
     
     # Create tornado plot
     print(f"\nCreating tornado plot for: {target_col}")
-    sensitivity_df = oat_sensitivity(df, target_col)
+    sensitivity_df = oat_sensitivity(df, target_col, input_params=input_vars)
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Evaporation Pond Sensitivity Analysis: {target_col}")
+                                    title=f"Design parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")
@@ -251,7 +265,7 @@ def main():
         
         # Save sensitivity data with additional info
         sensitivity_df.to_csv('sensitivity_analysis_pond_lcoli.csv', index=False)
-        print("Sensitivity analysis results saved to 'sensitivity_analysis_pond_lcoli,.csv'")
+        print("Sensitivity analysis results saved to 'sensitivity_analysis_pond_lcoli.csv'")
         
         # Print summary of findings
         print(f"\nSensitivity Analysis Summary:")
