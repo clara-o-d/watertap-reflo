@@ -1,5 +1,5 @@
 """
-Evaporation pond flowsheet with simple outlet variables
+Task: Create a simple flowsheet using the detailed EvaporationPond unit model with simple outlet variables
 """
 
 import os
@@ -41,6 +41,7 @@ from weather_utils import (
     test_plotting_functionality
 )
 
+# Utility function to compute required evaporation fraction for a target Li+ concentration
 from scipy.optimize import root_scalar
 
 def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
@@ -114,6 +115,7 @@ def main():
     
     print(f"\nUsing weather data: {weather_name}")
     
+    # Check if this is the first time processing this dataset (BEFORE preprocessing)
     first_time_processing = False
     if choice in ["1", "2"]:
         if not os.path.exists(processed_weather_file):
@@ -149,6 +151,7 @@ def main():
     print("="*50)
     input()
 
+    # Add plotting and statistics functionality only for first-time processing
     if first_time_processing:
         print_weather_statistics(m, weather_name)
         plot_evaporation_and_weather_data(m, weather_name, save_plots=True)
@@ -163,11 +166,13 @@ def main():
     add_costing(m)
     assert_degrees_of_freedom(m, 0)
     
+    # Re-initialize the model after adding costing
     print("Initializing costing...")
     initialize_costing(m)
     process_costing(m)
     assert_degrees_of_freedom(m, 0)
     
+    # Check degrees of freedom after costing
     dof_after_costing = degrees_of_freedom(m)
     print(f"Degrees of freedom after costing: {dof_after_costing}")
     
@@ -175,6 +180,7 @@ def main():
         print("WARNING: Model has non-zero degrees of freedom after costing!")
         print("This may cause issues with the solver.")
     
+    # Solve with costing
     print("Solving with costing...")
     results = solve(m)
     assert_degrees_of_freedom(m, 0)
@@ -184,12 +190,16 @@ def main():
     else:
         print(f"WARNING: Solver terminated with condition: {results.solver.termination_condition}")
         print("Costing results may not be accurate.")
+        # Still try to display results even if not optimal
         try:
             display_costing_results(m)
         except Exception as e:
             print(f"Could not display costing results: {e}")
 
     try:
+        # Try to build and solve the model again to get 'm' in scope if not already
+        # If 'main' returns 'm', use it; otherwise, you may need to adjust main()
+        # For now, assume 'm' is available if you run interactively
         plot_precipitation_functions(m)
     except Exception as e:
         print(f"Could not plot precipitation functions: {e}") 
@@ -205,6 +215,7 @@ def build(weather_data_path):
     }
     m.fs.properties = AirWaterEq(**props)
 
+    # Use the default weather data column mapping since we preprocessed the data
     weather_data_column_dict = {
         "pressure": "Pressure",
         "temperature": "Temperature", 
@@ -227,6 +238,12 @@ def build(weather_data_path):
     
     iscale.calculate_scaling_factors(m)
     initialize_system(m)
+    
+    # # Pause after initialization to inspect model state
+    # print("\n" + "="*50)
+    # print("MODEL INITIALIZED - PRESS ENTER TO CONTINUE")
+    # print("="*50)
+    # input()
     
     # Override pond expressions to use adjustment factors
     if hasattr(m.fs.pond, 'net_shortwave_radiation_in'):
@@ -254,7 +271,6 @@ def build(weather_data_path):
         m.fs.pond.days_of_year,
         rule=lambda b, d: m.fs.rh_max_adjustment * b._rh_max_orig[d]
     )
-    
     return m
 
 def define_operating_params_and_vars(m):
@@ -323,19 +339,21 @@ def define_operating_params_and_vars(m):
     )
     
     m.fs.evaporation_rate_salinity_adjustment_factor = pyo.Param(
-        initialize=0.75,
+        initialize=1,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Evaporation rate salinity adjustment factor"
     )
     
     m.fs.evaporation_rate_enhancement_adjustment_factor = pyo.Param(
-        initialize=1.08,
+        initialize=1,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Evaporation rate enhancement adjustment factor"
     )
 
+    # Overwrite mass_flow_precipitate with annual_solid_precipitate
+    # precipitate concentration [kg/m³] = a * (V_remaining/V_original) + b [kg/m³]
     m.fs.pond.annual_solid_precipitate_a = pyo.Param(
         initialize=-3.1473e02, mutable=True, doc="Linear fit coefficient a [kg/m³]",
         units=pyunits.kg/pyunits.m**3
@@ -346,7 +364,7 @@ def define_operating_params_and_vars(m):
     )
 
     m.fs.target_li_concentration = pyo.Param(
-        initialize=0.015,
+        initialize=0.02,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
@@ -381,6 +399,7 @@ def define_operating_params_and_vars(m):
         doc="TDS flow rate in the outflow stream"
     )
 
+    # Remove the original mass_flow_precipitate Expression and replace it with a variable
     if hasattr(m.fs.pond, 'mass_flow_precipitate'):
         m.fs.pond.del_component('mass_flow_precipitate')
     
@@ -412,17 +431,16 @@ def define_operating_params_and_vars(m):
         doc="Lithium concentration in the outflow stream"
     )
 
-    # Weather adjustment factors
     m.fs.net_shortwave_radiation_in_adjustment = pyo.Param(
-        initialize=1.0, mutable=True, units=pyunits.dimensionless,
+        initialize=2.0, mutable=True, units=pyunits.dimensionless,
         doc="Adjustment factor for net shortwave radiation in"
     )
     m.fs.air_temp_max_adjustment = pyo.Param(
-        initialize=1.0, mutable=True, units=pyunits.dimensionless,
+        initialize=2.0, mutable=True, units=pyunits.dimensionless,
         doc="Adjustment factor for max air temperature"
     )
     m.fs.rh_max_adjustment = pyo.Param(
-        initialize=1.0, mutable=True, units=pyunits.dimensionless,
+        initialize=2.0, mutable=True, units=pyunits.dimensionless,
         doc="Adjustment factor for max relative humidity"
     )
 
@@ -440,7 +458,7 @@ def set_operating_conditions(m):
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(value(m.fs.evaporation_rate_enhancement_adjustment_factor))
 
-
+    # m.fs.fraction_evaporated.fix(0.95) # This is now handled by compute_evaporation_fraction_for_target_li_conc
 
     @m.fs.Constraint(doc="Fraction of outflow water")
     def eq_fraction_outflow(b):
@@ -448,10 +466,12 @@ def set_operating_conditions(m):
             b.fraction_outflow + b.fraction_evaporated == 1
     )
     
+    # Calculate evaporated and outflow water
     m.fs.water_evaporated = pyo.Expression(
         expr=prop_in.flow_mass_phase_comp["Liq", "H2O"] * m.fs.fraction_evaporated
     )
 
+    # TDS precipitated as an Expression
     m.fs.tds_precipitated = pyo.Expression(
         expr=pyunits.convert(m.fs.pond.mass_flow_precipitate, to_units=pyunits.kg/pyunits.s)
     )
@@ -478,6 +498,7 @@ def set_operating_conditions(m):
     def eq_tds_concentration_outflow(b):
         return b.tds_concentration_outflow == b.tds_outflow / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
 
+    # Li+ outflow and concentration constraint (all logic here, no li_precipitated var)
     @m.fs.Constraint(doc="Li+ outflow and concentration using polynomial mass fraction")
     def eq_li_concentration_outflow(b):
         evap_ratio = b.fraction_evaporated
@@ -503,6 +524,7 @@ def set_operating_conditions(m):
         li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         return b.li_outflow == li_in * mass_frac
     
+    # Li+ precipitated as an Expression
     def li_precipitated_expr():
         evap_ratio = m.fs.fraction_evaporated
         a = 88.1606
@@ -516,6 +538,7 @@ def set_operating_conditions(m):
         return li_in - li_out
     m.fs.li_precipitated = pyo.Expression(expr=li_precipitated_expr())
     
+    # Modify the pond model to only evaporate the calculated fraction
     if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
         m.fs.pond.eq_total_evaporative_area_required.deactivate()
     
@@ -529,6 +552,7 @@ def set_operating_conditions(m):
     # Compute and fix the required evaporation fraction for the target Li+ concentration
     target_li_conc = value(m.fs.target_li_concentration * m.fs.rho)
     evap_frac = compute_evaporation_fraction_for_target_li_conc(m, target_li_conc)
+    #m.fs.li_concentration_outflow.fix(target_li_conc)
     m.fs.fraction_evaporated.fix(evap_frac)
     print(f"Fixed evaporation fraction to {evap_frac:.2f} to achieve target Li+ concentration {(target_li_conc * 100 / value(m.fs.rho)):.2f}%")
 
@@ -538,6 +562,7 @@ def initialize_system(m):
     except Exception as e:
         print(f"Initialization failed: {e}")
         print("Trying alternative initialization approach...")
+        # Try initializing components separately
         m.fs.pond.weather.initialize()
         m.fs.pond.properties_in.initialize()
 
@@ -569,6 +594,7 @@ def display_results(m, weather_name="Unknown"):
 
 def add_costing(m):
     from idaes.core import UnitModelCostingBlock
+    # Import REFLOCosting inside the function to avoid linter errors
     from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
     
     m.fs.costing = REFLOCosting()
@@ -587,6 +613,7 @@ def initialize_costing(m):
     m.fs.costing.initialize()
 
 def process_costing(m):
+    # Use add_LCOW to get LCOLi in $/m³ Li outflow, then convert to $/kg
     m.fs.density_concentrated_brine = pyo.Param(
         initialize=1323,
         mutable=True,
@@ -595,16 +622,16 @@ def process_costing(m):
     )
     vol_flow_li = m.fs.li_outflow / m.fs.density_concentrated_brine  # m³/s
     m.fs.costing.add_LCOW(vol_flow_li, name="LCOLi") # $/m³ Li
-    # Add variable and constraint for $/kg
-    m.fs.costing.LCOLi_mass = pyo.Var(
-        initialize=1000,
-        units=m.fs.costing.base_currency / pyunits.t,
-        bounds=(0, None),
-        doc="Levelized cost of lithium by mass ($/mt)"
-    )
-    m.fs.costing.LCOLi_mass_constraint = pyo.Constraint(
-        expr=m.fs.costing.LCOLi_mass == pyunits.convert(m.fs.costing.LCOLi / m.fs.density_concentrated_brine, to_units=m.fs.costing.base_currency / pyunits.t)
-    )
+    # # Add variable and constraint for $/kg
+    # m.fs.costing.LCOLi_mass = pyo.Var(
+    #     initialize=1,
+    #     units=m.fs.costing.base_currency / pyunits.kg,
+    #     bounds=(0, None),
+    #     doc="Levelized cost of lithium by mass ($/kg)"
+    # )
+    # m.fs.costing.LCOLi_mass_constraint = pyo.Constraint(
+    #     expr=m.fs.costing.LCOLi_mass == m.fs.costing.LCOLi * density_concentrated_brine
+    # )
 
 def display_costing_results(m):
     print("\n" + "="*50)
@@ -621,9 +648,9 @@ def display_costing_results(m):
             print(f"Total operating cost: ${value(m.fs.costing.total_operating_cost):,.0f}/year")
         if hasattr(m.fs.costing, 'LCOLi'):
             lcoli_vol = value(m.fs.costing.LCOLi)
-            lcoli_mass = value(m.fs.costing.LCOLi_mass)
+            # lcoli_mass = value(m.fs.costing.LCOLi_mass)
             print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_vol:.2f} per m³ Li")
-            print(f"Levelized Cost of Lithium (LCOLi) Before Processing: ${lcoli_mass:.2f} per mt Li")
+            # print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_mass:.2f} per kg Li")
     except Exception as e:
         print(f"Error displaying costing results: {e}")
     print("="*50)
@@ -633,38 +660,52 @@ def plot_precipitation_functions(m):
     import matplotlib.pyplot as plt
     from pyomo.environ import value
 
+    # Get coefficients from the model
     a1 = value(m.fs.pond.solids_precipitation_rate_a1)
     a2 = value(m.fs.pond.solids_precipitation_rate_a2)
     intercept = value(m.fs.pond.solids_precipitation_rate_intercept)
     dens_solids = value(m.fs.pond.dens_solids)  # g/cm³
     area_acre = value(m.fs.pond.total_pond_area_acre)
     
+    # Get new precipitate concentration coefficients
     concentration_a = value(m.fs.pond.annual_solid_precipitate_a)
     concentration_b = value(m.fs.pond.annual_solid_precipitate_b)
     
-    tds_range = np.linspace(0, 500, 200)
+    # TDS range (g/L)
+    tds_range = np.linspace(0, 500, 200)  # 0 to 500 g/L
     
+    # Calculate precipitation rate (ft/yr) - original function
     precip_rate = a1 * tds_range**2 + a2 * tds_range + intercept
     
+    # Calculate mass flow (kg/yr) - original function
+    # dens_solids: g/cm³ -> kg/m³ (1 g/cm³ = 1000 kg/m³)
     dens_solids_kg_m3 = dens_solids * 1000
+    # 1 acre = 4046.86 m², 1 ft = 0.3048 m
     area_m2 = area_acre * 4046.86
-    precip_rate_m = precip_rate * 0.3048
-    mass_flow_kg_yr = area_m2 * precip_rate_m * dens_solids_kg_m3
+    precip_rate_m = precip_rate * 0.3048  # ft/yr to m/yr
+    mass_flow_kg_yr = area_m2 * precip_rate_m * dens_solids_kg_m3  # kg/yr
     
-    evaporation_ratio_range = np.linspace(0, 1, 200)
-    precipitate_concentration = concentration_a * (1-evaporation_ratio_range) + concentration_b
+    # Calculate new precipitate concentration (kg/m³) - new function
+    # Evaporation ratio range (dimensionless)
+    evaporation_ratio_range = np.linspace(0, 1, 200)  # 0 to 1 (0% to 100% evaporation)
+    precipitate_concentration = concentration_a * (1-evaporation_ratio_range) + concentration_b  # kg/m³
     
-    original_water_volume_m3_s = value(m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O']) / value(m.fs.rho)
-    annual_mass_flow_precipitate = precipitate_concentration * original_water_volume_m3_s * 3600 * 24 * 365
+    # Convert precipitate concentration to annual mass flow rate
+    # Use the same original water volume as in the model
+    original_water_volume_m3_s = value(m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O']) / value(m.fs.rho)  # m³/s
+    annual_mass_flow_precipitate = precipitate_concentration * original_water_volume_m3_s * 3600 * 24 * 365  # kg/year
     
+    # Get current model values for comparison
     current_tds_conc = value(m.fs.pond.properties_in[0].conc_mass_phase_comp['Liq', 'TDS'])
     current_evap_ratio = value(m.fs.water_evaporated / m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O'])
-    original_mass_flow = value(m.fs.pond.mass_flow_precipitate)
+    original_mass_flow = value(m.fs.pond.mass_flow_precipitate)  # This is the new custom calculation
     
+    # Get the original pond's mass_flow_precipitate before w# We need to calculate what the original would have been
     original_precip_rate = a1 * current_tds_conc**2 + a2 * current_tds_conc + intercept
-    original_precip_rate_m = original_precip_rate * 0.3048
-    original_mass_flow_calc = area_m2 * original_precip_rate_m * dens_solids_kg_m3
+    original_precip_rate_m = original_precip_rate * 0.3048  # ft/yr to m/yr
+    original_mass_flow_calc = area_m2 * original_precip_rate_m * dens_solids_kg_m3  # kg/yr
 
+    # Plot precipitation rate vs TDS
     plt.figure(figsize=(15, 8))
     
     plt.subplot(2, 3, 1)
@@ -676,6 +717,7 @@ def plot_precipitation_functions(m):
     plt.legend()
     plt.grid(True)
     
+    # Plot mass flow vs TDS - original function
     plt.subplot(2, 3, 2)
     plt.plot(tds_range, mass_flow_kg_yr)
     plt.axvline(x=current_tds_conc, color='red', linestyle='--', label=f'Current TDS: {current_tds_conc:.1f} g/L')
@@ -686,6 +728,7 @@ def plot_precipitation_functions(m):
     plt.legend()
     plt.grid(True)
     
+    # Plot new precipitate concentration vs evaporation ratio
     plt.subplot(2, 3, 3)
     plt.plot(evaporation_ratio_range * 100, precipitate_concentration)  # Convert to percentage
     plt.axvline(x=current_evap_ratio * 100, color='red', linestyle='--', label=f'Current evaporated: {current_evap_ratio*100:.1f}%')
@@ -695,6 +738,7 @@ def plot_precipitation_functions(m):
     plt.legend()
     plt.grid(True)
     
+    # Plot new annual mass flow vs evaporation ratio
     plt.subplot(2, 3, 4)
     plt.plot(evaporation_ratio_range * 100, annual_mass_flow_precipitate)  # Convert to percentage
     plt.axvline(x=current_evap_ratio * 100, color='red', linestyle='--', label=f'Current evaporated: {current_evap_ratio*100:.1f}%')
@@ -717,6 +761,7 @@ def plot_precipitation_functions(m):
     plt.title("Comparison: Original vs New Mass Flow")
     plt.grid(True, axis='y')
     
+    # Add value labels on bars
     for bar, value in zip(bars, comparison_values):
         plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(comparison_values)*0.01, 
                 f'{value:.0f}', ha='center', va='bottom', fontweight='bold')
@@ -725,25 +770,26 @@ def plot_precipitation_functions(m):
     plt.subplot(2, 3, 6)
     plt.axis('off')
     
+    # Create summary text
     summary_text = f"""
-    MASS FLOW PRECIPITATE COMPARISON
+MASS FLOW PRECIPITATE COMPARISON
 
-    Current Conditions:
-    • TDS concentration: {current_tds_conc:.1f} g/L
-    • Evaporation ratio: {current_evap_ratio*100:.1f}%
-    • Original water volume: {original_water_volume_m3_s:.3f} m³/s
+Current Conditions:
+• TDS concentration: {current_tds_conc:.1f} g/L
+• Evaporation ratio: {current_evap_ratio*100:.1f}%
+• Original water volume: {original_water_volume_m3_s:.3f} m³/s
 
-    Results:
-    • Original calculation: {original_mass_flow_calc:.0f} kg/year
-    • New calculation: {original_mass_flow:.0f} kg/year
-    • Difference: {original_mass_flow - original_mass_flow_calc:.0f} kg/year
-    • Ratio (New/Original): {original_mass_flow/original_mass_flow_calc:.2f}x
+Results:
+• Original calculation: {original_mass_flow_calc:.0f} kg/year
+• New calculation: {original_mass_flow:.0f} kg/year
+• Difference: {original_mass_flow - original_mass_flow_calc:.0f} kg/year
+• Ratio (New/Original): {original_mass_flow/original_mass_flow_calc:.2f}x
 
-    New Function Parameters:
-    • concentration_a: {concentration_a:.3e} kg/m³
-    • concentration_b: {concentration_b:.3e} kg/m³
-    • Precipitate concentration: {concentration_a * current_evap_ratio + concentration_b:.3f} kg/m³
-    """
+New Function Parameters:
+• concentration_a: {concentration_a:.3e} kg/m³
+• concentration_b: {concentration_b:.3e} kg/m³
+• Precipitate concentration: {concentration_a * current_evap_ratio + concentration_b:.3f} kg/m³
+"""
     
     plt.text(0.05, 0.95, summary_text, transform=plt.gca().transAxes, 
              fontsize=10, verticalalignment='top', fontfamily='monospace',
@@ -752,6 +798,7 @@ def plot_precipitation_functions(m):
     plt.tight_layout()
     plt.show()
     
+    # Print comparison information
     print("\n" + "="*80)
     print("PRECIPITATION FUNCTION COMPARISON")
     print("="*80)
@@ -786,14 +833,17 @@ def calculate_max_feasible_li_concentration(m):
     li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = value(m.fs.rho)  # kg/m3
+    # Polynomial coefficients from fit
     a = 88.1606  
     b_ = -169.2358  
     c = 81.4783
+    # Test across evaporation fraction range
     evap_fractions = np.linspace(0.01, 0.99, 50)
     concentrations = []
     print(f"{'Evap Fraction':<15} {'Li+ Mass Fraction':<18} {'Li+ Outflow (kg/s)':<18} {'Li+ Conc (kg/m³)':<15} {'Li+ Conc (wt%)':<15}")
     print("-" * 70)
     for evap_frac in evap_fractions:
+        # Calculate Li+ mass fraction using polynomial, clipped to [0, 1]
         li_mass_frac = max(0, min(a * evap_frac**2 + b_ * evap_frac + c, 1))
         li_outflow = li_inlet_flow * li_mass_frac
         water_outflow = water_inlet_flow * (1 - evap_frac)
@@ -816,6 +866,7 @@ def plot_li_concentration_percent_vs_evap(m):
     li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = 1227  # kg/m3
+    # Polynomial coefficients from fit
     a2 = 88.1606
     a1 = -169.2358
     a0 = 81.4783
@@ -827,6 +878,7 @@ def plot_li_concentration_percent_vs_evap(m):
         water_outflow = water_inlet_flow * (1 - evap_frac)
         li_conc = li_outflow / (water_outflow + 1e-12) * rho_val if water_outflow > 1e-12 else 0
         # Convert to mass percent: Li+ mass / (Li+ mass + H2O mass) * 100
+        # Assume outlet is just Li+ and H2O (ignore other solutes for this plot)
         total_mass = li_outflow + water_outflow
         percent = (li_outflow / total_mass) * 100 if total_mass > 0 else 0
         li_percent.append(percent)

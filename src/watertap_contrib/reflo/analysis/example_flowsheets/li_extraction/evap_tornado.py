@@ -209,6 +209,7 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
+        'evaporation enhancement factor',
         'pond depth (inches)',
         'inlet lithium concentration (kg/m³)',
         'target Li+ concentration (g/kg)',
@@ -257,7 +258,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Design parameter sensitivity analysis: {target_col}")
+                                    title=f"Process parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

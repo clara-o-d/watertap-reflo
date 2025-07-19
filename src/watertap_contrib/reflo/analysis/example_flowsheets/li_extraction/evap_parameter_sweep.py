@@ -21,22 +21,22 @@ def build_model(**kwargs):
 
 def build_sweep_params(m, **kwargs):
     sweep_params = dict()
-    pond = m.fs.pond
+    pond_cost = m.fs.pond.costing.costing_package.evaporation_pond
 
     sweep_params['liner thickness (mil)'] = LinearSample(
-        pond.liner_thickness, 40, 80, 3
+        pond_cost.liner_thickness, 40, 80, 2
     )
     sweep_params['liner replacement frequency (years)'] = LinearSample(
-        pond_cost.liner_replacement_frequency, 10, 30, 3
+        pond_cost.liner_replacement_frequency, 10, 30, 2
     )
     sweep_params['land cost (USD_2001/acre)'] = LinearSample(
-        pond_cost.land_cost, 2000, 10000, 3
+        pond_cost.land_cost, 2000, 10000, 2
     )
     sweep_params['recovered solids handling cost (USD_2023/kg)'] = LinearSample(
-        pond_cost.recovered_solids_handling_cost, 0, 0.10, 3
+        pond_cost.recovered_solids_handling_cost, -0.05, 0.05, 2
     )
     sweep_params['enhancement dose basis (gallon/acre)'] = LinearSample(
-        pond_cost.enhancement_dose_basis, 0.1, 1.0, 3
+        pond_cost.enhancement_dose_basis, 0.1, 1.0, 2
     )
     return sweep_params
 

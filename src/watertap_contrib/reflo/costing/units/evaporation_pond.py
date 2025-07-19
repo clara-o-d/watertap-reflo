@@ -68,7 +68,7 @@ def build_organic_dye_cost_param_block(blk):
 def build_evaporation_pond_cost_param_block(blk):
 
     blk.liner_thickness_base = pyo.Var(
-        initialize=60,
+        initialize=40,
         units=pyo.units.mil,
         doc="Basis for adjusting liner cost based on thickness",
     )
@@ -130,7 +130,7 @@ def build_evaporation_pond_cost_param_block(blk):
     )
 
     blk.land_cost = pyo.Var(
-        initialize=5000,
+        initialize=2000,
         bounds=(0, None),
         units=pyo.units.USD_2001 / pyo.units.acre,
         doc="Land cost per acre",
@@ -151,21 +151,21 @@ def build_evaporation_pond_cost_param_block(blk):
     )
 
     blk.liner_replacement_frequency = pyo.Var(
-        initialize=20,
+        initialize=10,
         bounds=(0, None),
         units=pyo.units.year,
         doc="Liner replacement frequency",
     )
 
     blk.recovered_solids_handling_cost = pyo.Var(
-        initialize=0,
-        bounds=(0, None),
+        initialize=0.05,
+        bounds=(-10, None),
         units=blk.parent_block().base_currency / pyo.units.kg,
         doc="Cost to excavate and process precipitated solids",
     )
 
     blk.enhancement_dose_basis = pyo.Var(
-        initialize=0.5,
+        initialize=1.0,
         bounds=(0, None),
         units=pyo.units.gallon / pyo.units.acre,
         doc="Dosing basis for enhancement chemical",
