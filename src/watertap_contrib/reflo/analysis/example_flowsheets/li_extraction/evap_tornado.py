@@ -25,121 +25,113 @@ def load_and_process_data(filename):
 
 def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', input_params=None):
     """
-    One-at-a-time sensitivity analysis that handles nan values
-    Only analyzes the specified input parameters.
+    Classic tornado sensitivity: for each parameter, calculate percent change in LCOLi from median→min and median→max,
+    using averages at those values, and divide by the absolute percent change in parameter.
     """
     if input_params is None:
-        # Default to the current parameter sweep inputs
         input_params = [
-            'evaporation enhancement factor',
-            'pond depth (inches)',
-            'inlet lithium concentration (kg/m³)',
-            'target Li+ concentration (g/kg)'
+            'plant lifetime (years)',
+            'WACC',
+            'maintenance/labor/chemical factor',
+            'utilization factor',
+            'sales tax frac',
         ]
-    
-    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters:")
-    for col in input_params:
-        print(f"  - {col}")
-    
+    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters (classic tornado, median→min/max, abs denominator):")
     sensitivity_data = []
     for var in input_params:
         if var not in df.columns:
             print(f"  Warning: Parameter '{var}' not found in data columns, skipping")
             continue
-            
-        # Filter out rows with nan values for this parameter and target
-        valid_mask = ~(df[var].isna() | df[target_col].isna())
-        if valid_mask.sum() < 3:  # Need at least 3 valid points
-            print(f"  Warning: Only {valid_mask.sum()} valid data points for {var}, skipping")
+        valid = df[[var, target_col]].dropna()
+        if valid.empty:
+            print(f"  Warning: No valid data for {var}, skipping")
             continue
-            
-        x_vals = df[var].values[valid_mask]
-        y_vals = df[target_col].values[valid_mask]
-        
-        # Find median, min, max x
-        x_median = np.median(x_vals)
-        x_min = np.min(x_vals)
-        x_max = np.max(x_vals)
-        
-        # Find y at closest to median, min, max x
-        y_med = y_vals[np.argmin(np.abs(x_vals - x_median))]
-        y_min = y_vals[np.argmin(np.abs(x_vals - x_min))]
-        y_max = y_vals[np.argmin(np.abs(x_vals - x_max))]
-        
-        # Calculate percentage changes
-        # Increase: median -> max
-        x_range_pct_inc = (x_max - x_median) / x_median * 100 if x_median != 0 else np.nan
-        y_range_pct_inc = (y_max - y_med) / y_med * 100 if y_med != 0 else np.nan
-        pct_per_pct_inc = y_range_pct_inc / x_range_pct_inc if x_range_pct_inc and not np.isnan(x_range_pct_inc) else np.nan
-        
-        # Decrease: median -> min
-        x_range_pct_dec = (x_min - x_median) / x_median * 100 if x_median != 0 else np.nan
-        y_range_pct_dec = (y_min - y_med) / y_med * 100 if y_med != 0 else np.nan
-        pct_per_pct_dec = y_range_pct_dec / x_range_pct_dec if x_range_pct_dec and not np.isnan(x_range_pct_dec) else np.nan
-        
-        # Only include if we have valid sensitivity values
-        if not (np.isnan(pct_per_pct_inc) and np.isnan(pct_per_pct_dec)):
-            sensitivity_data.append({
-                'variable': var,
-                'pct_per_pct_increase': pct_per_pct_inc,
-                'pct_per_pct_decrease': pct_per_pct_dec,
-                'x_median': x_median,
-                'x_min': x_min,
-                'x_max': x_max,
-                'y_median': y_med,
-                'y_min': y_min,
-                'y_max': y_max,
-                'valid_points': valid_mask.sum()
-            })
-    
-    return pd.DataFrame(sensitivity_data)
+        grouped = valid.groupby(var)[target_col].mean().reset_index()
+        if len(grouped) < 2:
+            print(f"  Warning: Not enough unique values for {var}, skipping")
+            continue
+        x_min = grouped[var].min()
+        x_median = grouped[var].median()
+        x_max = grouped[var].max()
+        y_min = grouped.loc[grouped[var] == x_min, target_col].values[0]
+        y_median = grouped.loc[grouped[var] == x_median, target_col].values[0]
+        y_max = grouped.loc[grouped[var] == x_max, target_col].values[0]
+        # median→min
+        if x_median == 0:
+            pct_change_x_min = abs(x_min - x_median)
+        else:
+            pct_change_x_min = abs((x_min - x_median) / x_median * 100)
+        if y_median == 0:
+            pct_change_y_min = y_min - y_median
+        else:
+            pct_change_y_min = (y_min - y_median) / y_median * 100
+        sensitivity_median_min = pct_change_y_min / pct_change_x_min if pct_change_x_min != 0 else float('nan')
+        # median→max
+        if x_median == 0:
+            pct_change_x_max = abs(x_max - x_median)
+        else:
+            pct_change_x_max = abs((x_max - x_median) / x_median * 100)
+        if y_median == 0:
+            pct_change_y_max = y_max - y_median
+        else:
+            pct_change_y_max = (y_max - y_median) / y_median * 100
+        sensitivity_median_max = pct_change_y_max / pct_change_x_max if pct_change_x_max != 0 else float('nan')
+        sensitivity_data.append({
+            'variable': var,
+            'sensitivity_median_min': sensitivity_median_min,
+            'sensitivity_median_max': sensitivity_median_max,
+            'x_min': x_min,
+            'x_median': x_median,
+            'x_max': x_max,
+            'y_min': y_min,
+            'y_median': y_median,
+            'y_max': y_max,
+            'valid_points': len(valid)
+        })
+        print(f"  {var}: median→min sensitivity={sensitivity_median_min:.3f}, median→max sensitivity={sensitivity_median_max:.3f} (classic tornado, abs denominator)")
+    # Sort by the largest absolute effect (either direction)
+    sensitivity_df = pd.DataFrame(sensitivity_data)
+    if not sensitivity_df.empty:
+        sensitivity_df['max_abs_sensitivity'] = sensitivity_df[['sensitivity_median_min', 'sensitivity_median_max']].abs().max(axis=1)
+        sensitivity_df = sensitivity_df.sort_values(by='max_abs_sensitivity', ascending=False)
+    return sensitivity_df
 
 def create_tornado_plot(sensitivity_df, target_col, title=None):
-    """Create a tornado plot showing parameter sensitivity"""
     if title is None:
         title = f"Sensitivity Analysis: {target_col}"
-    
     if sensitivity_df.empty:
         print("No valid sensitivity data to plot")
         return None, None
-    
-    # Strip any leading '# ' or whitespace from parameter names
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
-    
-    # Sort by the largest absolute effect (either direction)
-    sensitivity_df['max_abs_sensitivity'] = sensitivity_df[['pct_per_pct_increase', 'pct_per_pct_decrease']].abs().max(axis=1)
     sensitivity_df = sensitivity_df.sort_values(by='max_abs_sensitivity', ascending=True)
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(11.5, 7))
     y_pos = np.arange(len(sensitivity_df))
-
-    # Plot both bars at the same y position
-    bars_increase = ax.barh(
-        y_pos, 
-        sensitivity_df['pct_per_pct_increase'], 
-        height=0.5, 
-        color='#3b82f6', 
-        alpha=0.7, 
+    bar_width = 0.35
+    bars1 = ax.barh(
+        y_pos,
+        sensitivity_df['sensitivity_median_max'],
+        height=bar_width,
+        color='#3b82f6',
+        alpha=0.7,
         label='Increase (median→max)'
     )
-    bars_decrease = ax.barh(
-        y_pos, 
-        -sensitivity_df['pct_per_pct_decrease'], 
-        height=0.5, 
-        color='#ef4444', 
-        alpha=0.7, 
+    bars2 = ax.barh(
+        y_pos,
+        sensitivity_df['sensitivity_median_min'],
+        height=bar_width,
+        color='#ef4444',
+        alpha=0.7,
         label='Decrease (median→min)'
     )
-
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(sensitivity_df['variable'], fontsize=10)
-    ax.set_xlabel(f'Percent change in {target_col} per percent change in parameter', fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+    ax.set_yticklabels(sensitivity_df['variable'], fontsize=12)
+    ax.set_xlabel(f'Percent change in {target_col} per percent change in parameter', fontsize=11)
+    ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
     handles, labels = ax.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    ax.legend(by_label.values(), by_label.keys(), loc='lower right')
+    ax.legend(by_label.values(), by_label.keys(), loc='lower right', fontsize=12)
     plt.tight_layout()
     return fig, ax
 
@@ -207,14 +199,12 @@ def main():
         print("Expected files: pond_sensitivity.csv or test_pond_sensitivity.csv")
         return
 
-    # Define the specific model inputs being swept in the current parameter sweep
+    # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'evaporation enhancement factor',
-        'pond depth (inches)',
-        'inlet lithium concentration (kg/m³)',
-        'target Li+ concentration (g/kg)',
+        'plant lifetime (years)',
+        'maintenance/labor/chemical factor',
+        'utilization factor',
     ]
-    
     # Confirm input/output match for each parameter
     for var in input_vars:
         resultant_var = f"resultant {var}"
@@ -258,7 +248,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Process parameter sensitivity analysis: {target_col}")
+                                    title=f"Global costing parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")
@@ -273,10 +263,10 @@ def main():
         print(f"  Parameters analyzed: {len(sensitivity_df)}")
         for _, row in sensitivity_df.iterrows():
             print(f"  {row['variable']}: {row['valid_points']} valid points")
-            if not np.isnan(row['pct_per_pct_increase']):
-                print(f"    Increase sensitivity: {row['pct_per_pct_increase']:.3f}")
-            if not np.isnan(row['pct_per_pct_decrease']):
-                print(f"    Decrease sensitivity: {row['pct_per_pct_decrease']:.3f}")
+            if not np.isnan(row['sensitivity_median_min']):
+                print(f"    Increase sensitivity (median→min): {row['sensitivity_median_min']:.3f}")
+            if not np.isnan(row['sensitivity_median_max']):
+                print(f"    Increase sensitivity (median→max): {row['sensitivity_median_max']:.3f}")
     else:
         print("No valid sensitivity data calculated.")
     
