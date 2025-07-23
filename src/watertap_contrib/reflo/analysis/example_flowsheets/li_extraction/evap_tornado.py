@@ -201,9 +201,11 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'plant lifetime (years)',
-        'maintenance/labor/chemical factor',
-        'utilization factor',
+        'number_of_wells',
+        'piping_length (km)',
+        'pumping_efficiency',
+        'well_capital_cost (USD_2023/well)',
+        'piping_unit_cost (USD_2023/km)',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
