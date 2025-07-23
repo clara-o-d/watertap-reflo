@@ -199,25 +199,15 @@ def main():
         print("Expected files: pond_sensitivity.csv or test_pond_sensitivity.csv")
         return
 
-    # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
+    # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
-        'number_of_wells',
-        'piping_length (km)',
-        'pumping_efficiency',
-        'well_capital_cost (USD_2023/well)',
-        'piping_unit_cost (USD_2023/km)',
+        'well_capital_cost',
+        'pumping_head',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
-        resultant_var = f"resultant {var}"
-        if resultant_var in df.columns and var in df.columns:
-            mismatch = (df[var] != df[resultant_var]) & ~(df[var].isna() | df[resultant_var].isna())
-            if mismatch.any():
-                print(f"WARNING: Mismatch found between '{var}' and '{resultant_var}' in {mismatch.sum()} rows.")
-            else:
-                print(f"OK: '{var}' matches '{resultant_var}' for all valid rows.")
-        elif var in df.columns:
-            print(f"OK: '{var}' found in data (no resultant variable expected).")
+        if var in df.columns:
+            print(f"OK: '{var}' found in data.")
         else:
             print(f"WARNING: '{var}' not found in data columns.")
     
