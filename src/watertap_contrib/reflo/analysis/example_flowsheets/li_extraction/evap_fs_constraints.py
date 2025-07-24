@@ -679,10 +679,10 @@ def display_costing_results(m):
         # Extraction/transport breakdown
         print("-"*50)
         print("WELLFIELD, PIPING, PUMPING, SHIPPING COSTS")
-        print(f"  Wellfield capital: ${value(m.fs.total_well_capital_cost):,.0f}")
-        print(f"  Piping capital: ${value(m.fs.total_piping_capital_cost):,.0f}")
-        print(f"  Pumping OPEX: ${value(m.fs.annual_pumping_cost):,.0f}/year")
-        print(f"  Shipping OPEX: ${value(m.fs.annual_shipping_cost):,.0f}/year")
+        print(f"  Wellfield capital: ${value(m.fs.extraction.total_well_capital_cost):,.0f}")
+        print(f"  Piping capital: ${value(m.fs.extraction.total_piping_capital_cost):,.0f}")
+        print(f"  Pumping OPEX: ${value(m.fs.extraction.annual_pumping_cost):,.0f}/year")
+        print(f"  Shipping OPEX: ${value(m.fs.transport.annual_shipping_cost):,.0f}/year")
         # Pond summary
         print("-"*50)
         print("POND COSTS (Total)")

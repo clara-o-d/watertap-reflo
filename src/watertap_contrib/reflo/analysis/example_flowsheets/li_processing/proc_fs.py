@@ -8,19 +8,29 @@ from idaes.models.unit_models import Feed, Product, Mixer
 from idaes.models.unit_models.mixer import MixingType
 from watertap.unit_models.pressure_changer import Pump
 from watertap_contrib.reflo.unit_models import EvaporationPond, ChemicalSoftening
-from watertap.unit_models.cstr import CSTR
+from watertap.unit_models.stoichiometric_reactor import StoichiometricReactor
 from watertap.unit_models.clarifier import Clarifier
 from watertap.unit_models.dewatering import DewateringUnit
 from watertap.core.util.initialization import assert_degrees_of_freedom
 from pyomo.environ import assert_optimal_termination
 from watertap.unit_models.zero_order import StorageTankZO
 from watertap.unit_models.zero_order import ClarifierZO
+from idaes.models.properties.modular_properties.base.generic_reaction import GenericReactionParameterBlock
+from idaes.core.base.components import Cation, Anion, Solvent
+from idaes.models.properties.modular_properties.pure.ConstantProperties import Constant
+from idaes.models.properties.modular_properties.state_definitions import FTPx
+from idaes.models.properties.modular_properties.eos.ideal import Ideal
+from idaes.core import AqueousPhase
+from idaes.models.properties.modular_properties.base.generic_property import StateIndex
+import idaes.core.util.scaling as iscale
+from watertap.unit_models.boron_removal import BoronRemoval
 
 
 def main():
     m = build()
     set_operating_conditions(m)
     assert_degrees_of_freedom(m, 0)
+    iscale.calculate_scaling_factors(m)
     initialize_system(m)
 
     results = solve_flowsheet(m)
@@ -39,10 +49,11 @@ def build():
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = MCASParameterBlock(
-        solute_list=["li+", "boron", "Ca_2+", "Mg_2+", "Na+", "Cl-", "CO3-2", "HCO3-", "tss", "tds", "Alkalinity_2-"],
+        solute_list=["li+", "boron", "borate", "Ca_2+", "Mg_2+", "Na+", "Cl-", "CO3-2", "HCO3-", "tss", "tds", "Alkalinity_2-", "Li2CO3"],
         mw_data={
             "li+": 6.94e-3,
             "boron": 10.81e-3,
+            "borate": 61.83e-3,  # MW for B(OH)4-
             "Ca_2+": 40.08e-3,
             "Mg_2+": 24.31e-3,
             "Na+": 22.99e-3,
@@ -52,16 +63,34 @@ def build():
             "tss": 1.0,
             "tds": 31.4e-3,
             "Alkalinity_2-": 61.02e-3,  # Placeholder MW
+            "Li2CO3": 73.89e-3,
         },
         density_calculation=MCASDensityCalculation.constant,
     )
     # Main process units
     m.fs.feed = Feed(property_package=m.fs.properties)
     m.fs.storage = StorageTankZO(property_package=m.fs.properties)
-    m.fs.boron_acid = Mixer(property_package=m.fs.properties, inlet_list=["brine", "hcl", "solvent"], energy_mixing_type=MixingType.none)
-    m.fs.boron_extraction = ClarifierZO(property_package=m.fs.properties)
+    # Boron removal unit (replace Mixer + Clarifier)
+    chem_dict = {
+        'boron_name': 'boron',
+        'borate_name': 'borate',
+        'caustic_additive': {
+            'additive_name': 'NaOH',
+            'cation_name': 'Na+',
+            'mw_additive': (39.997, pyunits.g/pyunits.mol),
+            'moles_cation_per_additive': 1,
+        }
+    }
+    m.fs.boron_removal = BoronRemoval(property_package=m.fs.properties, chemical_mapping_data=chem_dict)
     m.fs.softening = ChemicalSoftening(property_package=m.fs.properties)
-    m.fs.carbonation = CSTR(property_package=m.fs.properties)
+    # StoichiometricReactor for Li2CO3 precipitation
+    precipitants = {
+        "Li2CO3": {
+            "mw": 73.89 * pyunits.g / pyunits.mol,
+            "precipitation_stoichiometric": {"li+": 2, "CO3-2": 1},
+        }
+    }
+    m.fs.carbonation = StoichiometricReactor(property_package=m.fs.properties, precipitants=precipitants)
     m.fs.carbonation_sep = ClarifierZO(property_package=m.fs.properties)
     m.fs.drying = DewateringUnit(property_package=m.fs.properties)
     m.fs.li2co3_product = Product(property_package=m.fs.properties)
@@ -69,9 +98,8 @@ def build():
     m.fs.liquid_waste = Product(property_package=m.fs.properties)
     # Connectivity
     m.fs.feed_to_storage = Arc(source=m.fs.feed.outlet, destination=m.fs.storage.inlet)
-    m.fs.storage_to_boron = Arc(source=m.fs.storage.outlet, destination=m.fs.boron_acid.brine)
-    m.fs.boron_to_extraction = Arc(source=m.fs.boron_acid.outlet, destination=m.fs.boron_extraction.inlet)
-    m.fs.boronfree_to_softening = Arc(source=m.fs.boron_extraction.boron_free, destination=m.fs.softening.inlet)
+    m.fs.storage_to_boron = Arc(source=m.fs.storage.outlet, destination=m.fs.boron_removal.inlet)
+    m.fs.boron_to_softening = Arc(source=m.fs.boron_removal.outlet, destination=m.fs.softening.inlet)
     m.fs.softening_to_carbonation = Arc(source=m.fs.softening.outlet, destination=m.fs.carbonation.inlet)
     m.fs.carbonation_to_sep = Arc(source=m.fs.carbonation.outlet, destination=m.fs.carbonation_sep.inlet)
     m.fs.sep_to_drying = Arc(source=m.fs.carbonation_sep.li2co3_slurry, destination=m.fs.drying.inlet)
@@ -79,7 +107,7 @@ def build():
     m.fs.drying_to_solidwaste = Arc(source=m.fs.drying.underflow, destination=m.fs.solid_waste.inlet)
     m.fs.carbonation_sep_to_liquidwaste = Arc(source=m.fs.carbonation_sep.mother_liquor, destination=m.fs.liquid_waste.inlet)
     # LiOH section
-    m.fs.lioh_reactor = CSTR(property_package=m.fs.properties)
+    m.fs.lioh_reactor = StoichiometricReactor(property_package=m.fs.properties)
     m.fs.lioh_clarifier = ClarifierZO(property_package=m.fs.properties)
     m.fs.lioh_filter = DewateringUnit(property_package=m.fs.properties)
     m.fs.lioh_evap = StorageTankZO(property_package=m.fs.properties)  # Use storage for buffer/hold, not evaporation
@@ -123,8 +151,8 @@ def set_operating_conditions(m):
 def initialize_system(m):
     # Initialize all major units
     for unit in [
-        m.fs.storage, m.fs.boron_acid, m.fs.boron_extraction, m.fs.softening,
-        m.fs.carbonation, m.fs.carbonation_sep, m.fs.drying, m.fs.li2co3_product,
+        m.fs.storage, m.fs.boron_removal, m.fs.softening, m.fs.carbonation,
+        m.fs.carbonation_sep, m.fs.drying, m.fs.li2co3_product,
         m.fs.solid_waste, m.fs.liquid_waste, m.fs.lioh_reactor, m.fs.lioh_clarifier,
         m.fs.lioh_filter, m.fs.lioh_evap, m.fs.lioh_centrifuge, m.fs.lioh_dryer,
         m.fs.lioh_product, m.fs.lioh_offspec, m.fs.lioh_solidwaste, m.fs.lioh_liquidwaste
@@ -149,7 +177,7 @@ def add_costing(m):
     from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
     m.fs.costing = REFLOCosting()
     for unit in [
-        m.fs.storage, m.fs.boron_extraction, m.fs.softening, m.fs.carbonation,
+        m.fs.storage, m.fs.boron_removal, m.fs.softening, m.fs.carbonation,
         m.fs.carbonation_sep, m.fs.drying, m.fs.lioh_reactor, m.fs.lioh_clarifier,
         m.fs.lioh_filter, m.fs.lioh_evap, m.fs.lioh_centrifuge, m.fs.lioh_dryer
     ]:
