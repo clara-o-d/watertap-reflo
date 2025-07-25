@@ -27,107 +27,9 @@ from watertap_contrib.reflo.property_models import (
 from watertap_contrib.reflo.unit_models import EvaporationPond
 from watertap.core.solvers import get_solver
 from watertap.core.util.initialization import assert_degrees_of_freedom
-from pyomo.network import Arc
-from idaes.models.unit_models import Feed
-from watertap.unit_models.pressure_changer import Pump
-from watertap.property_models.multicomp_aq_sol_prop_pack import MCASParameterBlock, DensityCalculation as MCASDensityCalculation
-from idaes.models.unit_models.translator import TranslatorData
-from idaes.core import declare_process_block_class
-
-# AirWaterEq to MCAS
-@declare_process_block_class("Translator_AirWaterEq_to_MCAS")
-class Translator_AirWaterEq_to_MCAS_Data(TranslatorData):
-    def build(self):
-        super().build()
-        # Add missing variables to existing ports if not already present
-        for port_name, prop_block in [("inlet", self.properties_in[0]), ("outlet", self.properties_out[0])]:
-            port = getattr(self, port_name)
-            if not hasattr(port, "flow_mass_phase_comp"):
-                port.add(prop_block.flow_mass_phase_comp, "flow_mass_phase_comp")
-            if not hasattr(port, "pressure"):
-                port.add(prop_block.pressure, "pressure")
-            if not hasattr(port, "temperature"):
-                port.add(prop_block.temperature, "temperature")
-        import pyomo.environ as pyo
-        @self.Constraint(self.flowsheet().time, doc="Pressure mapping")
-        def eq_pressure(b, t):
-            return b.properties_out[t].pressure == b.properties_in[t].pressure
-        # Robust temperature mapping (as before)
-        def _temperature_constraint_rule(b, t, phase=None):
-            if phase is not None:
-                return b.properties_out[t].temperature[phase] == b.properties_in[t].temperature[phase]
-            else:
-                return b.properties_out[t].temperature == b.properties_in[t].temperature
-        try:
-            if self.properties_out[0].temperature.is_indexed() and self.properties_in[0].temperature.is_indexed():
-                for phase in ["Liq", "Vap"]:
-                    if phase in self.properties_out[0].temperature and phase in self.properties_in[0].temperature:
-                        setattr(self, f"eq_temp_{phase}", pyo.Constraint(self.flowsheet().time, rule=lambda b, t, p=phase: _temperature_constraint_rule(b, t, p)))
-            elif not self.properties_out[0].temperature.is_indexed() and not self.properties_in[0].temperature.is_indexed():
-                self.eq_temp = pyo.Constraint(self.flowsheet().time, rule=_temperature_constraint_rule)
-        except Exception as e:
-            print(f"[WARNING] Translator: error in temperature mapping: {e}")
-        # Dynamic mapping for all (phase, comp) pairs present in both in and out
-        in_keys = set(self.properties_in[0].flow_mass_phase_comp.keys())
-        out_keys = set(self.properties_out[0].flow_mass_phase_comp.keys())
-        common_keys = in_keys & out_keys
-        for phase, comp in common_keys:
-            cname = f"eq_{phase}_{comp}".replace("+", "plus").replace("-", "min").replace("/", "_")
-            setattr(self, cname, pyo.Constraint(
-                self.flowsheet().time,
-                rule=lambda b, t, p=phase, c=comp: b.properties_out[t].flow_mass_phase_comp[p, c] == b.properties_in[t].flow_mass_phase_comp[p, c]
-            ))
-        # Explicit mapping for TDS (AirWaterEq) to tds (MCAS)
-        try:
-            if ("Liq", "TDS") in self.properties_in[0].flow_mass_phase_comp and ("Liq", "tds") in self.properties_out[0].flow_mass_phase_comp:
-                self.eq_Liq_TDS_to_tds = pyo.Constraint(
-                    self.flowsheet().time,
-                    rule=lambda b, t: b.properties_out[t].flow_mass_phase_comp["Liq", "tds"] == b.properties_in[t].flow_mass_phase_comp["Liq", "TDS"]
-                )
-        except Exception as e:
-            print(f"[WARNING] Translator: error in mapping ('Liq', 'TDS') to ('Liq', 'tds'): {e}")
-
-# MCAS to AirWaterEq
-@declare_process_block_class("Translator_MCAS_to_AirWaterEq")
-class Translator_MCAS_to_AirWaterEq_Data(TranslatorData):
-    def build(self):
-        super().build()
-        import pyomo.environ as pyo
-        @self.Constraint(self.flowsheet().time, doc="Pressure mapping")
-        def eq_pressure(b, t):
-            return b.properties_out[t].pressure == b.properties_in[t].pressure
-        def _temperature_constraint_rule(b, t, phase=None):
-            if phase is not None:
-                return b.properties_out[t].temperature[phase] == b.properties_in[t].temperature[phase]
-            else:
-                return b.properties_out[t].temperature == b.properties_in[t].temperature
-        try:
-            if self.properties_out[0].temperature.is_indexed() and self.properties_in[0].temperature.is_indexed():
-                for phase in ["Liq", "Vap"]:
-                    if phase in self.properties_out[0].temperature and phase in self.properties_in[0].temperature:
-                        setattr(self, f"eq_temp_{phase}", pyo.Constraint(self.flowsheet().time, rule=lambda b, t, p=phase: _temperature_constraint_rule(b, t, p)))
-            elif not self.properties_out[0].temperature.is_indexed() and not self.properties_in[0].temperature.is_indexed():
-                self.eq_temp = pyo.Constraint(self.flowsheet().time, rule=_temperature_constraint_rule)
-        except Exception as e:
-            print(f"[WARNING] Translator: error in temperature mapping: {e}")
-        pairs = [
-            ("Liq", "H2O"),
-            ("Liq", "tds"),
-            ("Liq", "TDS"),
-            ("Liq", "li+"),
-            ("Vap", "Air"),
-            ("Vap", "H2O"),
-        ]
-        for phase, comp in pairs:
-            try:
-                if (phase, comp) in self.properties_out[0].flow_mass_phase_comp and (phase, comp) in self.properties_in[0].flow_mass_phase_comp:
-                    cname = f"eq_{phase}_{comp}".replace("+", "plus").replace("-", "min").replace("/", "_")
-                    setattr(self, cname, pyo.Constraint(self.flowsheet().time, rule=lambda b, t, p=phase, c=comp: b.properties_out[t].flow_mass_phase_comp[p, c] == b.properties_in[t].flow_mass_phase_comp[p, c]))
-            except Exception as e:
-                print(f"[WARNING] Translator: error in mapping ({phase}, {comp}): {e}")
 
 # Import weather utilities
-from weather_utils import (
+from weather.weather_utils import (
     preprocess_station34_weather_data,
     preprocess_openmeteo_weather_data,
     preprocess_weather_data,
@@ -141,9 +43,12 @@ from weather_utils import (
 
 from scipy.optimize import root_scalar
 
+# Set weather data directory
+weather_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "weather"))
+
 def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
-    prop_in = m.fs.feed.properties[0]
-    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "li+"])
+    prop_in = m.fs.pond.properties_in[0]
+    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = value(m.fs.rho)
     a = 88.1606
@@ -186,27 +91,27 @@ def main():
     # Single dataset processing
     if choice == "1":
         # Station 34 data
-        raw_weather_file = os.path.join(this_dir, "station[34]_2024-01-01_2024-12-31.csv")
-        processed_weather_file = os.path.join(this_dir, "station34_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "station34_2024-01-01_2024-12-31.csv")
+        processed_weather_file = os.path.join(weather_dir, "station34_processed_weather.csv")
         data_type = "station34"
         weather_name = "Station 34"
         
     elif choice == "2":
         # Open-Meteo data
-        raw_weather_file = os.path.join(this_dir, "open-meteo-23.66S68.45W2301m.csv")
-        processed_weather_file = os.path.join(this_dir, "openmeteo_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "open-meteo-23.66S68.45W2301m.csv")
+        processed_weather_file = os.path.join(weather_dir, "openmeteo_processed_weather.csv")
         data_type = "openmeteo"
         weather_name = "Open-Meteo (Chile)"
         
     elif choice == "3":
         # Test data (no preprocessing needed)
-        processed_weather_file = os.path.join(this_dir, "evaporation_pond_test_data.csv")
+        processed_weather_file = os.path.join(weather_dir, "evaporation_pond_test_data.csv")
         weather_name = "Test Data"
         
     else:
         print("Invalid choice. Using Station 34 data as default.")
-        raw_weather_file = os.path.join(this_dir, "station[34]_2024-01-01_2024-12-31.csv")
-        processed_weather_file = os.path.join(this_dir, "station34_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "station34_2024-01-01_2024-12-31.csv")
+        processed_weather_file = os.path.join(weather_dir, "station34_processed_weather.csv")
         data_type = "station34"
         weather_name = "Station 34"
     
@@ -279,11 +184,11 @@ def main():
     if results.solver.termination_condition == pyo.TerminationCondition.optimal:
         print("SUCCESS: Model solved optimally with costing!")
         display_costing_results(m)
-        m.fs.costing.pprint()
-        print("="*50)
-        print("POND COSTING")
-        print("="*50)
-        m.fs.pond.costing.pprint()
+        # m.fs.costing.pprint()
+        # print("="*50)
+        # print("POND COSTING")
+        # print("="*50)
+        # m.fs.pond.costing.pprint()
     else:
         print(f"WARNING: Solver terminated with condition: {results.solver.termination_condition}")
         print("Costing results may not be accurate.")
@@ -301,40 +206,12 @@ def build(weather_data_path):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
-    # AirWaterEq property package uses uppercase 'TDS' for compatibility with EvaporationPond
     props = {
-        "non_volatile_solute_list": ["TDS", "li+"],
-        "mw_data": {"TDS": 31.4038218e-3, "li+": 6.94e-3},
+        "non_volatile_solute_list": ["TDS", "Li+"],
+        "mw_data": {"TDS": 31.4038218e-3, "Li+": 6.94e-3},
         "density_calculation": DensityCalculation.calculated,
     }
     m.fs.properties = AirWaterEq(**props)
-
-    # Add Feed block (AirWaterEq)
-    m.fs.feed = Feed(property_package=m.fs.properties)
-
-    # Add MCAS property package for downstream units
-    m.fs.mcas_properties = MCASParameterBlock(
-        solute_list=["tds", "li+"],
-        mw_data={"tds": 31.4038218e-3, "li+": 6.94e-3},
-        density_calculation=MCASDensityCalculation.constant,
-    )
-
-    # Add Translator block (AirWaterEq -> MCAS)
-    m.fs.translator = Translator_AirWaterEq_to_MCAS(
-        inlet_property_package=m.fs.properties,
-        outlet_property_package=m.fs.mcas_properties,
-    )
-
-    # Add Pump block (MCAS)
-    m.fs.pump = Pump(property_package=m.fs.mcas_properties)
-    for varname in ["flow_mass_phase_comp", "pressure", "temperature"]:
-        if not hasattr(m.fs.pump.inlet, varname):
-            m.fs.pump.inlet.add(getattr(m.fs.pump.control_volume.properties_in[0], varname), varname)
-    # Add Translator block (MCAS -> AirWaterEq)
-    m.fs.translator_back = Translator_MCAS_to_AirWaterEq(
-        inlet_property_package=m.fs.mcas_properties,
-        outlet_property_package=m.fs.properties,
-    )
 
     weather_data_column_dict = {
         "pressure": "Pressure",
@@ -351,145 +228,16 @@ def build(weather_data_path):
         add_enhancement=True,
     )
 
-    # Connect Feed -> Translator -> Pump -> Translator_back -> Pond
-    m.fs.feed_to_translator = Arc(source=m.fs.feed.outlet, destination=m.fs.translator.inlet)
-    m.fs.translator_to_pump = Arc(source=m.fs.translator.outlet, destination=m.fs.pump.inlet)
-    m.fs.pump_to_translator_back = Arc(source=m.fs.pump.outlet, destination=m.fs.translator_back.inlet)
-    m.fs.translator_back_to_pond = Arc(source=m.fs.translator_back.outlet, destination=m.fs.pond.inlet)
-
-    from pyomo.environ import TransformationFactory
-    TransformationFactory("network.expand_arcs").apply_to(m)
-
-    print("Feed outlet keys:", list(m.fs.feed.outlet.flow_mass_phase_comp.keys()))
-    print("Translator outlet keys:", list(m.fs.translator.outlet.flow_mass_phase_comp.keys()))
-    t0 = list(m.fs.feed.outlet.flow_mass_phase_comp.keys())[0][0]
-    # Map and fix flow_mass_phase_comp
-    mapping = {
-        ('Liq', 'tds'): (t0, 'Liq', 'TDS'),
-        ('Liq', 'H2O'): (t0, 'Liq', 'H2O'),
-        ('Liq', 'li+'): (t0, 'Liq', 'li+')
-    }
-    for (phase, comp), feed_key in mapping.items():
-        if feed_key in m.fs.feed.outlet.flow_mass_phase_comp and (phase, comp) in m.fs.translator.outlet.flow_mass_phase_comp:
-            val = value(m.fs.feed.outlet.flow_mass_phase_comp[feed_key])
-            m.fs.translator.outlet.flow_mass_phase_comp[phase, comp].fix(val)
-            print(f"Fixed translator.outlet.flow_mass_phase_comp[{phase}, {comp}] to {val}")
-    # Fix pressure
-    pressure_out = m.fs.translator.outlet.pressure
-    pressure_feed = m.fs.feed.outlet.pressure
-    if hasattr(pressure_out, 'is_indexed') and pressure_out.is_indexed():
-        for k in pressure_out.keys():
-            if k in pressure_feed:
-                pressure_out[k].fix(value(pressure_feed[k]))
-                print(f"Fixed translator.outlet.pressure[{k}] to {value(pressure_feed[k])}")
-    else:
-        pressure_out.fix(value(pressure_feed))
-        print(f"Fixed translator.outlet.pressure to {value(pressure_feed)}")
-    # Fix temperature
-    temp_out = m.fs.translator.outlet.temperature
-    temp_feed = m.fs.feed.outlet.temperature
-    if hasattr(temp_out, 'is_indexed') and temp_out.is_indexed():
-        for k in temp_out.keys():
-            if hasattr(temp_feed, 'is_indexed') and temp_feed.is_indexed() and k in temp_feed:
-                temp_out[k].fix(value(temp_feed[k]))
-                print(f"Fixed translator.outlet.temperature[{k}] to {value(temp_feed[k])}")
-    else:
-        temp_out.fix(value(temp_feed))
-        print(f"Fixed translator.outlet.temperature to {value(temp_feed)}")
-    print("\nTranslator outlet state variables:")
-    for (phase, comp), v in m.fs.translator.outlet.flow_mass_phase_comp.items():
-        print(f"  flow_mass_phase_comp[{phase}, {comp}]: {v.value} (fixed={v.fixed})")
-    # Print pressure
-    pressure = m.fs.translator.outlet.pressure
-    if hasattr(pressure, 'is_indexed') and pressure.is_indexed():
-        for k in pressure.keys():
-            v = pressure[k]
-            print(f"  pressure[{k}]: {v.value} (fixed={v.fixed})")
-    else:
-        print(f"  pressure: {pressure.value} (fixed={pressure.fixed})")
-    # Print temperature
-    temperature = m.fs.translator.outlet.temperature
-    if hasattr(temperature, 'is_indexed') and temperature.is_indexed():
-        for k in temperature.keys():
-            v = temperature[k]
-            print(f"  temperature[{k}]: {v.value} (fixed={v.fixed})")
-    else:
-        print(f"  temperature: {temperature.value} (fixed={temperature.fixed})")
     define_operating_params_and_vars(m)
     set_operating_conditions(m)
     m.fs.pond.number_evaporation_ponds.fix(300)
-    # Print DOFs for each major block
-    print(f"DOF (feed): {degrees_of_freedom(m.fs.feed)}")
-    print(f"DOF (pump): {degrees_of_freedom(m.fs.pump)}")
-    print(f"DOF (pond): {degrees_of_freedom(m.fs.pond)}")
-    print(f"DOF (flowsheet): {degrees_of_freedom(m)}")
-
-    print("\nFeed outlet flow_mass_phase_comp:")
-    for k, v in m.fs.feed.outlet.flow_mass_phase_comp.items():
-        print(f"  {k}: {v.value} (fixed={v.fixed})")
-
-    print("\nPump inlet flow_mass_phase_comp:")
-    t0 = list(m.fs.pump.control_volume.properties_in.keys())[0]
-    for (phase, comp), v in m.fs.pump.control_volume.properties_in[t0].flow_mass_phase_comp.items():
-        print(f"  ({phase}, {comp}): {v.value} (fixed={v.fixed})")
-
-    print("\nTranslator constraints:")
-    for c in m.fs.translator.component_objects(pyo.Constraint, descend_into=True):
-        print("  ", c.name)
-
-    print("\nArc constraints between translator and pump:")
-    for c in m.fs.translator_to_pump.component_objects(pyo.Constraint, descend_into=True):
-        print("  ", c.name)
-
     assert_degrees_of_freedom(m, 0)
     
     iscale.calculate_scaling_factors(m)
     initialize_system(m)
     
-    # Print pump inlet state variables
-    t0 = list(m.fs.pump.control_volume.properties_in.keys())[0]
-    print("\nPump inlet state variables:")
-    for (phase, comp), v in m.fs.pump.control_volume.properties_in[t0].flow_mass_phase_comp.items():
-        print(f"  flow_mass_phase_comp[{phase}, {comp}]: {v.value} (fixed={v.fixed})")
-    print(f"  pressure: {m.fs.pump.control_volume.properties_in[t0].pressure.value} (fixed={m.fs.pump.control_volume.properties_in[t0].pressure.fixed})")
-    print(f"  temperature: {m.fs.pump.control_volume.properties_in[t0].temperature.value} (fixed={m.fs.pump.control_volume.properties_in[t0].temperature.fixed})")
 
-    # Print pump outlet state variables
-    t0 = list(m.fs.pump.control_volume.properties_out.keys())[0]
-    print("\nPump outlet state variables:")
-    for (phase, comp), v in m.fs.pump.control_volume.properties_out[t0].flow_mass_phase_comp.items():
-        print(f"  flow_mass_phase_comp[{phase}, {comp}]: {v.value} (fixed={v.fixed})")
-    print(f"  pressure: {m.fs.pump.control_volume.properties_out[t0].pressure.value} (fixed={m.fs.pump.control_volume.properties_out[t0].pressure.fixed})")
-    print(f"  temperature: {m.fs.pump.control_volume.properties_out[t0].temperature.value} (fixed={m.fs.pump.control_volume.properties_out[t0].temperature.fixed})")
-
-    # Print translator outlet state variables
-    t0 = list(m.fs.translator.outlet.keys())[0]
-    print("\nTranslator outlet state variables:")
-    for (phase, comp), v in m.fs.translator.outlet[t0].flow_mass_phase_comp.items():
-        print(f"  flow_mass_phase_comp[{phase}, {comp}]: {v.value} (fixed={v.fixed})")
-    # Print pressure
-    pressure = m.fs.translator.outlet[t0].pressure
-    if hasattr(pressure, 'is_indexed') and pressure.is_indexed():
-        for k in pressure.keys():
-            v = pressure[k]
-            print(f"  pressure[{k}]: {v.value} (fixed={v.fixed})")
-    else:
-        print(f"  pressure: {pressure.value} (fixed={pressure.fixed})")
-    # Print temperature
-    temperature = m.fs.translator.outlet[t0].temperature
-    if hasattr(temperature, 'is_indexed') and temperature.is_indexed():
-        for k in temperature.keys():
-            v = temperature[k]
-            print(f"  temperature[{k}]: {v.value} (fixed={v.fixed})")
-    else:
-        print(f"  temperature: {temperature.value} (fixed={temperature.fixed})")
-
-    # Add scaling factors for flow_mol_phase_comp variables
-    for blk in [m.fs.translator.properties_out[0.0], m.fs.pump.control_volume.properties_in[0.0], m.fs.pump.control_volume.properties_out[0.0], m.fs.translator_back.properties_in[0.0]]:
-        for k, v in blk.flow_mol_phase_comp.items():
-            iscale.set_scaling_factor(v, 1e-2)
     
-
     return m
 
 def define_operating_params_and_vars(m):
@@ -647,25 +395,61 @@ def define_operating_params_and_vars(m):
         doc="Lithium concentration in the outflow stream"
     )
 
+    m.fs.concentrated_brine_outflow = pyo.Var(
+        initialize=1,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.second,
+        doc="Total concentrated brine outflow for shipping (post-evaporation)"
+    )
+
+    m.fs.number_of_wells = pyo.Param(
+        initialize=320,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Number of extraction wells"
+    )
+
+    m.fs.piping_length = pyo.Param(
+        initialize=1,
+        mutable=True,
+        units=pyunits.km,
+        doc="Piping length from wells to pond (km)"
+    )
+
+    m.fs.pumping_efficiency = pyo.Param(
+        initialize=0.7,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Pumping efficiency (fraction)"
+    )
+
+    m.fs.pumping_head = pyo.Param(
+        initialize=50,  # m
+        mutable=True,
+        units=pyunits.m,
+        doc="Pumping head (m)"
+    )
+
+    m.fs.shipping_distance = pyo.Param(
+        initialize=200,  # km
+        mutable=True,
+        units=pyunits.km,
+        doc="Shipping distance to next facility (km)"
+    )
+
 def set_operating_conditions(m):
-    prop_in = m.fs.feed.properties[0]
+    prop_in = m.fs.pond.properties_in[0]
     prop_in.pressure.fix(value(m.fs.pressure_inlet))
-    prop_in.temperature.fix(value(m.fs.temperature_liquid_inlet))
+    prop_in.temperature["Liq"].fix(value(m.fs.temperature_liquid_inlet))
+    prop_in.temperature["Vap"].fix(value(m.fs.temperature_vapor_inlet))
     prop_in.flow_mass_phase_comp["Liq", "H2O"].fix(value(m.fs.flow_vol * m.fs.rho))
     prop_in.flow_mass_phase_comp["Liq", "TDS"].fix(value(m.fs.flow_vol * m.fs.conc_tds_inlet))
-    prop_in.flow_mass_phase_comp["Liq", "li+"].fix(value(m.fs.flow_vol * m.fs.conc_li_inlet))
+    prop_in.flow_mass_phase_comp["Liq", "Li+"].fix(value(m.fs.flow_vol * m.fs.conc_li_inlet))
     prop_in.flow_mass_phase_comp["Vap", "Air"].fix(value(m.fs.air_flow_inlet))
     prop_in.flow_mass_phase_comp["Vap", "H2O"].fix(value(m.fs.water_vapor_flow_inlet))
-
-    # Pump operating conditions (similar to nf.py)
-    m.fs.pump.outlet.pressure[0].fix(3.0e5)  # 3 bar
-    m.fs.pump.efficiency_pump[0].fix(0.75)
-    iscale.set_scaling_factor(m.fs.pump.control_volume.work, 1e-4)
     
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(value(m.fs.evaporation_rate_enhancement_adjustment_factor))
-
-
 
     @m.fs.Constraint(doc="Fraction of outflow water")
     def eq_fraction_outflow(b):
@@ -712,7 +496,7 @@ def set_operating_conditions(m):
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-        li_in = prop_in.flow_mass_phase_comp["Liq", "li+"]
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         li_out = li_in * mass_frac
         return b.li_concentration_outflow == li_out / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
 
@@ -725,7 +509,7 @@ def set_operating_conditions(m):
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-        li_in = prop_in.flow_mass_phase_comp["Liq", "li+"]
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         return b.li_outflow == li_in * mass_frac
     
     def li_precipitated_expr():
@@ -736,7 +520,7 @@ def set_operating_conditions(m):
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-        li_in = prop_in.flow_mass_phase_comp["Liq", "li+"]
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         li_out = li_in * mass_frac
         return li_in - li_out
     m.fs.li_precipitated = pyo.Expression(expr=li_precipitated_expr())
@@ -750,6 +534,10 @@ def set_operating_conditions(m):
             b.total_evaporative_area_required * b.mass_flux_water_vapor_average
             == m.fs.water_evaporated
         )
+    
+    @m.fs.Constraint(doc="Concentrated brine outflow for shipping")
+    def eq_concentrated_brine_outflow(b):
+        return b.concentrated_brine_outflow == b.water_outflow + b.tds_outflow + b.li_outflow
 
     # Compute and fix the required evaporation fraction for the target Li+ concentration
     target_li_conc = value(m.fs.target_li_concentration * m.fs.rho)
@@ -800,6 +588,93 @@ def add_costing(m):
     m.fs.costing = REFLOCosting()
     m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
 
+    # Wellfield capital cost
+    m.fs.well_capital_cost = pyo.Param(
+        initialize=9.357143e+05, mutable=True, units=m.fs.costing.base_currency,
+        doc="Capital cost per extraction well ($/well)"
+    )
+    m.fs.piping_unit_cost = pyo.Param(
+        initialize=120000, mutable=True, units=m.fs.costing.base_currency,
+        doc="Piping cost per km ($/km)"
+    )
+
+    m.fs.total_well_capital_cost = pyo.Var(initialize=1e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total wellfield capital cost")
+    m.fs.total_piping_capital_cost = pyo.Var(initialize=1e5, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total piping capital cost")
+
+    @m.fs.Constraint(doc="Total wellfield capital cost")
+    def total_well_capital_cost_constraint(b):
+        return b.total_well_capital_cost == b.number_of_wells * b.well_capital_cost
+    
+    @m.fs.Constraint(doc="Total piping capital cost")
+    def total_piping_capital_cost_constraint(b):
+        return b.total_piping_capital_cost == b.piping_length * b.piping_unit_cost
+
+    # Capital cost replacement
+    m.fs.pond.costing.total_capital_cost = pyo.Expression(
+        expr=m.fs.pond.costing.land_capital_cost + 
+        m.fs.pond.costing.land_clearing_capital_cost + 
+        m.fs.pond.costing.dike_capital_cost + 
+        m.fs.pond.costing.liner_capital_cost + 
+        m.fs.pond.costing.fence_capital_cost + 
+        m.fs.pond.costing.road_capital_cost + 
+        m.fs.total_well_capital_cost + m.fs.total_piping_capital_cost,
+        doc="Total capital cost (pond + extraction + piping)"
+    )
+
+    m.fs.pond.costing.capital_cost_constraint.deactivate()
+    @m.fs.pond.costing.Constraint(doc="Capital cost for pond + extraction + piping")
+    def capital_cost_constraint(b):
+        return b.capital_cost == b.total_capital_cost
+
+    # Pumping flow variable and constraint
+    m.fs.pumping_flow = pyo.Var(initialize=100000, units=pyunits.m**3/pyunits.year, bounds=(0, None), doc="Pumping mass flow rate")
+
+    @m.fs.Constraint(doc="Pumping flow calculation")
+    def eq_pumping_flow(b):
+        return b.pumping_flow == pyunits.convert(b.flow_vol, to_units=pyunits.m**3/pyunits.year)
+
+    # Pumping unit cost as an Expression
+    m.fs.pumping_unit_cost = pyo.Expression(
+        expr= pyunits.convert(9.81 * pyunits.m/pyunits.s**2 * m.fs.pumping_head * m.fs.rho / m.fs.pumping_efficiency, to_units=pyunits.kWh/pyunits.m**3) * m.fs.costing.electricity_cost,
+        doc="Pumping cost per m**3 (as Expression)"
+    )
+    m.fs.costing.register_flow_type("pumping", m.fs.pumping_unit_cost)
+    m.fs.costing.cost_flow(m.fs.pumping_flow, "pumping")
+
+    # Shipping flow cost
+    m.fs.shipping_distance = pyo.Param(
+        initialize=200, mutable=True, units=pyunits.km,
+        doc="Shipping distance to next facility (km)"
+    )
+    m.fs.shipping_unit_cost = pyo.Param(
+        initialize=3e-5, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
+        doc="Shipping cost per kg per km ($/kg/km)"
+    )
+
+    m.fs.annual_concentrated_brine_outflow = pyo.Var(
+        initialize=1e7,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual total concentrated brine outflow for shipping (post-evaporation)"
+    )
+
+    @m.fs.Constraint(doc="Annual concentrated brine outflow for shipping")
+    def eq_annual_concentrated_brine_outflow(b):
+        return b.annual_concentrated_brine_outflow == pyunits.convert(b.concentrated_brine_outflow, to_units=pyunits.kg/pyunits.year)
+
+    m.fs.shipping_cost = pyo.Expression(
+        expr=m.fs.shipping_distance * m.fs.shipping_unit_cost,
+        doc="Shipping cost per kg (as Expression)"
+    )
+    m.fs.costing.register_flow_type("shipping", m.fs.shipping_cost)
+    m.fs.costing.cost_flow(m.fs.annual_concentrated_brine_outflow, "shipping")
+
+    iscale.calculate_scaling_factors(m)
+
+    # Fix pond costing parameters
+    m.fs.costing.evaporation_pond.land_cost.set_value(0)
+    m.fs.costing.evaporation_pond.land_clearing_cost.set_value(0)
+    
     # Fix global costing parameters
     m.fs.costing.plant_lifetime.fix(20)
     m.fs.costing.wacc.fix(0.07)
@@ -946,11 +821,11 @@ def plot_precipitation_functions(m):
     evaporation_ratio_range = np.linspace(0, 1, 200)
     precipitate_concentration = concentration_a * (1-evaporation_ratio_range) + concentration_b
     
-    original_water_volume_m3_s = value(m.fs.feed.properties[0].flow_mass_phase_comp['Liq', 'H2O']) / value(m.fs.rho)
+    original_water_volume_m3_s = value(m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O']) / value(m.fs.rho)
     annual_mass_flow_precipitate = precipitate_concentration * original_water_volume_m3_s * 3600 * 24 * 365
     
-    current_tds_conc = value(m.fs.feed.properties[0].conc_mass_phase_comp['Liq', 'tds'])
-    current_evap_ratio = value(m.fs.water_evaporated / m.fs.feed.properties[0].flow_mass_phase_comp['Liq', 'H2O'])
+    current_tds_conc = value(m.fs.pond.properties_in[0].conc_mass_phase_comp['Liq', 'TDS'])
+    current_evap_ratio = value(m.fs.water_evaporated / m.fs.pond.properties_in[0].flow_mass_phase_comp['Liq', 'H2O'])
     original_mass_flow = value(m.fs.pond.mass_flow_precipitate)
     
     original_precip_rate = a1 * current_tds_conc**2 + a2 * current_tds_conc + intercept
@@ -1074,8 +949,8 @@ def calculate_max_feasible_li_concentration(m):
     and the bounds on the evaporation ratio.
     """
     print("\n=== MAX FEASIBLE LI+ CONCENTRATION ANALYSIS ===")
-    prop_in = m.fs.feed.properties[0]
-    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "li+"])
+    prop_in = m.fs.pond.properties_in[0]
+    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = value(m.fs.rho)  # kg/m3
     a = 88.1606  
@@ -1104,8 +979,8 @@ def plot_li_concentration_percent_vs_evap(m):
     """
     import matplotlib.pyplot as plt
     import numpy as np
-    prop_in = m.fs.feed.properties[0]
-    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "li+"])
+    prop_in = m.fs.pond.properties_in[0]
+    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = 1227  # kg/m3
     a2 = 88.1606

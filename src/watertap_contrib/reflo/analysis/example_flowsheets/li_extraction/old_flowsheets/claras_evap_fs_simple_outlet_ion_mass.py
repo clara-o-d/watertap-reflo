@@ -41,6 +41,9 @@ from weather_utils import (
     test_plotting_functionality
 )
 
+# Set weather data directory
+weather_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "weather"))
+
 
 def main():
     # Choose weather data source
@@ -51,37 +54,36 @@ def main():
     print("4. Run all datasets and compare")
     
     choice = input("Enter your choice (1, 2, 3, or 4): ").strip()
-    this_dir = os.path.dirname(os.path.abspath(__file__))
     
     if choice == "4":
         # Run all datasets and compare
-        run_all_datasets_and_compare(this_dir)
+        run_all_datasets_and_compare(weather_dir)
         return
     
     # Single dataset processing
     if choice == "1":
         # Station 34 data
-        raw_weather_file = os.path.join(this_dir, "station[34]_2024-01-01_2024-12-31.csv")
-        processed_weather_file = os.path.join(this_dir, "station34_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "station34_2024-01-01_2024-12-31.csv")
+        processed_weather_file = os.path.join(weather_dir, "station34_processed_weather.csv")
         data_type = "station34"
         weather_name = "Station 34"
         
     elif choice == "2":
         # Open-Meteo data
-        raw_weather_file = os.path.join(this_dir, "open-meteo-23.66S68.45W2301m.csv")
-        processed_weather_file = os.path.join(this_dir, "openmeteo_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "open-meteo-23.66S68.45W2301m.csv")
+        processed_weather_file = os.path.join(weather_dir, "openmeteo_processed_weather.csv")
         data_type = "openmeteo"
         weather_name = "Open-Meteo (Chile)"
         
     elif choice == "3":
         # Test data (no preprocessing needed)
-        processed_weather_file = os.path.join(this_dir, "evaporation_pond_test_data.csv")
+        processed_weather_file = os.path.join(weather_dir, "evaporation_pond_test_data.csv")
         weather_name = "Test Data"
         
     else:
         print("Invalid choice. Using Station 34 data as default.")
-        raw_weather_file = os.path.join(this_dir, "station[34]_2024-01-01_2024-12-31.csv")
-        processed_weather_file = os.path.join(this_dir, "station34_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "station34_2024-01-01_2024-12-31.csv")
+        processed_weather_file = os.path.join(weather_dir, "station34_processed_weather.csv")
         data_type = "station34"
         weather_name = "Station 34"
     

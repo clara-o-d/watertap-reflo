@@ -8,6 +8,7 @@ from watertap.property_models.multicomp_aq_sol_prop_pack import MCASParameterBlo
 from idaes.models.unit_models.translator import Translator
 from watertap.unit_models.pressure_changer import Pump
 from watertap_contrib.reflo.unit_models.evaporation_pond import EvaporationPond
+from idaes.core.util.model_statistics import degrees_of_freedom
 
 
 def build_flowsheet():
@@ -40,7 +41,7 @@ def build_flowsheet():
 
     m.fs.pond = EvaporationPond(
         property_package=m.fs.prop_air,
-        weather_data_path="evaporation_pond_test_data.csv",
+        weather_data_path="watertap-reflo/src/watertap_contrib/reflo/analysis/example_flowsheets/li_extraction/weather/evaporation_pond_test_data.csv",
         weather_data_column_dict=weather_data_column_dict,
         dike_height=8,  # 4, 8, or 12
         add_enhancement=True,
@@ -94,6 +95,7 @@ def build_flowsheet():
 
     m.fs.pond.initialize()
     m.fs.pond.report()
+    print(f"DOF after build_flowsheet: {degrees_of_freedom(m)}")
     return m
 
 

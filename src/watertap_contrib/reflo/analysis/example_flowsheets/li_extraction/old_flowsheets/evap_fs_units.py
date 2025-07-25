@@ -24,12 +24,9 @@ from watertap_contrib.reflo.property_models import (
     AirWaterEq,
     DensityCalculation,
 )
-from watertap_contrib.reflo.unit_models import EvaporationPond
+from watertap_contrib.reflo.unit_models import EvaporationPond, BrineExtraction, BrineTransport
 from watertap.core.solvers import get_solver
 from watertap.core.util.initialization import assert_degrees_of_freedom
-from watertap.property_models.multicomp_aq_sol_prop_pack import MCASParameterBlock, DensityCalculation as MCASDensityCalculation
-from watertap.unit_models.pressure_changer import Pump
-from idaes.models.unit_models import Feed
 
 # Import weather utilities
 from weather_utils import (
@@ -83,35 +80,38 @@ def main():
     choice = input("Enter your choice (1, 2, 3, or 4): ").strip()
     this_dir = os.path.dirname(os.path.abspath(__file__))
     
+    # Set weather data directory
+    weather_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "weather"))
+    
     if choice == "4":
         # Run all datasets and compare
-        run_all_datasets_and_compare(this_dir)
+        run_all_datasets_and_compare(weather_dir)
         return
     
     # Single dataset processing
     if choice == "1":
         # Station 34 data
-        raw_weather_file = os.path.join(this_dir, "station[34]_2024-01-01_2024-12-31.csv")
-        processed_weather_file = os.path.join(this_dir, "station34_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "station34_2024-01-01_2024-12-31.csv")
+        processed_weather_file = os.path.join(weather_dir, "station34_processed_weather.csv")
         data_type = "station34"
         weather_name = "Station 34"
         
     elif choice == "2":
         # Open-Meteo data
-        raw_weather_file = os.path.join(this_dir, "open-meteo-23.66S68.45W2301m.csv")
-        processed_weather_file = os.path.join(this_dir, "openmeteo_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "open-meteo-23.66S68.45W2301m.csv")
+        processed_weather_file = os.path.join(weather_dir, "openmeteo_processed_weather.csv")
         data_type = "openmeteo"
         weather_name = "Open-Meteo (Chile)"
         
     elif choice == "3":
         # Test data (no preprocessing needed)
-        processed_weather_file = os.path.join(this_dir, "evaporation_pond_test_data.csv")
+        processed_weather_file = os.path.join(weather_dir, "evaporation_pond_test_data.csv")
         weather_name = "Test Data"
         
     else:
         print("Invalid choice. Using Station 34 data as default.")
-        raw_weather_file = os.path.join(this_dir, "station[34]_2024-01-01_2024-12-31.csv")
-        processed_weather_file = os.path.join(this_dir, "station34_processed_weather.csv")
+        raw_weather_file = os.path.join(weather_dir, "station34_2024-01-01_2024-12-31.csv")
+        processed_weather_file = os.path.join(weather_dir, "station34_processed_weather.csv")
         data_type = "station34"
         weather_name = "Station 34"
     
@@ -152,6 +152,10 @@ def main():
     print("="*50)
     input()
 
+    # After first solve, connect pond outflow to transport unit
+    from pyomo.environ import value
+    m.fs.transport.concentrated_brine_outflow.fix(value(m.fs.concentrated_brine_outflow))
+
     if first_time_processing:
         print_weather_statistics(m, weather_name)
         plot_evaporation_and_weather_data(m, weather_name, save_plots=True)
@@ -179,16 +183,34 @@ def main():
         print("This may cause issues with the solver.")
     
     print("Solving with costing...")
+    print("\nExtraction costing debug info:")
+    print("Extraction flow_vol:", value(m.fs.extraction.flow_vol))
+    print("Extraction brine_mass_flow:", value(m.fs.extraction.brine_mass_flow))
+    print("Extraction rho:", value(m.fs.extraction.rho))
+    print("Extraction pumping_head:", value(m.fs.extraction.pumping_head))
+    print("Extraction pumping_efficiency:", value(m.fs.extraction.pumping_efficiency))
+    print("Extraction number_of_wells:", value(m.fs.extraction.number_of_wells))
+    print("Extraction piping_length:", value(m.fs.extraction.piping_length))
+    print("Costing electricity_cost:", value(m.fs.costing.electricity_cost))
+    print("Extraction well_capital_cost:", value(m.fs.extraction.costing.well_capital_cost))
+    print("Extraction piping_unit_cost:", value(m.fs.extraction.costing.piping_unit_cost))
+    print("Extraction total_well_capital_cost:", value(m.fs.extraction.costing.total_well_capital_cost))
+    print("Extraction total_piping_capital_cost:", value(m.fs.extraction.costing.total_piping_capital_cost))
+    print("Extraction annual_pumping_cost:", value(m.fs.extraction.costing.pumping_cost))
+    print("Extraction capital_cost:", value(m.fs.extraction.costing.capital_cost))
+    print("Extraction fixed_operating_cost:", value(m.fs.extraction.costing.fixed_operating_cost))
+    print()
     results = solve(m)
     assert_degrees_of_freedom(m, 0)
     if results.solver.termination_condition == pyo.TerminationCondition.optimal:
         print("SUCCESS: Model solved optimally with costing!")
         display_costing_results(m)
-        m.fs.costing.pprint()
-        print("="*50)
-        print("POND COSTING")
-        print("="*50)
-        m.fs.pond.costing.pprint()
+        display_flowsheet_cost_breakdown(m)
+        # m.fs.costing.pprint()
+        # print("="*50)
+        # print("POND COSTING")
+        # print("="*50)
+        # m.fs.pond.costing.pprint()
     else:
         print(f"WARNING: Solver terminated with condition: {results.solver.termination_condition}")
         print("Costing results may not be accurate.")
@@ -206,57 +228,44 @@ def build(weather_data_path):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
-    # Use MCAS property package throughout
-    m.fs.properties = MCASParameterBlock(
-        solute_list=["TDS", "li+"],
-        mw_data={"TDS": 31.4038218e-3, "li+": 6.94e-3},
-        density_calculation=MCASDensityCalculation.constant,
-    )
+    # Add property package
+    props = {
+        "non_volatile_solute_list": ["TDS", "Li+"],
+        "mw_data": {"TDS": 31.4038218e-3, "Li+": 6.94e-3},
+        "density_calculation": DensityCalculation.calculated,
+    }
+    m.fs.properties = AirWaterEq(**props)
 
-    # Add Feed block (MCAS)
-    m.fs.feed = Feed(property_package=m.fs.properties)
+    weather_data_column_dict = {
+        "pressure": "Pressure",
+        "temperature": "Temperature", 
+        "shortwave_radiation": "GHI",
+        "relative_humidity": "Relative Humidity",
+    }
 
-    # Add Pump block (MCAS)
-    m.fs.pump = Pump(property_package=m.fs.properties)
+    # Add brine extraction unit
+    m.fs.extraction = BrineExtraction()
 
-    # Add Pond block (MCAS)
+    # Add evaporation pond
     m.fs.pond = EvaporationPond(
         property_package=m.fs.properties,
         weather_data_path=weather_data_path,
-        weather_data_column_dict={
-            "pressure": "Pressure",
-            "temperature": "Temperature",
-            "shortwave_radiation": "GHI",
-            "relative_humidity": "Relative Humidity",
-        },
-        dike_height=8,
+        weather_data_column_dict=weather_data_column_dict,
+        dike_height=8,  # 4, 8, or 12
         add_enhancement=True,
     )
 
-    # Patch: Set weather temperature for MCAS (scalar temperature)
-    weather_data = pd.read_csv(weather_data_path, skiprows=2)
-    temp_col = "Temperature"
-    weather_data["day_of_year"] = weather_data.index // 24
-    weather_daily_mean = weather_data.groupby("day_of_year").mean()
-    for day, row in weather_daily_mean.iterrows():
-        temp_K = row[temp_col] + 273.15
-        if hasattr(m.fs.pond.weather[day], "temperature"):
-            try:
-                m.fs.pond.weather[day].temperature.fix(temp_K)
-            except Exception as e:
-                print(f"[WARNING] Could not set scalar temperature for day {day}: {e}")
-
-    # Connect Feed -> Pump -> Pond
-    from pyomo.network import Arc
-    m.fs.feed_to_pump = Arc(source=m.fs.feed.outlet, destination=m.fs.pump.inlet)
-    m.fs.pump_to_pond = Arc(source=m.fs.pump.outlet, destination=m.fs.pond.inlet)
-    from pyomo.environ import TransformationFactory
-    TransformationFactory("network.expand_arcs").apply_to(m)
+    # Add brine transport unit
+    m.fs.transport = BrineTransport()
 
     define_operating_params_and_vars(m)
     set_operating_conditions(m)
-    m.fs.pond.number_evaporation_ponds.fix(300)
-    assert_degrees_of_freedom(m, 0)
+
+    print(f"Extraction DOF: {degrees_of_freedom(m.fs.extraction)}")
+    print(f"Pond DOF: {degrees_of_freedom(m.fs.pond)}")
+    print(f"Transport DOF: {degrees_of_freedom(m.fs.transport)}")
+    print(f"Total DOF: {degrees_of_freedom(m)}")
+    # assert_degrees_of_freedom(m, 0)
     iscale.calculate_scaling_factors(m)
     initialize_system(m)
     return m
@@ -416,27 +425,69 @@ def define_operating_params_and_vars(m):
         doc="Lithium concentration in the outflow stream"
     )
 
+    m.fs.concentrated_brine_outflow = pyo.Var(
+        initialize=1.0,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="Total concentrated brine outflow for shipping (post-evaporation)"
+    )
+
+    # --- New parameters and variables for wells, piping, and trucking ---
+    m.fs.wellfield_life = pyo.Param(
+        initialize=10,
+        mutable=True,
+        units=pyunits.year,
+        doc="Wellfield lifetime (years)"
+    )
+    m.fs.number_of_wells = pyo.Param(
+        initialize=100,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Number of extraction wells"
+    )
+    m.fs.piping_length = pyo.Param(
+        initialize=1,
+        mutable=True,
+        units=pyunits.km,
+        doc="Piping length from wells to pond (km)"
+    )
+    m.fs.pumping_efficiency = pyo.Param(
+        initialize=0.7,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Pumping efficiency (fraction)"
+    )
+    m.fs.pumping_head = pyo.Param(
+        initialize=100,  # m
+        mutable=True,
+        units=pyunits.m,
+        doc="Pumping head (m)"
+    )
+    m.fs.shipping_distance = pyo.Param(
+        initialize=200,  # km
+        mutable=True,
+        units=pyunits.km,
+        doc="Shipping distance to next facility (km)"
+    )
+
 def set_operating_conditions(m):
-    prop_in = m.fs.feed.properties[0]
+    # Use flowsheet params for TDS and Li+ concentrations
+    m.fs.extraction.flow_vol.fix(m.fs.flow_vol.value)
+    m.fs.extraction.rho.set_value(m.fs.rho.value)
+
+    prop_in = m.fs.pond.properties_in[0]
     prop_in.pressure.fix(value(m.fs.pressure_inlet))
-    prop_in.temperature.fix(value(m.fs.temperature_liquid_inlet))
+    prop_in.temperature["Liq"].fix(value(m.fs.temperature_liquid_inlet))
+    prop_in.temperature["Vap"].fix(value(m.fs.temperature_vapor_inlet))
     prop_in.flow_mass_phase_comp["Liq", "H2O"].fix(value(m.fs.flow_vol * m.fs.rho))
     prop_in.flow_mass_phase_comp["Liq", "TDS"].fix(value(m.fs.flow_vol * m.fs.conc_tds_inlet))
-    prop_in.flow_mass_phase_comp["Liq", "li+"].fix(value(m.fs.flow_vol * m.fs.conc_li_inlet))
-    # If MCAS supports vapor phase, add vapor phase fixes here as needed
-    # prop_in.flow_mass_phase_comp["Vap", "H2O"].fix(...)
-    # prop_in.flow_mass_phase_comp["Vap", "Air"].fix(...)
-
-    m.fs.pump.outlet.pressure[0].fix(3.0e5)
-    m.fs.pump.efficiency_pump[0].fix(0.75)
-    iscale.set_scaling_factor(m.fs.pump.control_volume.work, 1e-4)
-
-    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1)
-    # Fix fraction_evaporated if present
-    if hasattr(m.fs, "fraction_evaporated"):
-        m.fs.fraction_evaporated.fix(0.98)
-
-
+    prop_in.flow_mass_phase_comp["Liq", "Li+"].fix(value(m.fs.flow_vol * m.fs.conc_li_inlet))
+    prop_in.flow_mass_phase_comp["Vap", "Air"].fix(value(m.fs.air_flow_inlet))
+    prop_in.flow_mass_phase_comp["Vap", "H2O"].fix(value(m.fs.water_vapor_flow_inlet))
+    
+    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
+    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(value(m.fs.evaporation_rate_enhancement_adjustment_factor))
+    m.fs.pond.number_evaporation_ponds.fix(300)
 
     @m.fs.Constraint(doc="Fraction of outflow water")
     def eq_fraction_outflow(b):
@@ -483,7 +534,7 @@ def set_operating_conditions(m):
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-        li_in = prop_in.flow_mass_phase_comp["Liq", "li+"]
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         li_out = li_in * mass_frac
         return b.li_concentration_outflow == li_out / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
 
@@ -496,8 +547,12 @@ def set_operating_conditions(m):
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-        li_in = prop_in.flow_mass_phase_comp["Liq", "li+"]
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         return b.li_outflow == li_in * mass_frac
+
+    @m.fs.Constraint(doc="Concentrated brine outflow for shipping")
+    def eq_concentrated_brine_outflow(b):
+        return b.concentrated_brine_outflow == b.water_outflow + b.tds_outflow + b.li_outflow
     
     def li_precipitated_expr():
         evap_ratio = m.fs.fraction_evaporated
@@ -507,7 +562,7 @@ def set_operating_conditions(m):
         mass_frac_before = 1.0
         mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
         mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-        li_in = prop_in.flow_mass_phase_comp["Liq", "li+"]
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         li_out = li_in * mass_frac
         return li_in - li_out
     m.fs.li_precipitated = pyo.Expression(expr=li_precipitated_expr())
@@ -529,13 +584,8 @@ def set_operating_conditions(m):
     print(f"Fixed evaporation fraction to {evap_frac:.2f} to achieve target Li+ concentration {(target_li_conc * 100 / value(m.fs.rho)):.2f}%")
 
 def initialize_system(m):
-    try:
-        m.fs.pond.initialize()
-    except Exception as e:
-        print(f"Initialization failed: {e}")
-        print("Trying alternative initialization approach...")
-        m.fs.pond.weather.initialize()
-        m.fs.pond.properties_in.initialize()
+    m.fs.pond.weather.initialize()
+    m.fs.pond.properties_in.initialize()
 
 def solve(m, solver=None):
     if solver is None:
@@ -567,10 +617,10 @@ def display_results(m, weather_name="Unknown"):
 def add_costing(m):
     from idaes.core import UnitModelCostingBlock
     from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
-    
     m.fs.costing = REFLOCosting()
+    m.fs.extraction.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
-
+    m.fs.transport.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     # Fix global costing parameters
     m.fs.costing.plant_lifetime.fix(20)
     m.fs.costing.wacc.fix(0.07)
@@ -578,6 +628,9 @@ def add_costing(m):
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
     m.fs.costing.maintenance_labor_chemical_factor.fix(0.01)
+    iscale.calculate_scaling_factors(m)
+    # Remove all direct extraction/transport costing vars/exprs/constraints from flowsheet
+    # Optionally, add summary expressions for total capital/operating cost if desired
 
 def initialize_costing(m):
     m.fs.pond.costing.initialize()
@@ -604,92 +657,127 @@ def process_costing(m):
         expr=m.fs.costing.LCOLi_mass == pyunits.convert(m.fs.costing.LCOLi / m.fs.density_concentrated_brine, to_units=m.fs.costing.base_currency / pyunits.t)
     )
 
-def print_flowsheet_cost_breakdown(m):
-    from pyomo.environ import value
-    print("\n" + "="*50)
-    print("FLOWSHEET-LEVEL CAPITAL COST BREAKDOWN")
-    print("="*50)
-    if hasattr(m.fs.costing, 'aggregate_capital_cost'):
-        print(f"Aggregate capital cost (sum of all units): ${value(m.fs.costing.aggregate_capital_cost):,.0f}")
-    if hasattr(m.fs.costing, 'total_capital_cost'):
-        print(f"Total capital cost (with investment factor): ${value(m.fs.costing.total_capital_cost):,.0f}")
-    if hasattr(m.fs.costing, 'aggregate_direct_capital_cost'):
-        print(f"Aggregate direct capital cost: ${value(m.fs.costing.aggregate_direct_capital_cost):,.0f}")
-    print("-"*50)
-    print("POND CAPITAL COST COMPONENTS")
-    print("-"*50)
-    pc = m.fs.pond.costing
-    if hasattr(pc, 'land_capital_cost'):
-        print(f"  Land capital cost: ${value(pc.land_capital_cost):,.0f}")
-    if hasattr(pc, 'land_clearing_capital_cost'):
-        print(f"  Land clearing capital cost: ${value(pc.land_clearing_capital_cost):,.0f}")
-    if hasattr(pc, 'dike_capital_cost'):
-        print(f"  Dike capital cost: ${value(pc.dike_capital_cost):,.0f}")
-    if hasattr(pc, 'liner_capital_cost'):
-        print(f"  Liner capital cost: ${value(pc.liner_capital_cost):,.0f}")
-    if hasattr(pc, 'fence_capital_cost'):
-        print(f"  Fence capital cost: ${value(pc.fence_capital_cost):,.0f}")
-    if hasattr(pc, 'road_capital_cost'):
-        print(f"  Road capital cost: ${value(pc.road_capital_cost):,.0f}")
-    if hasattr(pc, 'capital_cost'):
-        print(f"  Total pond capital cost: ${value(pc.capital_cost):,.0f}")
-    print("-"*50)
-    print("FLOWSHEET-LEVEL OPERATING COST BREAKDOWN")
-    print("-"*50)
-    if hasattr(m.fs.costing, 'aggregate_fixed_operating_cost'):
-        print(f"Aggregate fixed operating cost: ${value(m.fs.costing.aggregate_fixed_operating_cost):,.0f}/year")
-    if hasattr(m.fs.costing, 'maintenance_labor_chemical_operating_cost'):
-        print(f"Maintenance/labor/chemical operating cost: ${value(m.fs.costing.maintenance_labor_chemical_operating_cost):,.0f}/year")
-    if hasattr(m.fs.costing, 'aggregate_variable_operating_cost'):
-        print(f"Aggregate variable operating cost: ${value(m.fs.costing.aggregate_variable_operating_cost):,.0f}/year")
-    # Print all aggregate_flow_costs for used_flows
-    if hasattr(m.fs.costing, 'used_flows') and hasattr(m.fs.costing, 'aggregate_flow_costs'):
-        for flow in m.fs.costing.used_flows:
-            try:
-                cost = value(m.fs.costing.aggregate_flow_costs[flow])
-                flow_cost = getattr(m.fs.costing, f"{flow}_cost", None)
-                if flow_cost is not None:
-                    flow_cost_val = value(flow_cost)
-                    print(f"Aggregate flow cost for '{flow}': ${cost:,.0f}/year (unit cost: ${flow_cost_val} per unit)")
-                else:
-                    print(f"Aggregate flow cost for '{flow}': ${cost:,.0f}/year")
-            except Exception:
-                pass
-    if hasattr(m.fs.costing, 'total_operating_cost'):
-        print(f"Total operating cost: ${value(m.fs.costing.total_operating_cost):,.0f}/year")
-    print("-"*50)
-    print("POND OPERATING COST COMPONENTS")
-    print("-"*50)
-    if hasattr(pc, 'liner_replacement_operating_cost'):
-        print(f"  Liner replacement operating cost: ${value(pc.liner_replacement_operating_cost):,.0f}/year")
-    if hasattr(pc, 'recovered_solids_handling_operating_cost'):
-        print(f"  Recovered solids handling operating cost: ${value(pc.recovered_solids_handling_operating_cost):,.0f}/year")
-    if hasattr(pc, 'fixed_operating_cost'):
-        print(f"  Total pond fixed operating cost: ${value(pc.fixed_operating_cost):,.0f}/year")
-    print("="*50)
-
 def display_costing_results(m):
     print("\n" + "="*50)
-    print("COSTING RESULTS")
+    print("COSTING RESULTS (Summary)")
     print("="*50)
+    from pyomo.environ import value
     try:
-        if hasattr(m.fs.pond.costing, 'capital_cost'):
-            print(f"Pond capital cost: ${value(m.fs.pond.costing.capital_cost):,.0f}")
-        if hasattr(m.fs.pond.costing, 'fixed_operating_cost'):
-            print(f"Pond fixed operating cost: ${value(m.fs.pond.costing.fixed_operating_cost):,.0f}/year")
-        if hasattr(m.fs.costing, 'total_capital_cost'):
-            print(f"Total capital cost: ${value(m.fs.costing.total_capital_cost):,.0f}")
-        if hasattr(m.fs.costing, 'total_operating_cost'):
-            print(f"Total operating cost: ${value(m.fs.costing.total_operating_cost):,.0f}/year")
+        # Main totals
+        if hasattr(m.fs.costing, 'aggregate_capital_cost_full'):
+            print(f"Total capital cost (with extraction/transport): ${value(m.fs.costing.aggregate_capital_cost_full):,.0f}")
+        elif hasattr(m.fs.costing, 'aggregate_capital_cost'):
+            print(f"Total capital cost: ${value(m.fs.costing.aggregate_capital_cost):,.0f}")
+        if hasattr(m.fs.costing, 'aggregate_fixed_operating_cost_full'):
+            print(f"Total operating cost (with extraction/transport): ${value(m.fs.costing.aggregate_fixed_operating_cost_full):,.0f}/year")
+        elif hasattr(m.fs.costing, 'aggregate_fixed_operating_cost'):
+            print(f"Total operating cost: ${value(m.fs.costing.aggregate_fixed_operating_cost):,.0f}/year")
+        # LCOLi
         if hasattr(m.fs.costing, 'LCOLi'):
             lcoli_vol = value(m.fs.costing.LCOLi)
-            lcoli_mass = value(m.fs.costing.LCOLi_mass)
             print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_vol:.2f} per m³ Li")
-            print(f"Levelized Cost of Lithium (LCOLi) Before Processing: ${lcoli_mass:.2f} per mt Li")
+        if hasattr(m.fs.costing, 'LCOLi_mass'):
+            lcoli_mass = value(m.fs.costing.LCOLi_mass)
+            print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_mass:.2f} per mt Li")
+        # Extraction/transport breakdown
+        print("-"*50)
+        print("WELLFIELD, PIPING, PUMPING, SHIPPING COSTS")
+        print(f"  Wellfield capital: ${value(m.fs.extraction.total_well_capital_cost):,.0f}")
+        print(f"  Piping capital: ${value(m.fs.extraction.total_piping_capital_cost):,.0f}")
+        print(f"  Pumping OPEX: ${value(m.fs.extraction.annual_pumping_cost):,.0f}/year")
+        print(f"  Shipping OPEX: ${value(m.fs.transport.annual_shipping_cost):,.0f}/year")
+        # Pond summary
+        print("-"*50)
+        print("POND COSTS (Total)")
+        if hasattr(m.fs.pond.costing, 'capital_cost'):
+            print(f"  Pond capital: ${value(m.fs.pond.costing.capital_cost):,.0f}")
+        if hasattr(m.fs.pond.costing, 'fixed_operating_cost'):
+            print(f"  Pond OPEX: ${value(m.fs.pond.costing.fixed_operating_cost):,.0f}/year")
     except Exception as e:
         print(f"Error displaying costing results: {e}")
     print("="*50)
-    print_flowsheet_cost_breakdown(m)
+
+def display_flowsheet_cost_breakdown(m):
+    from pyomo.environ import value
+    print("\n" + "="*50)
+    print("DETAILED COST BREAKDOWN")
+    print("="*50)
+    try:
+        print("\nEXTRACTION (WELLFIELD & PIPING)")
+        ec = m.fs.extraction.costing
+        print(f"  Wellfield capital (per well): ${value(getattr(ec, 'well_capital_cost', 0)):.0f}")
+        print(f"  Number of wells: {value(getattr(m.fs.extraction, 'number_of_wells', 0)):.0f}")
+        print(f"  Total wellfield capital: ${value(getattr(ec, 'total_well_capital_cost', 0)):.0f}")
+        print(f"  Piping capital (per km): ${value(getattr(ec, 'piping_unit_cost', 0)):.0f}")
+        print(f"  Piping length: {value(getattr(m.fs.extraction, 'piping_length', 0)):.2f} km")
+        print(f"  Total piping capital: ${value(getattr(ec, 'total_piping_capital_cost', 0)):.0f}")
+        print(f"  Pumping OPEX: ${value(getattr(ec, 'pumping_cost', 0)):.0f}/year")
+        print(f"  Extraction capital cost (total): ${value(getattr(ec, 'capital_cost', 0)):.0f}")
+        print(f"  Extraction fixed OPEX (total): ${value(getattr(ec, 'fixed_operating_cost', 0)):.0f}/year")
+        print()
+        print("EVAPORATION POND")
+        pc = m.fs.pond.costing
+        print(f"  Land capital cost: ${value(getattr(pc, 'land_capital_cost', 0)):.0f}")
+        print(f"  Land clearing capital cost: ${value(getattr(pc, 'land_clearing_capital_cost', 0)):.0f}")
+        print(f"  Dike capital cost: ${value(getattr(pc, 'dike_capital_cost', 0)):.0f}")
+        print(f"  Liner capital cost: ${value(getattr(pc, 'liner_capital_cost', 0)):.0f}")
+        print(f"  Fence capital cost: ${value(getattr(pc, 'fence_capital_cost', 0)):.0f}")
+        print(f"  Road capital cost: ${value(getattr(pc, 'road_capital_cost', 0)):.0f}")
+        print(f"  Pond capital cost (total): ${value(getattr(pc, 'capital_cost', 0)):.0f}")
+        print(f"  Liner replacement OPEX: ${value(getattr(pc, 'liner_replacement_operating_cost', 0)):.0f}/year")
+        print(f"  Recovered solids handling OPEX: ${value(getattr(pc, 'recovered_solids_handling_operating_cost', 0)):.0f}/year")
+        print(f"  Pond fixed OPEX (total): ${value(getattr(pc, 'fixed_operating_cost', 0)):.0f}/year")
+        print()
+        print("TRANSPORT (TRUCKING)")
+        tc = m.fs.transport.costing
+        print(f"  Shipping distance: {value(getattr(m.fs, 'shipping_distance', 0)):.2f} km")
+        print(f"  Shipping unit cost: ${value(getattr(tc, 'shipping_unit_cost', 0)):.3f}/t/km")
+        print(f"  Annual shipping cost: ${value(getattr(tc, 'annual_shipping_cost', 0)):.0f}/year")
+        print(f"  Transport capital cost: ${value(getattr(tc, 'capital_cost', 0)):.0f}")
+        print(f"  Transport fixed OPEX: ${value(getattr(tc, 'fixed_operating_cost', 0)):.0f}/year")
+    except Exception as e:
+        print(f"Error in detailed cost breakdown: {e}")
+    print("="*50)
+
+    print("\nGLOBAL COST SUMMARY AND CONVERSION FACTORS")
+    c = m.fs.costing
+    # Print aggregate costs
+    print(f"Aggregate capital cost (sum of all units): ${value(getattr(c, 'aggregate_capital_cost', 0)):.0f}")
+    print(f"Aggregate fixed OPEX (sum of all units): ${value(getattr(c, 'aggregate_fixed_operating_cost', 0)):.0f}/year")
+    print("\nVARIABLE OPEX BREAKDOWN")
+    print(f"Aggregate variable OPEX (unit-level): ${value(getattr(c, 'aggregate_variable_operating_cost', 0)):.0f}/year")
+    if hasattr(c, 'aggregate_flow_costs') and hasattr(c, 'used_flows'):
+        for flow in c.used_flows:
+            try:
+                flow_cost = c.aggregate_flow_costs[flow]
+                print(f"  Flow cost for '{flow}': ${value(flow_cost):.0f}/year")
+            except (KeyError, AttributeError):
+                pass
+    print(f"Utilization factor: {value(getattr(c, 'utilization_factor', 1)):.3f}")
+    print()
+    # Print global factors
+    print(f"Total investment factor (TIC): {value(getattr(c, 'total_investment_factor', 1)):.3f}")
+    print(f"Maintenance/Labor/Chemical (MLC) factor: {value(getattr(c, 'maintenance_labor_chemical_factor', 0)):.3f}")
+    print(f"Sales tax fraction: {value(getattr(c, 'sales_tax_frac', 0)):.3f}")
+    print()
+    # Show formulas
+    print("Formulas:")
+    print("  total_capital_cost = total_investment_factor * aggregate_capital_cost")
+    print("  total_fixed_operating_cost = aggregate_fixed_operating_cost + (MLC factor * aggregate_capital_cost)")
+    print("  total_operating_cost = total_fixed_operating_cost + total_variable_operating_cost")
+    print()
+    # Print computed totals
+    print(f"Total capital cost: ${value(getattr(c, 'total_capital_cost', 0)):.0f}")
+    print(f"Total fixed OPEX: ${value(getattr(c, 'total_fixed_operating_cost', 0)):.0f}/year")
+    print(f"Total variable OPEX: ${value(getattr(c, 'total_variable_operating_cost', 0)):.0f}/year")
+    print(f"Total operating cost: ${value(getattr(c, 'total_operating_cost', 0)):.0f}/year")
+    print()
+    # If available, print annualized cost and capital recovery factor
+    if hasattr(c, 'capital_recovery_factor'):
+        print(f"Capital recovery factor: {value(getattr(c, 'capital_recovery_factor', 0)):.3f}  (for annualizing capital cost)")
+    if hasattr(c, 'total_annualized_cost'):
+        print(f"Total annualized cost: ${value(getattr(c, 'total_annualized_cost', 0)):.0f}/year")
+    print("="*50)
 
 def plot_precipitation_functions(m):
     import numpy as np
@@ -846,7 +934,7 @@ def calculate_max_feasible_li_concentration(m):
     """
     print("\n=== MAX FEASIBLE LI+ CONCENTRATION ANALYSIS ===")
     prop_in = m.fs.pond.properties_in[0]
-    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "li+"])
+    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = value(m.fs.rho)  # kg/m3
     a = 88.1606  
@@ -876,7 +964,7 @@ def plot_li_concentration_percent_vs_evap(m):
     import matplotlib.pyplot as plt
     import numpy as np
     prop_in = m.fs.pond.properties_in[0]
-    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "li+"])
+    li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     rho_val = 1227  # kg/m3
     a2 = 88.1606
