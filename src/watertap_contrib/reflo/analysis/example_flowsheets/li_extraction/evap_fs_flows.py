@@ -181,11 +181,11 @@ def main():
     if results.solver.termination_condition == pyo.TerminationCondition.optimal:
         print("SUCCESS: Model solved optimally with costing!")
         display_costing_results(m)
-        m.fs.costing.pprint()
-        print("="*50)
-        print("POND COSTING")
-        print("="*50)
-        m.fs.pond.costing.pprint()
+        # m.fs.costing.pprint()
+        # print("="*50)
+        # print("POND COSTING")
+        # print("="*50)
+        # m.fs.pond.costing.pprint()
     else:
         print(f"WARNING: Solver terminated with condition: {results.solver.termination_condition}")
         print("Costing results may not be accurate.")
@@ -393,9 +393,9 @@ def define_operating_params_and_vars(m):
     )
 
     m.fs.concentrated_brine_outflow = pyo.Var(
-        initialize=1.0,
+        initialize=1,
         bounds=(0, None),
-        units=pyunits.kg / pyunits.s,
+        units=pyunits.kg / pyunits.second,
         doc="Total concentrated brine outflow for shipping (post-evaporation)"
     )
 
@@ -447,8 +447,6 @@ def set_operating_conditions(m):
     
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(value(m.fs.evaporation_rate_enhancement_adjustment_factor))
-
-
 
     @m.fs.Constraint(doc="Fraction of outflow water")
     def eq_fraction_outflow(b):
@@ -609,57 +607,71 @@ def add_costing(m):
         return b.total_piping_capital_cost == b.piping_length * b.piping_unit_cost
 
     # Capital cost replacement
-    m.fs.pond.costing.total_capital_cost = pyo.Var(
-        initialize=1e7, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total capital cost (pond + extraction + piping)"
+    m.fs.pond.costing.total_capital_cost = pyo.Expression(
+        expr=m.fs.pond.costing.land_capital_cost + 
+        m.fs.pond.costing.land_clearing_capital_cost + 
+        m.fs.pond.costing.dike_capital_cost + 
+        m.fs.pond.costing.liner_capital_cost + 
+        m.fs.pond.costing.fence_capital_cost + 
+        m.fs.pond.costing.road_capital_cost + 
+        m.fs.total_well_capital_cost + m.fs.total_piping_capital_cost,
+        doc="Total capital cost (pond + extraction + piping)"
     )
-    @m.fs.pond.costing.Constraint(doc="Total capital cost for pond + extraction + piping")
-    def total_capital_cost_constraint(b):
-        return b.total_capital_cost == b.capital_cost + m.fs.total_well_capital_cost + m.fs.total_piping_capital_cost
 
     m.fs.pond.costing.capital_cost_constraint.deactivate()
     @m.fs.pond.costing.Constraint(doc="Capital cost for pond + extraction + piping")
     def capital_cost_constraint(b):
         return b.capital_cost == b.total_capital_cost
 
-    # Pumping flow cost
-    m.fs.pumping_unit_cost = pyo.Var(initialize=1e-5, units=m.fs.costing.base_currency/pyunits.kg, bounds=(0, None), doc="Pumping cost per kg")
-    m.fs.pumping_flow = pyo.Var(initialize=1000, units=pyunits.kg/pyunits.s, bounds=(0, None), doc="Pumping mass flow rate")
-    
-    @m.fs.Constraint(doc="Pumping unit cost calculation")
-    def eq_pumping_unit_cost(b):
-        # Calculate work per kg (J/kg), convert to kWh/kg, then multiply by electricity cost ($/kWh)
-        work_per_kg = 9.81 * pyunits.m/pyunits.s**2 * b.pumping_head / b.pumping_efficiency  # J/kg
-        work_per_kg_kWh = pyunits.convert(work_per_kg, to_units=pyunits.kWh/pyunits.kg)
-        return b.pumping_unit_cost == work_per_kg_kWh * b.costing.electricity_cost
-    
+    # Pumping flow variable and constraint
+    m.fs.pumping_flow = pyo.Var(initialize=100000, units=pyunits.m**3/pyunits.year, bounds=(0, None), doc="Pumping mass flow rate")
+
     @m.fs.Constraint(doc="Pumping flow calculation")
     def eq_pumping_flow(b):
-        return b.pumping_flow == (b.flow_vol * b.rho)
+        return b.pumping_flow == pyunits.convert(b.flow_vol, to_units=pyunits.m**3/pyunits.year)
 
+    # Pumping unit cost as an Expression
+    m.fs.pumping_unit_cost = pyo.Expression(
+        expr= pyunits.convert(9.81 * pyunits.m/pyunits.s**2 * m.fs.pumping_head * m.fs.rho / m.fs.pumping_efficiency, to_units=pyunits.kWh/pyunits.m**3) * m.fs.costing.electricity_cost,
+        doc="Pumping cost per m**3 (as Expression)"
+    )
     m.fs.costing.register_flow_type("pumping", m.fs.pumping_unit_cost)
     m.fs.costing.cost_flow(m.fs.pumping_flow, "pumping")
 
     # Shipping flow cost
     m.fs.shipping_distance = pyo.Param(
-        initialize=200, mutable=True, units=m.fs.costing.base_currency/pyunits.km,
+        initialize=200, mutable=True, units=pyunits.km,
         doc="Shipping distance to next facility (km)"
     )
     m.fs.shipping_unit_cost = pyo.Param(
         initialize=3e-5, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
-        doc="Shipping cost per kg per km ($/t/km)"
+        doc="Shipping cost per kg per km ($/kg/km)"
     )
 
-    m.fs.shipping_cost = pyo.Var(initialize=6e-3, units=m.fs.costing.base_currency/pyunits.kg, bounds=(0, None), doc="Shipping cost per kg")
+    m.fs.annual_concentrated_brine_outflow = pyo.Var(
+        initialize=1e7,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual total concentrated brine outflow for shipping (post-evaporation)"
+    )
 
-    @m.fs.Constraint(doc="Shipping cost")
-    def eq_shipping_cost(b):
-        return b.shipping_cost == (b.shipping_distance * b.shipping_unit_cost)
+    @m.fs.Constraint(doc="Annual concentrated brine outflow for shipping")
+    def eq_annual_concentrated_brine_outflow(b):
+        return b.annual_concentrated_brine_outflow == pyunits.convert(b.concentrated_brine_outflow, to_units=pyunits.kg/pyunits.year)
 
+    m.fs.shipping_cost = pyo.Expression(
+        expr=m.fs.shipping_distance * m.fs.shipping_unit_cost,
+        doc="Shipping cost per kg (as Expression)"
+    )
     m.fs.costing.register_flow_type("shipping", m.fs.shipping_cost)
-    m.fs.costing.cost_flow(m.fs.concentrated_brine_outflow, "shipping")
+    m.fs.costing.cost_flow(m.fs.annual_concentrated_brine_outflow, "shipping")
 
     iscale.calculate_scaling_factors(m)
 
+    # Fix pond costing parameters
+    m.fs.costing.evaporation_pond.land_cost.set_value(0)
+    m.fs.costing.evaporation_pond.land_clearing_cost.set_value(0)
+    
     # Fix global costing parameters
     m.fs.costing.plant_lifetime.fix(20)
     m.fs.costing.wacc.fix(0.07)
