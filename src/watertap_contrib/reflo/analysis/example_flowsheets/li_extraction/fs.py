@@ -17,7 +17,7 @@ def main():
     process_costing(m)
     results = solve(m)
     assert_optimal_termination(results)
-    display_costing_results(m)
+    display_costing_results(m, detailed=True)
 
 if __name__ == "__main__":
     main() 

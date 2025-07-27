@@ -45,20 +45,4 @@ def solve(m, solver=None):
             results = None
             tc = None
 
-        # If second attempt fails, try with more aggressive settings
-        if (results is None or tc != TerminationCondition.optimal):
-            print("Second solve attempt failed, trying with more aggressive settings...")
-            solver.options.update({
-                "tol": 1e-4,
-                "constr_viol_tol": 1e-4,
-                "acceptable_constr_viol_tol": 1e-4,
-                "max_iter": 2000,
-                "print_level": 12,
-            })
-            try:
-                results = solver.solve(m, tee=True)
-            except Exception as e:
-                print(f"Third solve failed with exception: {e}")
-                results = None
-
     return results

@@ -12,6 +12,7 @@ from watertap.core.util.initialization import assert_degrees_of_freedom
 import idaes.core.util.scaling as iscale
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints import define_additional_constraints
 from idaes.core.util.model_statistics import degrees_of_freedom
+from pyomo.environ import units as pyunits
 
 def build_flowsheet():
     m = ConcreteModel()
@@ -126,8 +127,11 @@ def build_flowsheet():
     m.fs.feed.report()
 
     propagate_state(m.fs.feed_to_pump)
-    m.fs.pump.efficiency_pump.fix(0.8) # 80% efficiency
-    m.fs.pump.outlet.pressure[0].fix(1.1 * 101325)  # 10% higher than feed pressure
+    m.fs.pump.efficiency_pump.fix(0.80) # 80% efficiency
+    # Calculate required pressure based on friction losses in 1 km pipeline
+    # Pressure = inlet_pressure + ρ*g*h_total where h_total = static_head + friction_head
+    pressure_increase = m.fs.rho * 9.81 * pyunits.m / pyunits.s**2 * (m.fs.static_head + m.fs.friction_head)  # Pa
+    m.fs.pump.outlet.pressure[0].fix(m.fs.pressure_inlet + pressure_increase)
     m.fs.pump.initialize()
     m.fs.pump.report()
     propagate_state(m.fs.pump_to_tb)

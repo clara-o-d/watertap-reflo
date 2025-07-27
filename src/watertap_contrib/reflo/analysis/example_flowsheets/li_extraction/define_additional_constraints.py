@@ -94,6 +94,20 @@ def define_general_parameters(m):
         units=pyunits.km,
         doc="Shipping distance to next facility (km)"
     )
+    
+    # Pipeline head requirements for 1 km, 12 cm HDPE pipe
+    m.fs.static_head = Param(
+        initialize=5.0,
+        mutable=True,
+        units=pyunits.m,
+        doc="Static head (elevation difference)"
+    )
+    m.fs.friction_head = Param(
+        initialize=19.1,
+        mutable=True,
+        units=pyunits.m,
+        doc="Friction head loss for 1 km, 12 cm HDPE pipeline (We can calculate this using the Darcy-Weisbach equation if desired)"
+    )
 
 def define_pond_parameters(m):
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
@@ -153,7 +167,7 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=0.03,
+        initialize=0.05,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"

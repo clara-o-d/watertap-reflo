@@ -1,6 +1,6 @@
 from pyomo.environ import value
 
-def display_initial_results(m, weather_name="Unknown"):
+def display_initial_results(m, weather_name="Station 34"):
     print("\n" + "="*50)
     print(f"EVAPORATION POND RESULTS ({weather_name} Weather Data)")
     print("="*50)
