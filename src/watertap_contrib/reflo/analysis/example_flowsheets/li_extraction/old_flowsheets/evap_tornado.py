@@ -179,7 +179,7 @@ def create_data_summary_plot(df, target_col='levelized cost of lithium (USD_2023
     return fig, (ax1, ax2)
 
 def main():
-    target_col = 'levelized cost of lithium (USD_2023/m^3)'
+    target_col = 'LCOLi_mass (USD/mt)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
     
@@ -199,15 +199,23 @@ def main():
         print("Expected files: pond_sensitivity.csv or test_pond_sensitivity.csv")
         return
 
-    # Define the specific model inputs being swept in the current parameter sweep
+    # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'well_capital_cost',
-        'pumping_head',
+        'number_of_wells',
+        'piping_length',
+        'pumping_efficiency',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
-        if var in df.columns:
-            print(f"OK: '{var}' found in data.")
+        resultant_var = f"resultant {var}"
+        if resultant_var in df.columns and var in df.columns:
+            mismatch = (df[var] != df[resultant_var]) & ~(df[var].isna() | df[resultant_var].isna())
+            if mismatch.any():
+                print(f"WARNING: Mismatch found between '{var}' and '{resultant_var}' in {mismatch.sum()} rows.")
+            else:
+                print(f"OK: '{var}' matches '{resultant_var}' for all valid rows.")
+        elif var in df.columns:
+            print(f"OK: '{var}' found in data (no resultant variable expected).")
         else:
             print(f"WARNING: '{var}' not found in data columns.")
     
@@ -240,7 +248,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Global costing parameter sensitivity analysis: {target_col}")
+                                    title=f"Lithium parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

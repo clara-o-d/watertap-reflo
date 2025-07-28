@@ -9,6 +9,8 @@ def display_costing_results(m, detailed=False):
             print(f"Pond capital cost: ${value(m.fs.pond.costing.capital_cost):,.0f}")
         if hasattr(m.fs.pump.costing, 'capital_cost'):
             print(f"Pump capital cost: ${value(m.fs.pump.costing.capital_cost):,.0f}")
+        if hasattr(m.fs, 'total_well_capital_cost'):
+            print(f"Well capital cost: ${value(m.fs.total_well_capital_cost):,.0f}")
         if hasattr(m.fs.costing, 'total_capital_cost'):
             print(f"Total capital cost: ${value(m.fs.costing.total_capital_cost):,.0f}")
         if hasattr(m.fs.costing, 'LCOLi'):
@@ -16,6 +18,12 @@ def display_costing_results(m, detailed=False):
             lcoli_mass = value(m.fs.costing.LCOLi_mass)
             print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_vol:.2f} per m³ Li, ${lcoli_mass:.2f} per mt Li")
         
+        # Well information
+        if hasattr(m.fs, 'number_of_wells') and hasattr(m.fs, 'well_capital_cost'):
+            print(f"\nWell Information:")
+            print(f"  Number of wells: {value(m.fs.number_of_wells):.0f}")
+            print(f"  Cost per well: ${value(m.fs.well_capital_cost):,.0f}")
+            
         # Shipping cost information
         if hasattr(m.fs, 'shipping_distance'):
             print(f"\nShipping Information:")
@@ -82,6 +90,13 @@ def display_costing_results(m, detailed=False):
                 if hasattr(m.fs.pond.costing, 'road_capital_cost'):
                     road_cost = value(m.fs.pond.costing.road_capital_cost)
                     print(f"    - Road Cost:                 ${road_cost:,.0f}")
+                if hasattr(m.fs, 'total_well_capital_cost'):
+                    well_capex = value(m.fs.total_well_capital_cost)
+                    print(f"    - Well Capital Cost:         ${well_capex:,.0f}")
+                    if hasattr(m.fs, 'number_of_wells') and hasattr(m.fs, 'well_capital_cost'):
+                        num_wells = value(m.fs.number_of_wells)
+                        cost_per_well = value(m.fs.well_capital_cost)
+                        print(f"      ({num_wells:.0f} wells × ${cost_per_well:,.0f}/well)")
                 if hasattr(m.fs.pond.costing, 'direct_capital_cost'):
                     direct_cost = value(m.fs.pond.costing.direct_capital_cost)
                     print(f"    - Direct Capital Cost:       ${direct_cost:,.0f}")
