@@ -30,11 +30,10 @@ def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', i
     """
     if input_params is None:
         input_params = [
-            'plant lifetime (years)',
-            'WACC',
-            'maintenance/labor/chemical factor',
-            'utilization factor',
-            'sales tax frac',
+            'land_cost',
+            'pond_liner_cost',
+            'dye_cost',
+            'shipping_cost',
         ]
     print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters (classic tornado, median→min/max, abs denominator):")
     sensitivity_data = []
@@ -201,9 +200,11 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'number_of_wells',
-        'piping_length',
-        'pumping_efficiency',
+        'land_cost',
+        'pond_liner_cost',
+        'recovered_solids_revenue',
+        'dye_cost',
+        'shipping_cost',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -248,7 +249,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Lithium parameter sensitivity analysis: {target_col}")
+                                    title=f"Costing parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

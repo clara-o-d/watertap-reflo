@@ -58,24 +58,24 @@ def build_flowsheet():
     m.fs.carbonation_sep = ClarifierZO(property_package=m.fs.properties)
     m.fs.drying = StorageTankZO(property_package=m.fs.properties)
     
-    # Li2CO3 products and waste streams
+    # Li2CO3 products and waste streams (separated by source for better process understanding)
     m.fs.li2co3_product = Product(property_package=m.fs.properties)
-    m.fs.solid_waste = Product(property_package=m.fs.properties)
-    m.fs.liquid_waste = Product(property_package=m.fs.properties)
+    m.fs.li2co3_softening_waste = Product(property_package=m.fs.properties)  # Hardness removal waste (Ca2+, Mg2+, TSS)
+    m.fs.li2co3_separation_waste = Product(property_package=m.fs.properties)  # Clarifier waste (dissolved impurities)
     
     # LiOH section with constraint-based stoichiometry
-    m.fs.lioh_reactor = StorageTankZO(property_package=m.fs.properties)  # Reactor with constraints
-    m.fs.lioh_clarifier = ClarifierZO(property_package=m.fs.properties)
-    m.fs.lioh_filter = StorageTankZO(property_package=m.fs.properties)
-    m.fs.lioh_evap = StorageTankZO(property_package=m.fs.properties)
-    m.fs.lioh_centrifuge = StorageTankZO(property_package=m.fs.properties)
-    m.fs.lioh_dryer = StorageTankZO(property_package=m.fs.properties)
+    # m.fs.lioh_reactor = StorageTankZO(property_package=m.fs.properties)  # Reactor with constraints
+    # m.fs.lioh_clarifier = ClarifierZO(property_package=m.fs.properties)
+    # m.fs.lioh_filter = StorageTankZO(property_package=m.fs.properties)
+    # m.fs.lioh_evap = StorageTankZO(property_package=m.fs.properties)
+    # m.fs.lioh_centrifuge = StorageTankZO(property_package=m.fs.properties)
+    # m.fs.lioh_dryer = StorageTankZO(property_package=m.fs.properties)
     
     # LiOH products and waste streams
-    m.fs.lioh_product = Product(property_package=m.fs.properties)
-    m.fs.lioh_offspec = Product(property_package=m.fs.properties)
-    m.fs.lioh_solidwaste = Product(property_package=m.fs.properties)
-    m.fs.lioh_liquidwaste = Product(property_package=m.fs.properties)
+    # m.fs.lioh_product = Product(property_package=m.fs.properties)
+    # m.fs.lioh_offspec = Product(property_package=m.fs.properties)
+    # m.fs.lioh_solidwaste = Product(property_package=m.fs.properties)
+    # m.fs.lioh_liquidwaste = Product(property_package=m.fs.properties)
 
     
     # Main Li2CO3 processing train
@@ -86,16 +86,19 @@ def build_flowsheet():
     m.fs.carbonation_to_sep = Arc(source=m.fs.carbonation.outlet, destination=m.fs.carbonation_sep.inlet)
     m.fs.sep_to_drying = Arc(source=m.fs.carbonation_sep.treated, destination=m.fs.drying.inlet)
     m.fs.drying_to_product = Arc(source=m.fs.drying.outlet, destination=m.fs.li2co3_product.inlet)
-    m.fs.sep_to_waste = Arc(source=m.fs.carbonation_sep.byproduct, destination=m.fs.liquid_waste.inlet)
+    
+    # Li2CO3 waste streams - separate by source for process clarity
+    m.fs.softening_waste_out = Arc(source=m.fs.softening.waste, destination=m.fs.li2co3_softening_waste.inlet)
+    m.fs.separation_waste_out = Arc(source=m.fs.carbonation_sep.byproduct, destination=m.fs.li2co3_separation_waste.inlet)
     
     # LiOH processing train
-    m.fs.carbonation_to_lioh = Arc(source=m.fs.carbonation.outlet, destination=m.fs.lioh_reactor.inlet)
-    m.fs.lioh_reactor_to_clarifier = Arc(source=m.fs.lioh_reactor.outlet, destination=m.fs.lioh_clarifier.inlet)
-    m.fs.lioh_clarifier_to_filter = Arc(source=m.fs.lioh_clarifier.treated, destination=m.fs.lioh_filter.inlet)
-    m.fs.lioh_clarifier_to_evap = Arc(source=m.fs.lioh_clarifier.byproduct, destination=m.fs.lioh_evap.inlet)
-    m.fs.lioh_evap_to_centrifuge = Arc(source=m.fs.lioh_evap.outlet, destination=m.fs.lioh_centrifuge.inlet)
-    m.fs.lioh_centrifuge_to_dryer = Arc(source=m.fs.lioh_centrifuge.outlet, destination=m.fs.lioh_dryer.inlet)
-    m.fs.lioh_dryer_to_product = Arc(source=m.fs.lioh_dryer.outlet, destination=m.fs.lioh_product.inlet)
+    # m.fs.carbonation_to_lioh = Arc(source=m.fs.carbonation.outlet, destination=m.fs.lioh_reactor.inlet)
+    # m.fs.lioh_reactor_to_clarifier = Arc(source=m.fs.lioh_reactor.outlet, destination=m.fs.lioh_clarifier.inlet)
+    # m.fs.lioh_clarifier_to_filter = Arc(source=m.fs.lioh_clarifier.treated, destination=m.fs.lioh_filter.inlet)
+    # m.fs.lioh_clarifier_to_evap = Arc(source=m.fs.lioh_clarifier.byproduct, destination=m.fs.lioh_evap.inlet)
+    # m.fs.lioh_evap_to_centrifuge = Arc(source=m.fs.lioh_evap.outlet, destination=m.fs.lioh_centrifuge.inlet)
+    # m.fs.lioh_centrifuge_to_dryer = Arc(source=m.fs.lioh_centrifuge.outlet, destination=m.fs.lioh_dryer.inlet)
+    # m.fs.lioh_dryer_to_product = Arc(source=m.fs.lioh_dryer.outlet, destination=m.fs.lioh_product.inlet)
     
     TransformationFactory("network.expand_arcs").apply_to(m)
 
@@ -141,8 +144,7 @@ def build_flowsheet():
     
     # Unit model scaling
     for unit in [m.fs.feed, m.fs.storage, m.fs.boron_removal, m.fs.softening, m.fs.carbonation,
-                 m.fs.carbonation_sep, m.fs.drying, m.fs.lioh_reactor, m.fs.lioh_clarifier,
-                 m.fs.lioh_filter, m.fs.lioh_evap, m.fs.lioh_centrifuge, m.fs.lioh_dryer]:
+                 m.fs.carbonation_sep, m.fs.drying]:  # LiOH units commented out
         if hasattr(unit, 'control_volume') and hasattr(unit.control_volume, 'work'):
             iscale.set_scaling_factor(unit.control_volume.work, 1e-6)
 
@@ -189,52 +191,52 @@ def build_flowsheet():
     m.fs.li2co3_product.initialize()
     m.fs.li2co3_product.report()
 
-    # Waste streams
-    propagate_state(m.fs.sep_to_waste)
-    m.fs.liquid_waste.initialize()
-    m.fs.liquid_waste.report()
+    # Li2CO3 waste streams - initialize both waste products
+    propagate_state(m.fs.softening_waste_out)
+    m.fs.li2co3_softening_waste.initialize()
+    m.fs.li2co3_softening_waste.report()
 
-    # Initialize unconnected product units
-    m.fs.solid_waste.initialize()
-    m.fs.solid_waste.report()
+    propagate_state(m.fs.separation_waste_out)
+    m.fs.li2co3_separation_waste.initialize()
+    m.fs.li2co3_separation_waste.report()
 
     # LiOH section with constraint-based stoichiometry
-    propagate_state(m.fs.carbonation_to_lioh)
-    m.fs.lioh_reactor.initialize()
-    m.fs.lioh_reactor.report()
+    # propagate_state(m.fs.carbonation_to_lioh)
+    # m.fs.lioh_reactor.initialize()
+    # m.fs.lioh_reactor.report()
 
-    propagate_state(m.fs.lioh_reactor_to_clarifier)
-    m.fs.lioh_clarifier.initialize()
-    m.fs.lioh_clarifier.report()
+    # propagate_state(m.fs.lioh_reactor_to_clarifier)
+    # m.fs.lioh_clarifier.initialize()
+    # m.fs.lioh_clarifier.report()
 
-    propagate_state(m.fs.lioh_clarifier_to_filter)
-    m.fs.lioh_filter.initialize()
-    m.fs.lioh_filter.report()
+    # propagate_state(m.fs.lioh_clarifier_to_filter)
+    # m.fs.lioh_filter.initialize()
+    # m.fs.lioh_filter.report()
 
-    propagate_state(m.fs.lioh_clarifier_to_evap)
-    m.fs.lioh_evap.initialize()
-    m.fs.lioh_evap.report()
+    # propagate_state(m.fs.lioh_clarifier_to_evap)
+    # m.fs.lioh_evap.initialize()
+    # m.fs.lioh_evap.report()
 
-    propagate_state(m.fs.lioh_evap_to_centrifuge)
-    m.fs.lioh_centrifuge.initialize()
-    m.fs.lioh_centrifuge.report()
+    # propagate_state(m.fs.lioh_evap_to_centrifuge)
+    # m.fs.lioh_centrifuge.initialize()
+    # m.fs.lioh_centrifuge.report()
 
-    propagate_state(m.fs.lioh_centrifuge_to_dryer)
-    m.fs.lioh_dryer.initialize()
-    m.fs.lioh_dryer.report()
+    # propagate_state(m.fs.lioh_centrifuge_to_dryer)
+    # m.fs.lioh_dryer.initialize()
+    # m.fs.lioh_dryer.report()
 
     # LiOH products and waste
-    propagate_state(m.fs.lioh_dryer_to_product)
-    m.fs.lioh_product.initialize()
-    m.fs.lioh_product.report()
+    # propagate_state(m.fs.lioh_dryer_to_product)
+    # m.fs.lioh_product.initialize()
+    # m.fs.lioh_product.report()
 
     # Initialize unconnected waste products
-    m.fs.lioh_offspec.initialize()
-    m.fs.lioh_solidwaste.initialize()
-    m.fs.lioh_liquidwaste.initialize()
-    m.fs.lioh_offspec.report()
-    m.fs.lioh_solidwaste.report()
-    m.fs.lioh_liquidwaste.report()
+    # m.fs.lioh_offspec.initialize()
+    # m.fs.lioh_solidwaste.initialize()
+    # m.fs.lioh_liquidwaste.initialize()
+    # m.fs.lioh_offspec.report()
+    # m.fs.lioh_solidwaste.report()
+    # m.fs.lioh_liquidwaste.report()
 
     
     print(f"DOF after build_flowsheet: {degrees_of_freedom(m)}")

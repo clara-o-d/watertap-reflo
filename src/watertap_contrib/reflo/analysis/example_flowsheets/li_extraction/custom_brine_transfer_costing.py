@@ -93,11 +93,33 @@ def cost_brine_transfer_system(blk, pipeline_length_km=1.0, pipeline_diameter_m=
         ),
     )
     
+    # Wellfield capital cost
+    blk.well_capital_cost = pyo.Param(
+        initialize=9.357143e+05, mutable=True, units=blk.costing_package.base_currency,
+        doc="Capital cost per extraction well ($/well)"
+    )
+
+    blk.number_of_wells = pyo.Param(
+        initialize=320,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Number of extraction wells"
+    )
+
+    blk.total_well_capital_cost = pyo.Var(
+        initialize=1e6, units=blk.costing_package.base_currency, bounds=(0, None), 
+        doc="Total wellfield capital cost"
+    )
+
+    @blk.Constraint(doc="Total wellfield capital cost")
+    def total_well_capital_cost_constraint(b):
+        return b.total_well_capital_cost == b.number_of_wells * b.well_capital_cost
+
     # Create new constraint that includes both pump and pipeline
     blk.capital_cost_constraint.deactivate()
     
     blk.capital_cost_constraint = pyo.Constraint(
-        expr=blk.capital_cost == 
+        expr=blk.capital_cost == blk.total_well_capital_cost + 
         blk.cost_factor * (pyunits.convert(
             blk.pump_capital_cost * pyunits.convert(
                 blk.unit_model.control_volume.properties_in[t0].flow_vol,

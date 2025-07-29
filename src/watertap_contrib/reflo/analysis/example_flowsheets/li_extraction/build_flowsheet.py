@@ -13,6 +13,8 @@ import idaes.core.util.scaling as iscale
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints import define_additional_constraints
 from idaes.core.util.model_statistics import degrees_of_freedom
 from pyomo.environ import units as pyunits
+from pyomo.environ import value
+from pyomo.environ import Constraint
 
 def build_flowsheet():
     m = ConcreteModel()
@@ -80,9 +82,9 @@ def build_flowsheet():
         return b.properties_in[0].temperature == b.properties_out[0].temperature[p]
 
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(477)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.0)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.58)
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1290)
-    m.fs.feed.properties[0].temperature.fix(300)  # K
+    m.fs.feed.properties[0].temperature.fix(310)  # K
     m.fs.feed.properties[0].pressure.fix(101325)  # Pa
     print(f"DOF after setting feed: {degrees_of_freedom(m)}")
 
@@ -125,13 +127,18 @@ def build_flowsheet():
 
     m.fs.feed.initialize()
     m.fs.feed.report()
+    m.fs.feed.pprint()
 
     propagate_state(m.fs.feed_to_pump)
     m.fs.pump.efficiency_pump.fix(0.80) # 80% efficiency
     # Calculate required pressure based on friction losses in 1 km pipeline
-    # Pressure = inlet_pressure + ρ*g*h_total where h_total = static_head + friction_head
-    pressure_increase = m.fs.rho * 9.81 * pyunits.m / pyunits.s**2 * (m.fs.static_head + m.fs.friction_head)  # Pa
-    m.fs.pump.outlet.pressure[0].fix(m.fs.pressure_inlet + pressure_increase)
+    print(f"rho: {value(m.fs.rho)}")
+    print(f"static_head: {value(m.fs.static_head)}")
+    print(f"friction_head: {value(m.fs.friction_head)}")
+    print(f"piping_length: {value(m.fs.piping_length)}")
+    print(f"pressure_increase: {value(m.fs.pressure_increase)}")
+    m.fs.eq_pump_outlet_pressure = Constraint(expr=m.fs.pump.outlet.pressure[0] == 101325*pyunits.Pa + m.fs.pressure_increase)
+    print(f"pump outlet pressure: {value(m.fs.pump.outlet.pressure[0])}")
     m.fs.pump.initialize()
     m.fs.pump.report()
     propagate_state(m.fs.pump_to_tb)

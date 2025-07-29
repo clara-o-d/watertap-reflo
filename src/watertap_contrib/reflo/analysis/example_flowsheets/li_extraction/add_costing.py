@@ -18,38 +18,6 @@ def add_costing(m):
             "pipeline_diameter_m": 0.12,  # 12 cm diameter HDPE pipe
         }
     )
-    
-    # Wellfield capital cost
-    m.fs.well_capital_cost = Param(
-        initialize=9.357143e+05, mutable=True, units=m.fs.costing.base_currency,
-        doc="Capital cost per extraction well ($/well)"
-    )
-
-    m.fs.total_well_capital_cost = Var(
-        initialize=1e6, units=m.fs.costing.base_currency, bounds=(0, None), 
-        doc="Total wellfield capital cost"
-    )
-
-    @m.fs.Constraint(doc="Total wellfield capital cost")
-    def total_well_capital_cost_constraint(b):
-        return b.total_well_capital_cost == b.number_of_wells * b.well_capital_cost
-
-    # Capital cost replacement
-    m.fs.pond.costing.total_capital_cost = Expression(
-        expr=m.fs.pond.costing.land_capital_cost + 
-        m.fs.pond.costing.land_clearing_capital_cost + 
-        m.fs.pond.costing.dike_capital_cost + 
-        m.fs.pond.costing.liner_capital_cost + 
-        m.fs.pond.costing.fence_capital_cost + 
-        m.fs.pond.costing.road_capital_cost + 
-        m.fs.total_well_capital_cost,
-        doc="Total capital cost (pond + extraction)"
-    )
-
-    m.fs.pond.costing.capital_cost_constraint.deactivate()
-    @m.fs.pond.costing.Constraint(doc="Capital cost for pond + extraction + piping")
-    def capital_cost_constraint(b):
-        return b.capital_cost == b.total_capital_cost
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(

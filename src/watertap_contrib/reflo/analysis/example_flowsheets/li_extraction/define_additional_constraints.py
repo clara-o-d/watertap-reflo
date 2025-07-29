@@ -14,48 +14,6 @@ def define_general_parameters(m):
         units=pyunits.kg / pyunits.m**3,
         doc="Solution density"
     )
-    m.fs.pressure_inlet = Param(
-        initialize=101325,
-        mutable=True,
-        units=pyunits.Pa,
-        doc="Inlet pressure"
-    )
-    m.fs.temperature_liquid_inlet = Param(
-        initialize=298,
-        mutable=True,
-        units=pyunits.K,
-        doc="Inlet liquid temperature"
-    )
-    m.fs.temperature_vapor_inlet = Param(
-        initialize=293,
-        mutable=True,
-        units=pyunits.K,
-        doc="Inlet vapor temperature"
-    )
-    m.fs.air_flow_inlet = Param(
-        initialize=1,
-        mutable=True,
-        units=pyunits.kg / pyunits.s,
-        doc="Inlet air flow rate"
-    )
-    m.fs.water_vapor_flow_inlet = Param(
-        initialize=0,
-        mutable=True,
-        units=pyunits.kg / pyunits.s,
-        doc="Inlet water vapor flow rate"
-    )
-    m.fs.evaporation_rate_salinity_adjustment_factor = Param(
-        initialize=0.75,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Evaporation rate salinity adjustment factor"
-    )
-    m.fs.evaporation_rate_enhancement_adjustment_factor = Param(
-        initialize=1.08,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Evaporation rate enhancement adjustment factor"
-    )
     m.fs.pond.annual_solid_precipitate_a = Param(
         initialize=-3.1473e02, mutable=True, doc="Linear fit coefficient a [kg/m³]",
         units=pyunits.kg/pyunits.m**3
@@ -64,30 +22,6 @@ def define_general_parameters(m):
         initialize=3.5704e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
         units=pyunits.kg/pyunits.m**3
     )
-    m.fs.number_of_wells = Param(
-        initialize=320,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Number of extraction wells"
-    )
-    m.fs.piping_length = Param(
-        initialize=1,
-        mutable=True,
-        units=pyunits.km,
-        doc="Piping length from wells to pond (km)"
-    )
-    m.fs.pumping_efficiency = Param(
-        initialize=0.7,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Pumping efficiency (fraction)"
-    )
-    m.fs.pumping_head = Param(
-        initialize=50,
-        mutable=True,
-        units=pyunits.m,
-        doc="Pumping head (m)"
-    )
     m.fs.shipping_distance = Param(
         initialize=200,
         mutable=True,
@@ -95,6 +29,7 @@ def define_general_parameters(m):
         doc="Shipping distance to next facility (km)"
     )
     
+def define_pumping_head(m):
     # Pipeline head requirements for 1 km, 12 cm HDPE pipe
     m.fs.static_head = Param(
         initialize=5.0,
@@ -102,16 +37,30 @@ def define_general_parameters(m):
         units=pyunits.m,
         doc="Static head (elevation difference)"
     )
-    m.fs.friction_head = Param(
+    m.fs.friction_head = Var(
         initialize=19.1,
-        mutable=True,
-        units=pyunits.m,
+        bounds=(0, None),
+        units=pyunits.m/pyunits.km,
         doc="Friction head loss for 1 km, 12 cm HDPE pipeline (We can calculate this using the Darcy-Weisbach equation if desired)"
     )
+    m.fs.friction_head.fix(19.1)
+    m.fs.piping_length = Param(
+        initialize=0.5,
+        mutable=True,
+        units=pyunits.km,
+        doc="Piping length from wells to pond (km)"
+    )
+    m.fs.pressure_increase = Var(
+        initialize=101325,
+        bounds=(0, None),
+        units=pyunits.Pa,
+        doc="Pressure increase due to friction losses in pipeline"
+    )
+    m.fs.eq_pressure_increase = Constraint(expr=m.fs.pressure_increase == m.fs.rho * 9.81 * pyunits.m / pyunits.s**2 * (m.fs.static_head + m.fs.friction_head * m.fs.piping_length))
 
 def define_pond_parameters(m):
-    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(value(m.fs.evaporation_rate_salinity_adjustment_factor))
-    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(value(m.fs.evaporation_rate_enhancement_adjustment_factor))
+    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
+    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1.16)
     m.fs.pond.number_evaporation_ponds.fix(300)
 
 def define_flow_and_evaporation(m):
@@ -263,6 +212,7 @@ def fix_evaporation_fraction_for_target_li(m):
 
 def define_additional_constraints(m):
     define_general_parameters(m)
+    define_pumping_head(m)
     define_pond_parameters(m)
     define_flow_and_evaporation(m)
     define_tds_section(m)

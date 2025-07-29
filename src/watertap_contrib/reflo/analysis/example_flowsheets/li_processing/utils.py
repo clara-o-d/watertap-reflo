@@ -20,12 +20,11 @@ def compute_water_balance(m):
     # Calculate water in all outlet streams
     water_out_li2co3 = value(m.fs.li2co3_product.properties[0].flow_mass_phase_comp["Liq", "H2O"])
     water_out_lioh = value(m.fs.lioh_product.properties[0].flow_mass_phase_comp["Liq", "H2O"])
-    water_out_solid_waste = value(m.fs.solid_waste.properties[0].flow_mass_phase_comp["Liq", "H2O"])
-    water_out_liquid_waste = value(m.fs.liquid_waste.properties[0].flow_mass_phase_comp["Liq", "H2O"])
+    water_out_li2co3_waste = value(m.fs.li2co3_waste.properties[0].flow_mass_phase_comp["Liq", "H2O"])
     water_out_lioh_waste = value(m.fs.lioh_liquidwaste.properties[0].flow_mass_phase_comp["Liq", "H2O"])
     
-    total_water_out = (water_out_li2co3 + water_out_lioh + water_out_solid_waste + 
-                      water_out_liquid_waste + water_out_lioh_waste)
+    total_water_out = (water_out_li2co3 + water_out_lioh + water_out_li2co3_waste + 
+                      water_out_lioh_waste)
     
     water_loss = water_in - total_water_out
     

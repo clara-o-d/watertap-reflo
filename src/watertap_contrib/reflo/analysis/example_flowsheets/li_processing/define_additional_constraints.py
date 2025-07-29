@@ -165,92 +165,92 @@ def define_separation_parameters(m):
 def define_lioh_conversion_parameters(m):
     """Define parameters for Li2CO3 to LiOH conversion"""
     # Placeholder for LiOH conversion parameters
-    m.fs.lioh_conversion_efficiency = Param(
-        initialize=0.98,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Li2CO3 to LiOH conversion efficiency"
-    )
+    # m.fs.lioh_conversion_efficiency = Param(
+    #     initialize=0.98,
+    #     mutable=True,
+    #     units=pyunits.dimensionless,
+    #     doc="Li2CO3 to LiOH conversion efficiency"
+    # )
     
-    m.fs.lime_stoichiometric_ratio = Param(
-        initialize=1.0,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Lime dosing stoichiometric ratio"
-    )
+    # m.fs.lime_stoichiometric_ratio = Param(
+    #     initialize=1.0,
+    #     mutable=True,
+    #     units=pyunits.dimensionless,
+    #     doc="Lime dosing stoichiometric ratio"
+    # )
     
     # Stoichiometric constraint for LiOH conversion
     # Simplified reaction: Li2CO3 + Ca_2+ + 2OH- → 2Li+ + CaCO3(s) + 2OH-
     # Net effect: Li2CO3 + Ca_2+ → 2Li+ + CaCO3(s)
-    def lioh_stoichiometric_constraint_rule(blk):
-        # Use carbonation output as LiOH reactor input (Li2CO3 from precipitation)
-        li2co3_in = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"]
-        li2co3_converted = li2co3_in * m.fs.lioh_conversion_efficiency
+    # def lioh_stoichiometric_constraint_rule(blk):
+    #     # Use carbonation output as LiOH reactor input (Li2CO3 from precipitation)
+    #     li2co3_in = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"]
+    #     li2co3_converted = li2co3_in * m.fs.lioh_conversion_efficiency
         
-        # Stoichiometry: 1 mol Li2CO3 → 2 mol Li+
-        # MW_Li = 6.94e-3, MW_Li2CO3 = 73.89e-3
-        li_produced = li2co3_converted * (2 * 6.94e-3 / 73.89e-3)  # kg/s
+    #     # Stoichiometry: 1 mol Li2CO3 → 2 mol Li+
+    #     # MW_Li = 6.94e-3, MW_Li2CO3 = 73.89e-3
+    #     li_produced = li2co3_converted * (2 * 6.94e-3 / 73.89e-3)  # kg/s
         
-        # Add to existing Li+ from carbonation
-        li_from_carbonation = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "li+"]
+    #     # Add to existing Li+ from carbonation
+    #     li_from_carbonation = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "li+"]
         
-        return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "li+"] == 
-                li_from_carbonation + li_produced)
+    #     return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "li+"] == 
+    #             li_from_carbonation + li_produced)
     
-    m.fs.lioh_stoichiometry = Constraint(rule=lioh_stoichiometric_constraint_rule)
+    # m.fs.lioh_stoichiometry = Constraint(rule=lioh_stoichiometric_constraint_rule)
     
     # Li2CO3 consumption in LiOH reactor
-    def li2co3_consumption_constraint_rule(blk):
-        # Li2CO3 consumed in LiOH conversion
-        li2co3_in = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"]
-        li2co3_converted = li2co3_in * m.fs.lioh_conversion_efficiency
+    # def li2co3_consumption_constraint_rule(blk):
+    #     # Li2CO3 consumed in LiOH conversion
+    #     li2co3_in = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"]
+    #     li2co3_converted = li2co3_in * m.fs.lioh_conversion_efficiency
         
-        return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"] == 
-                li2co3_in - li2co3_converted)
+    #     return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"] == 
+    #             li2co3_in - li2co3_converted)
     
-    m.fs.li2co3_consumption = Constraint(rule=li2co3_consumption_constraint_rule)
+    # m.fs.li2co3_consumption = Constraint(rule=li2co3_consumption_constraint_rule)
     
     # CaCO3 formation constraint
-    def caco3_formation_constraint_rule(blk):
-        # Stoichiometry: 1 mol Li2CO3 converted → 1 mol CaCO3 formed
-        li2co3_converted = (m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"] * 
-                           m.fs.lioh_conversion_efficiency)
-        # MW_CaCO3 / MW_Li2CO3 = 100.09e-3 / 73.89e-3 = 1.355
-        caco3_produced = li2co3_converted * (100.09e-3 / 73.89e-3)  # kg/s
+    # def caco3_formation_constraint_rule(blk):
+    #     # Stoichiometry: 1 mol Li2CO3 converted → 1 mol CaCO3 formed
+    #     li2co3_converted = (m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"] * 
+    #                        m.fs.lioh_conversion_efficiency)
+    #     # MW_CaCO3 / MW_Li2CO3 = 100.09e-3 / 73.89e-3 = 1.355
+    #     caco3_produced = li2co3_converted * (100.09e-3 / 73.89e-3)  # kg/s
         
-        return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "CaCO3"] == 
-                caco3_produced)
+    #     return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "CaCO3"] == 
+    #             caco3_produced)
     
-    m.fs.caco3_formation = Constraint(rule=caco3_formation_constraint_rule)
+    # m.fs.caco3_formation = Constraint(rule=caco3_formation_constraint_rule)
     
     # Component pass-through constraints for LiOH reactor non-reacting species
-    def lioh_passthrough_constraint_rule(blk, comp):
-        if comp not in ["li+", "Li2CO3", "CaCO3", "Ca_2+"]:
-            return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", comp] == 
-                    m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", comp])
-        else:
-            return Constraint.Skip
+    # def lioh_passthrough_constraint_rule(blk, comp):
+    #     if comp not in ["li+", "Li2CO3", "CaCO3", "Ca_2+"]:
+    #         return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", comp] == 
+    #                 m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", comp])
+    #     else:
+    #         return Constraint.Skip
     
-    m.fs.lioh_passthrough = Constraint(
-        m.fs.properties.component_list,
-        rule=lioh_passthrough_constraint_rule
-    )
+    # m.fs.lioh_passthrough = Constraint(
+    #     m.fs.properties.component_list,
+    #     rule=lioh_passthrough_constraint_rule
+    # )
     
     # Ca2+ balance constraint - ensure sufficient Ca2+ for LiOH conversion
-    def ca_balance_constraint_rule(blk):
-        # Ca2+ needed for LiOH conversion
-        li2co3_converted = (m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"] * 
-                           m.fs.lioh_conversion_efficiency)
-        li2co3_molar_converted = li2co3_converted / (73.89e-3 * pyunits.kg/pyunits.mol)
-        ca_needed = li2co3_molar_converted * (40.08e-3 * pyunits.kg/pyunits.mol)  # kg/s
+    # def ca_balance_constraint_rule(blk):
+    #     # Ca2+ needed for LiOH conversion
+    #     li2co3_converted = (m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Li2CO3"] * 
+    #                        m.fs.lioh_conversion_efficiency)
+    #     li2co3_molar_converted = li2co3_converted / (73.89e-3 * pyunits.kg/pyunits.mol)
+    #     ca_needed = li2co3_molar_converted * (40.08e-3 * pyunits.kg/pyunits.mol)  # kg/s
         
-        # Ca2+ from upstream plus what's needed for reaction
-        ca_from_upstream = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Ca_2+"]
+    #     # Ca2+ from upstream plus what's needed for reaction
+    #     ca_from_upstream = m.fs.carbonation.properties[0].flow_mass_phase_comp["Liq", "Ca_2+"]
         
-        return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "Ca_2+"] == 
-                ca_from_upstream + ca_needed)
+    #     return (m.fs.lioh_reactor.properties[0].flow_mass_phase_comp["Liq", "Ca_2+"] == 
+    #             ca_from_upstream + ca_needed)
     
-    m.fs.ca_balance = Constraint(rule=ca_balance_constraint_rule)
+    # m.fs.ca_balance = Constraint(rule=ca_balance_constraint_rule)
 
 
 def define_product_quality_parameters(m):
@@ -312,7 +312,7 @@ def define_additional_constraints(m):
     define_softening_parameters(m)
     define_li2co3_precipitation_parameters(m)
     define_separation_parameters(m)
-    define_lioh_conversion_parameters(m)
+    # define_lioh_conversion_parameters(m)  # LiOH section commented out
     define_product_quality_parameters(m)
     define_material_balance_constraints(m)
     define_energy_balance_constraints(m)
