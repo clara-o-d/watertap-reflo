@@ -7,8 +7,10 @@ def add_costing(m):
     m.fs.costing = REFLOCosting()
     for unit in [
         m.fs.storage, m.fs.boron_removal, m.fs.softening, m.fs.carbonation,
-        m.fs.carbonation_sep, m.fs.drying, m.fs.lioh_reactor, m.fs.lioh_clarifier,
-        m.fs.lioh_filter, m.fs.lioh_evap, m.fs.lioh_centrifuge, m.fs.lioh_dryer
+        m.fs.carbonation_sep, m.fs.drying
+        # LiOH units commented out since they are not in the current flowsheet
+        # m.fs.lioh_reactor, m.fs.lioh_clarifier, m.fs.lioh_filter, 
+        # m.fs.lioh_evap, m.fs.lioh_centrifuge, m.fs.lioh_dryer
     ]:
         if hasattr(unit, "costing"):
             continue

@@ -282,17 +282,17 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        # 'inlet_li_concentration',
-        # 'inlet_vapor_temperature',
-        # 'evaporation_rate_adjustment_factor',
+        'inlet_li_concentration',
+        'inlet_vapor_temperature',
+        'evaporation_rate_adjustment_factor',
         # 'land_cost',
         # 'pond_liner_cost',
         # 'recovered_solids_revenue',
         # 'dye_cost',
         # 'shipping_cost',
-        'dike_height',
-        'pipeline_length',
-        'utilization_factor',
+        # 'dike_height',
+        # 'pipeline_length',
+        # 'utilization_factor',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -337,7 +337,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Design parameter sensitivity analysis: {target_col}")
+                                    title=f"Conditions parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

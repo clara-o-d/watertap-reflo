@@ -137,52 +137,6 @@ def build_flowsheet():
 
     define_additional_constraints(m)
     print(f"DOF after define_additional_constraints: {degrees_of_freedom(m)}")
-    
-    # Fix unit model design variables
-    print("Fixing unit model design variables...")
-    
-    # Boron removal unit variables
-    m.fs.boron_removal.caustic_dose_rate.fix(1)   # kg/s of NaOH dosing (further reduced to minimize Na+ spike)
-    m.fs.boron_removal.reactor_volume.fix(100)    # m3 reactor volume
-    # Note: reactor_retention_time is likely calculated from volume and flow rate, so don't fix it
-    
-    # Chemical softening variables (following KBHDP example)
-    m.fs.softening.ca_eff_target.fix(0.03)  # kg/m3 target Ca concentration
-    m.fs.softening.mg_eff_target.fix(0.02)  # kg/m3 target Mg concentration
-    m.fs.softening.retention_time_mixer.fix(0.4)  # minutes
-    m.fs.softening.retention_time_floc.fix(25)    # minutes
-    m.fs.softening.retention_time_sed.fix(120)    # minutes
-    m.fs.softening.retention_time_recarb.fix(20)  # minutes
-    m.fs.softening.frac_mass_water_recovery.fix(0.99)  # dimensionless
-    m.fs.softening.vel_gradient_mix.fix(300)  # s^-1
-    m.fs.softening.vel_gradient_floc.fix(50)  # s^-1
-    m.fs.softening.CO2_CaCO3.fix(0.063)  # kg/m3
-    m.fs.softening.MgCl2_dosing.fix(0)    # kg/day
-    m.fs.softening.CO2_second_basin.fix(0)  # kg/day for single basin operation
-    m.fs.softening.Na2CO3_dosing.fix(0)   # kg/day (lime-soda process without soda)
-    
-    # Note: Don't fix removal efficiency for now - let the unit determine optimal values
-    # The chemical softening unit may become infeasible if removal efficiencies
-    # conflict with target concentrations and water recovery constraints
-    
-    # Zero-order unit variables - these need design specifications
-    # Storage tank
-    m.fs.storage.energy_electric_flow_vol_inlet.fix(0.01)  # kWh/m3 - low energy for storage
-    
-    # Carbonation reactor (acting as reactor)
-    m.fs.carbonation.energy_electric_flow_vol_inlet.fix(0.1)  # kWh/m3 - moderate energy for mixing
-    
-    # Clarifier - fix removal fractions for all components
-    for comp in enhanced_props["solute_list"]:
-        if comp not in ["Li2CO3", "CaCO3"]:  # Don't fix removal for products we want to separate
-            m.fs.carbonation_sep.removal_frac_mass_comp[0, comp].fix(0.6)  # 60% removal
-        else:
-            m.fs.carbonation_sep.removal_frac_mass_comp[0, comp].fix(0.9)  # High removal for precipitates
-    
-    # Drying unit
-    m.fs.drying.energy_electric_flow_vol_inlet.fix(0.5)  # kWh/m3 - higher energy for drying
-    
-    print(f"DOF after fixing unit model variables: {degrees_of_freedom(m)}")
 
     # Scaling factors for molar flow rates (flow_mol_phase_comp)
     m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-5, index=("Liq", "H2O"))  # Large water flow ~55,500 mol/s
@@ -236,23 +190,21 @@ def build_flowsheet():
     m.fs.boron_removal.initialize()
     m.fs.boron_removal.report()
 
-    # Chemical softening - add error handling for troubleshooting
+    # Chemical softening - temporarily bypass to test rest of flowsheet
     propagate_state(m.fs.boron_to_softening)
-    print(f"Softening unit DOF before initialization: {degrees_of_freedom(m.fs.softening)}")
-    
     try:
         m.fs.softening.initialize()
         m.fs.softening.report()
     except Exception as e:
         print(f"Chemical softening initialization failed: {e}")
-        print("Attempting to continue with rest of initialization...")
-        # Set some reasonable values manually for the output streams
+        print("Setting manual values for softening outputs to continue...")
+        # Set reasonable values for softening outputs based on input
         for comp in ["H2O", "li+", "boron", "borate", "Ca_2+", "Mg_2+", "Na+", "Cl-", "CO3-2", "HCO3-", "tss", "tds", "Alkalinity_2-", "Li2CO3", "OH-", "H+", "CaCO3"]:
             try:
                 inlet_flow = m.fs.softening.properties_in[0].flow_mol_phase_comp["Liq", comp].value
-                # Simple approximation: 90% goes to outlet, 10% to waste
-                m.fs.softening.properties_out[0].flow_mol_phase_comp["Liq", comp].set_value(0.9 * inlet_flow)
-                m.fs.softening.properties_waste[0].flow_mol_phase_comp["Liq", comp].set_value(0.1 * inlet_flow)
+                # Simple approximation: 95% goes to outlet, 5% to waste
+                m.fs.softening.properties_out[0].flow_mol_phase_comp["Liq", comp].set_value(0.95 * inlet_flow)
+                m.fs.softening.properties_waste[0].flow_mol_phase_comp["Liq", comp].set_value(0.05 * inlet_flow)
             except:
                 pass
 
@@ -324,35 +276,6 @@ def build_flowsheet():
 
     
     print(f"DOF after build_flowsheet: {degrees_of_freedom(m)}")
-    
-    # If DOF is not zero, let's see what variables are unfixed
-    if degrees_of_freedom(m) != 0:
-        print(f"Warning: DOF = {degrees_of_freedom(m)}. Checking for unfixed/over-fixed variables...")
-        from idaes.core.util.model_statistics import report_statistics
-        print("Model statistics:")
-        report_statistics(m)
-        
-        # Let's also try to fix the remaining DOF by addressing likely unfixed variables
-        if degrees_of_freedom(m) == 4:
-            print("Attempting to fix remaining 4 DOF...")
-            # These are likely from the softening unit - let's fix some removal efficiencies minimally
-            try:
-                # Fix only essential removal efficiencies that shouldn't conflict
-                m.fs.softening.removal_efficiency["tss"].fix(0.8)   # TSS removal is typically high
-                m.fs.softening.removal_efficiency["tds"].fix(0.01)  # TDS removal is typically low
-                m.fs.softening.removal_efficiency["li+"].fix(0.01)  # Keep most lithium
-                m.fs.softening.removal_efficiency["boron"].fix(0.05) # Some boron removal
-                print(f"DOF after fixing essential removal efficiencies: {degrees_of_freedom(m)}")
-            except Exception as e:
-                print(f"Error fixing removal efficiencies: {e}")
-        
-        # Also try adjusting softening targets to be less stringent
-        try:
-            m.fs.softening.ca_eff_target.fix(0.05)  # Increase target (less stringent)
-            m.fs.softening.mg_eff_target.fix(0.03)  # Increase target (less stringent)  
-            print("Adjusted Ca/Mg targets to be less stringent")
-        except:
-            pass
     
     # Temporarily comment out assert to proceed with initialization
     # assert_degrees_of_freedom(m, 0)

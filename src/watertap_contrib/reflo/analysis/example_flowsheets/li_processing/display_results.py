@@ -2,12 +2,11 @@ from pyomo.environ import value
 
 
 def display_results(m):
-    # Print main product and waste flows
-    print("\n=== PQC Lithium Flowsheet Results ===")
-    print(f"Li2CO3 product flow: {value(m.fs.li2co3_product.properties[0].flow_mass_phase_comp['Liq', 'li+']):.3f} kg/s")
-    print(f"Li2CO3 softening waste flow: {value(m.fs.li2co3_softening_waste.properties[0].flow_mass_phase_comp['Liq', 'H2O']):.3f} kg/s")
-    print(f"Li2CO3 separation waste flow: {value(m.fs.li2co3_separation_waste.properties[0].flow_mass_phase_comp['Liq', 'H2O']):.3f} kg/s")
-    # print(f"LiOH product flow: {value(m.fs.lioh_product.properties[0].flow_mass_phase_comp['Liq', 'li+']):.3f} kg/s")  # LiOH section commented out
+    print("=== Lithium Processing Flowsheet Results ===")
+    print(f"Li2CO3 product flow: {value(m.fs.li2co3_product.properties[0].flow_mol_phase_comp['Liq', 'li+']):.3f} mol/s")
+    print(f"Li2CO3 softening waste flow: {value(m.fs.li2co3_softening_waste.properties[0].flow_mol_phase_comp['Liq', 'H2O']):.3f} mol/s")
+    print(f"Li2CO3 separation waste flow: {value(m.fs.li2co3_separation_waste.properties[0].flow_mol_phase_comp['Liq', 'H2O']):.3f} mol/s")
+    # print(f"LiOH product flow: {value(m.fs.lioh_product.properties[0].flow_mol_phase_comp['Liq', 'li+']):.3f} mol/s")  # LiOH section commented out
     print("(Add more detailed reporting as needed)")
     
     # Print costing summary
