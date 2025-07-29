@@ -24,75 +24,144 @@ def load_and_process_data(filename):
     return df
 
 def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', input_params=None):
-    """
-    Classic tornado sensitivity: for each parameter, calculate percent change in LCOLi from median→min and median→max,
-    using averages at those values, and divide by the absolute percent change in parameter.
-    """
     if input_params is None:
         input_params = [
             'land_cost',
             'pond_liner_cost',
+            'recovered_solids_revenue',
             'dye_cost',
             'shipping_cost',
         ]
-    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters (classic tornado, median→min/max, abs denominator):")
+    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters (true OAT analysis - only comparing pairs where one parameter differs):")
     sensitivity_data = []
     for var in input_params:
         if var not in df.columns:
             print(f"  Warning: Parameter '{var}' not found in data columns, skipping")
             continue
-        valid = df[[var, target_col]].dropna()
-        if valid.empty:
+        # Work with full dataframe but filter for valid data for this parameter and target
+        valid_mask = df[var].notna() & df[target_col].notna()
+        valid_data = df[valid_mask]
+        
+        if valid_data.empty:
             print(f"  Warning: No valid data for {var}, skipping")
             continue
-        grouped = valid.groupby(var)[target_col].mean().reset_index()
-        if len(grouped) < 2:
-            print(f"  Warning: Not enough unique values for {var}, skipping")
+        
+        # Calculate mean values for reference point
+        x_mean = valid_data[var].mean()
+        y_mean = valid_data[target_col].mean()
+        
+        # Find valid one-at-a-time (OAT) pairs where only this parameter differs
+        other_params = [p for p in input_params if p != var and p in df.columns]
+        
+        oat_sensitivities_increase = []
+        oat_sensitivities_decrease = []
+        
+        # Compare each pair of data points to find valid OAT comparisons
+        for i, row1 in valid_data.iterrows():
+            for j, row2 in valid_data.iterrows():
+                if i >= j:  # Avoid duplicate comparisons
+                    continue
+                
+                # Check if all other parameters are identical (within reasonable tolerance)
+                is_oat_pair = True
+                for other_param in other_params:
+                    val1, val2 = row1[other_param], row2[other_param]
+                    # Use reasonable tolerance for floating point comparison (1e-8)
+                    if abs(val1 - val2) > 1e-8:
+                        is_oat_pair = False
+                        break
+                
+                if is_oat_pair:
+                    # Calculate sensitivity for this OAT pair in both directions
+                    x1, y1 = row1[var], row1[target_col]
+                    x2, y2 = row2[var], row2[target_col]
+                    
+                    # Calculate increase direction: from lower to higher parameter value
+                    if x1 < x2:
+                        # x1 -> x2 is parameter increase
+                        x_low, y_low = x1, y1
+                        x_high, y_high = x2, y2
+                    else:
+                        # x2 -> x1 is parameter increase 
+                        x_low, y_low = x2, y2
+                        x_high, y_high = x1, y1
+                    
+                    # Calculate sensitivity for parameter increase (low -> high)
+                    if abs(x_low) < 1e-10:
+                        pct_change_x_inc = abs(x_high - x_low)
+                    else:
+                        pct_change_x_inc = (x_high - x_low) / x_low * 100
+                    
+                    if abs(y_low) < 1e-10:
+                        pct_change_y_inc = y_high - y_low
+                    else:
+                        pct_change_y_inc = (y_high - y_low) / y_low * 100
+                    
+                    if abs(pct_change_x_inc) > 0.01:  # At least 0.01% change
+                        sensitivity_inc = pct_change_y_inc / pct_change_x_inc
+                        if abs(sensitivity_inc) < 1000:  # Reasonable bound
+                            oat_sensitivities_increase.append(sensitivity_inc)
+                    
+                    # Calculate sensitivity for parameter decrease (high -> low)
+                    if abs(x_high) < 1e-10:
+                        pct_change_x_dec = abs(x_low - x_high)
+                    else:
+                        pct_change_x_dec = (x_low - x_high) / x_high * 100
+                    
+                    if abs(y_high) < 1e-10:
+                        pct_change_y_dec = y_low - y_high
+                    else:
+                        pct_change_y_dec = (y_low - y_high) / y_high * 100
+                    
+                    if abs(pct_change_x_dec) > 0.01:  # At least 0.01% change
+                        sensitivity_dec = pct_change_y_dec / pct_change_x_dec
+                        if abs(sensitivity_dec) < 1000:  # Reasonable bound
+                            oat_sensitivities_decrease.append(sensitivity_dec)
+        
+        # Calculate average sensitivities for increase and decrease
+        avg_increase_sensitivity = np.mean(oat_sensitivities_increase) if oat_sensitivities_increase else 0
+        avg_decrease_sensitivity = np.mean(oat_sensitivities_decrease) if oat_sensitivities_decrease else 0
+        
+        # Calculate overall statistics
+        all_oat_sensitivities = oat_sensitivities_increase + oat_sensitivities_decrease
+        if not all_oat_sensitivities:
+            print(f"  Warning: No valid OAT pairs found for {var} (parameter changes are coupled with other parameter changes)")
             continue
-        x_min = grouped[var].min()
-        x_median = grouped[var].median()
-        x_max = grouped[var].max()
-        y_min = grouped.loc[grouped[var] == x_min, target_col].values[0]
-        y_median = grouped.loc[grouped[var] == x_median, target_col].values[0]
-        y_max = grouped.loc[grouped[var] == x_max, target_col].values[0]
-        # median→min
-        if x_median == 0:
-            pct_change_x_min = abs(x_min - x_median)
-        else:
-            pct_change_x_min = abs((x_min - x_median) / x_median * 100)
-        if y_median == 0:
-            pct_change_y_min = y_min - y_median
-        else:
-            pct_change_y_min = (y_min - y_median) / y_median * 100
-        sensitivity_median_min = pct_change_y_min / pct_change_x_min if pct_change_x_min != 0 else float('nan')
-        # median→max
-        if x_median == 0:
-            pct_change_x_max = abs(x_max - x_median)
-        else:
-            pct_change_x_max = abs((x_max - x_median) / x_median * 100)
-        if y_median == 0:
-            pct_change_y_max = y_max - y_median
-        else:
-            pct_change_y_max = (y_max - y_median) / y_median * 100
-        sensitivity_median_max = pct_change_y_max / pct_change_x_max if pct_change_x_max != 0 else float('nan')
+        
+        avg_sensitivity = np.mean(all_oat_sensitivities)
+        abs_avg_sensitivity = np.mean([abs(s) for s in all_oat_sensitivities])
+        
+        # Get basic statistics for reference
+        x_min, x_max = valid_data[var].min(), valid_data[var].max()
+        y_min, y_max = valid_data[target_col].min(), valid_data[target_col].max()
+        x_median, y_median = valid_data[var].median(), valid_data[target_col].median()
+        
         sensitivity_data.append({
             'variable': var,
-            'sensitivity_median_min': sensitivity_median_min,
-            'sensitivity_median_max': sensitivity_median_max,
+            'avg_sensitivity': avg_sensitivity,
+            'abs_avg_sensitivity': abs_avg_sensitivity,
+            'avg_increase_sensitivity': avg_increase_sensitivity,
+            'avg_decrease_sensitivity': avg_decrease_sensitivity,
+            'num_increase_points': len(oat_sensitivities_increase),
+            'num_decrease_points': len(oat_sensitivities_decrease),
+            'num_point_sensitivities': len(all_oat_sensitivities),
             'x_min': x_min,
             'x_median': x_median,
             'x_max': x_max,
             'y_min': y_min,
             'y_median': y_median,
             'y_max': y_max,
-            'valid_points': len(valid)
+            'x_mean': x_mean,
+            'y_mean': y_mean,
+            'valid_points': len(valid_data)
         })
-        print(f"  {var}: median→min sensitivity={sensitivity_median_min:.3f}, median→max sensitivity={sensitivity_median_max:.3f} (classic tornado, abs denominator)")
-    # Sort by the largest absolute effect (either direction)
+        print(f"  {var}: increase sensitivity={avg_increase_sensitivity:.3f} (n={len(oat_sensitivities_increase)} OAT pairs), decrease sensitivity={avg_decrease_sensitivity:.3f} (n={len(oat_sensitivities_decrease)} OAT pairs)")
+    
+    # Sort by maximum absolute effect (either increase or decrease)
     sensitivity_df = pd.DataFrame(sensitivity_data)
     if not sensitivity_df.empty:
-        sensitivity_df['max_abs_sensitivity'] = sensitivity_df[['sensitivity_median_min', 'sensitivity_median_max']].abs().max(axis=1)
-        sensitivity_df = sensitivity_df.sort_values(by='max_abs_sensitivity', ascending=False)
+        sensitivity_df['max_abs_effect'] = sensitivity_df[['avg_increase_sensitivity', 'avg_decrease_sensitivity']].abs().max(axis=1)
+        sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=False)
     return sensitivity_df
 
 def create_tornado_plot(sensitivity_df, target_col, title=None):
@@ -102,39 +171,52 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
         print("No valid sensitivity data to plot")
         return None, None
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
-    sensitivity_df = sensitivity_df.sort_values(by='max_abs_sensitivity', ascending=True)
+    sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=True)
     fig, ax = plt.subplots(figsize=(11.5, 7))
     y_pos = np.arange(len(sensitivity_df))
+    
+    # Create bars showing increase and decrease sensitivities on opposite sides
     bar_width = 0.35
-    bars1 = ax.barh(
+    
+    # Bars for parameter increase effects (right side, positive direction)
+    bars_increase = ax.barh(
         y_pos,
-        sensitivity_df['sensitivity_median_max'],
+        sensitivity_df['avg_increase_sensitivity'],
         height=bar_width,
         color='#3b82f6',
         alpha=0.7,
-        label='Increase (median→max)'
+        label='Parameter increase effect'
     )
-    bars2 = ax.barh(
+    
+    # Bars for parameter decrease effects (left side, negative direction)
+    bars_decrease = ax.barh(
         y_pos,
-        sensitivity_df['sensitivity_median_min'],
+        -sensitivity_df['avg_decrease_sensitivity'],  # Make negative to show on left side
         height=bar_width,
         color='#ef4444',
         alpha=0.7,
-        label='Decrease (median→min)'
+        label='Parameter decrease effect'
     )
+    
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['variable'], fontsize=12)
     ax.set_xlabel(f'Percent change in {target_col} per percent change in parameter', fontsize=11)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
-    handles, labels = ax.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    ax.legend(by_label.values(), by_label.keys(), loc='lower right', fontsize=12)
+    
+    # Create custom legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='#3b82f6', alpha=0.7, label='Parameter increase effect'),
+        Patch(facecolor='#ef4444', alpha=0.7, label='Parameter decrease effect')
+    ]
+    
+    ax.legend(handles=legend_elements, loc='lower right', fontsize=12)
     plt.tight_layout()
     return fig, ax
 
-def create_data_summary_plot(df, target_col='levelized cost of lithium (USD_2023/m^3)'):
+def create_data_summary_plot(df, target_col='LCOLi_mass (USD/mt)'):
     """Create a summary plot showing data availability and basic statistics"""
     param_cols = [col for col in df.columns if col != target_col]
     
@@ -200,11 +282,17 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'land_cost',
-        'pond_liner_cost',
-        'recovered_solids_revenue',
-        'dye_cost',
-        'shipping_cost',
+        # 'inlet_li_concentration',
+        # 'inlet_vapor_temperature',
+        # 'evaporation_rate_adjustment_factor',
+        # 'land_cost',
+        # 'pond_liner_cost',
+        # 'recovered_solids_revenue',
+        # 'dye_cost',
+        # 'shipping_cost',
+        'dike_height',
+        'pipeline_length',
+        'utilization_factor',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -249,7 +337,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Costing parameter sensitivity analysis: {target_col}")
+                                    title=f"Design parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")
@@ -263,15 +351,14 @@ def main():
         print(f"\nSensitivity Analysis Summary:")
         print(f"  Parameters analyzed: {len(sensitivity_df)}")
         for _, row in sensitivity_df.iterrows():
-            print(f"  {row['variable']}: {row['valid_points']} valid points")
-            if not np.isnan(row['sensitivity_median_min']):
-                print(f"    Increase sensitivity (median→min): {row['sensitivity_median_min']:.3f}")
-            if not np.isnan(row['sensitivity_median_max']):
-                print(f"    Increase sensitivity (median→max): {row['sensitivity_median_max']:.3f}")
+            print(f"  {row['variable']}: {row['valid_points']} valid points, {row['num_point_sensitivities']} OAT pairs")
+            print(f"    Parameter increase effect: {row['avg_increase_sensitivity']:.3f} (n={row['num_increase_points']} OAT pairs)")
+            print(f"    Parameter decrease effect: {row['avg_decrease_sensitivity']:.3f} (n={row['num_decrease_points']} OAT pairs)")
+            print(f"    Maximum absolute effect: {row['max_abs_effect']:.3f}")
     else:
         print("No valid sensitivity data calculated.")
     
-    print("\nTornado plot analysis completed!")
+    print("\nTrue OAT sensitivity analysis completed!")
 
 if __name__ == "__main__":
     main()
