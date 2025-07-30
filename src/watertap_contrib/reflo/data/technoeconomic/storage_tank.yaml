@@ -1,0 +1,40 @@
+default:
+  capital_cost:
+    basis: flow_vol
+    cost_factor: None
+    reference_state:
+      value: 100.0
+      units: m^3/hr
+    capital_a_parameter:
+      value: 50000.0
+      units: USD_2020
+    capital_b_parameter:
+      value: 0.7
+      units: dimensionless
+  operating_cost:
+    basis: flow_vol
+    cost_factor: None
+    reference_state:
+      value: 100.0
+      units: m^3/hr
+    operating_a_parameter:
+      value: 5000.0
+      units: USD_2020/year
+    operating_b_parameter:
+      value: 0.8
+      units: dimensionless
+  direct_capital_cost:
+    value: 50000.0
+    units: USD_2020
+  direct_operating_cost:
+    value: 5000.0
+    units: USD_2020/year
+  energy_electric_flow_vol_inlet:
+    value: 0.1
+    units: kWh/m^3
+  recovery_frac_mass_H2O:
+    value: 1.0
+    units: dimensionless
+  default_removal_frac_mass_comp:
+    value: 0.0
+    units: dimensionless 

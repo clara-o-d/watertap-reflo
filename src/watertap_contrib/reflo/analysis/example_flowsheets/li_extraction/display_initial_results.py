@@ -8,4 +8,6 @@ def display_initial_results(m, weather_name="Station 34"):
     print(f"Number of evaporation ponds: {value(m.fs.pond.number_evaporation_ponds):.0f}")
     print(f"Fraction of water evaporated: {value(m.fs.fraction_evaporated):.3f}")
     print(f"Water outflow: {value(m.fs.water_outflow):.2f} kg/s")
+    print(f"Li outflow: {value(m.fs.li_outflow):.2f} kg/s")
+    print(f"TDS outflow: {value(m.fs.tds_outflow):.2f} kg/s")
     print(f"Li+ outflow concentration: {value(m.fs.li_concentration_outflow):.2f} kg/m³ ({value(m.fs.li_concentration_outflow * 100 / value(m.fs.rho)):.2f}%)") 

@@ -8,12 +8,6 @@ from pyomo.core.base.param import Param
 
 def define_general_parameters(m):
     """Define general system parameters"""
-    m.fs.solution_density = Param(
-        initialize=1200,
-        mutable=True,
-        units=pyunits.kg / pyunits.m**3,
-        doc="Average solution density"
-    )
     
     m.fs.operating_temperature = Param(
         initialize=298,
@@ -312,9 +306,8 @@ def fix_unit_model_design_variables(m):
     print("Fixing unit model design variables...")
     
     # Boron removal unit variables
-    m.fs.boron_removal.caustic_dose_rate.fix(0.1)   # kg/s of NaOH dosing (further minimized to reduce Na+ spike)
+    m.fs.boron_removal.caustic_dose_rate.fix(1)   # kg/s of NaOH dosing
     m.fs.boron_removal.reactor_volume.fix(100)    # m3 reactor volume
-    # Note: reactor_retention_time is likely calculated from volume and flow rate, so don't fix it
     
     # Chemical softening variables (following KBHDP example)
     m.fs.softening.ca_eff_target.fix(0.10)  # kg/m3 target Ca concentration (much less stringent)
@@ -349,7 +342,7 @@ def fix_unit_model_design_variables(m):
     
     # Clarifier - fix removal fractions for all components
     for comp in m.fs.properties.solute_set:
-        if comp not in ["Li2CO3", "CaCO3"]:  # Don't fix removal for products we want to separate
+        if comp not in ["Li2CO3", "CaCO3"]:  
             m.fs.carbonation_sep.removal_frac_mass_comp[0, comp].fix(0.6)  # 60% removal
         else:
             m.fs.carbonation_sep.removal_frac_mass_comp[0, comp].fix(0.9)  # High removal for precipitates
@@ -365,7 +358,3 @@ def define_additional_constraints(m):
     
     # Set precipitation efficiency as a parameter
     m.fs.li2co3_precipitation_efficiency = Param(initialize=0.6, mutable=True)
-    
-    # No additional constraints - let the flowsheet solve naturally
-    # The stoichiometric relationships will be handled by the property package
-    # and the unit models themselves 

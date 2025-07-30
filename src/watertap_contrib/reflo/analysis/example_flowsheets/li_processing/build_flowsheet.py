@@ -18,6 +18,10 @@ from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.reaction_p
 )
 from idaes.core.util.model_statistics import degrees_of_freedom
 from pyomo.environ import units as pyunits
+from pyomo.core.base.var import Var
+from pyomo.core.base.param import Param
+from pyomo.core.base.constraint import Constraint
+from pyomo.environ import value
 
 
 def build_flowsheet():
@@ -110,28 +114,32 @@ def build_flowsheet():
     # Set feed conditions using molar flow rates (mole/s) instead of mass flow rates
     # Convert mass flow rates to molar flow rates using molecular weights from reaction_packages.py
     
-    # Water flow rate - assuming 1000 kg/s of water (major component in any aqueous solution)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(1000 / 18.015e-3)  # 1000 kg/s / 18.015e-3 kg/mol = ~55,500 mol/s
+    m.fs.rho = Param(initialize=1300, units=pyunits.kg/pyunits.m**3, doc="Density of inlet brine")
+    m.fs.vol_flow_rate = Param(initialize=1.051, units=pyunits.m**3/pyunits.s, doc="Flow rate of inlet brine")
+    m.fs.mass_flow_rate = Var(initialize=m.fs.rho * m.fs.vol_flow_rate, units=pyunits.kg/pyunits.s, doc="Mass flow rate of inlet brine")
+    m.fs.eq_mass_flow_rate = Constraint(expr=m.fs.mass_flow_rate == m.fs.rho * m.fs.vol_flow_rate)
+
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(977 * value(m.fs.vol_flow_rate) / 18.015e-3) # kg/s / kg/mol = mol/s
     
     # Solute flow rates
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "li+"].fix(0.1 / 6.94e-3)    # 0.1 kg/s / 6.94e-3 kg/mol = ~14.4 mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Na+"].fix(0.2 / 22.99e-3)   # 0.2 kg/s / 22.99e-3 kg/mol = ~8.7 mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Cl-"].fix(0.3 / 35.45e-3)   # 0.3 kg/s / 35.45e-3 kg/mol = ~8.5 mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "CO3-2"].fix(0.01 / 60.01e-3) # 0.01 kg/s / 60.01e-3 kg/mol = ~0.17 mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Ca_2+"].fix(0.02 / 40.08e-3) # 0.02 kg/s / 40.08e-3 kg/mol = ~0.5 mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "boron"].fix(0.01 / 10.81e-3) # 0.01 kg/s / 10.81e-3 kg/mol = ~0.93 mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "tds"].fix(0.5 / 31.4e-3)    # 0.5 kg/s / 31.4e-3 kg/mol = ~15.9 mol/s
-    
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "li+"].fix(0.05 * value(m.fs.mass_flow_rate) / 6.94e-3) # kg/s / kg/mol = mol/s
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Na+"].fix(37.61 * value(m.fs.vol_flow_rate) / 22.99e-3)   
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Cl-"].fix(215.6 * value(m.fs.vol_flow_rate) / 35.45e-3)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "CO3-2"].fix(0.27 * value(m.fs.vol_flow_rate) / 60.01e-3) #*
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Ca_2+"].fix(0.01 * value(m.fs.vol_flow_rate) / 40.08e-3)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "boron"].fix(4.22 * value(m.fs.vol_flow_rate) / 10.81e-3)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "tds"].fix(0.5 * value(m.fs.mass_flow_rate) / 31.4e-3)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Mg_2+"].fix(0.65 * value(m.fs.vol_flow_rate) / 24.31e-3)      
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "HCO3-"].fix(0.27 * value(m.fs.vol_flow_rate) / 61.02e-3) 
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Alkalinity_2-"].fix(0.54 * value(m.fs.vol_flow_rate) / 61.02e-3)
+
     # Fix remaining components to small values (trace amounts)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "borate"].fix(0.001 / 61.83e-3)      # Small amount of borate initially
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Mg_2+"].fix(0.005 / 24.31e-3)      # Small amount of Mg2+
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "HCO3-"].fix(0.002 / 61.02e-3)      # Small amount of HCO3-
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "tss"].fix(0.001 / 1.0)             # Small amount of TSS
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Alkalinity_2-"].fix(0.001 / 61.02e-3) # Small amount of alkalinity
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Li2CO3"].fix(0.0)                  # No Li2CO3 in feed (product)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "OH-"].fix(1e-7 / 17.01e-3)        # Trace OH- for pH balance
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "H+"].fix(1e-7 / 1.01e-3)          # Trace H+ for pH balance
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "CaCO3"].fix(0.0)                   # No CaCO3 in feed (product)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "borate"].fix(0.001 / 61.83e-3)  
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "tss"].fix(0.001 / 1.0)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Li2CO3"].fix(0.0)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "OH-"].fix(1e-7 / 17.01e-3)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "H+"].fix(1e-7 / 1.01e-3)
+    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "CaCO3"].fix(0.0)
     
     print(f"DOF after setting feed: {degrees_of_freedom(m)}")
 

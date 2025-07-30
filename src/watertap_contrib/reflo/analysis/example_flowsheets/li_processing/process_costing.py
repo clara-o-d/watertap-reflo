@@ -1,45 +1,63 @@
 import pyomo.environ as pyo
+from pyomo.environ import Param, Var, Constraint, Expression
 from pyomo.environ import units as pyunits
 
 
 def process_costing(m):
-    # Molar masses and mass flows
-    M_Li = 6.94e-3
-    M_Li2CO3 = 73.89e-3
-    M_LiOH_H2O = 41.96e-3
-    li_mass_flow = m.fs.li2co3_product.properties[0].flow_mass_phase_comp["Liq", "li+"]
-    li2co3_mass_flow = li_mass_flow * (M_Li2CO3 / (2 * M_Li))
-    lioh_mass_flow = li_mass_flow * (M_LiOH_H2O / M_Li)
+    # Initialize costing for units that have costing blocks
+    if hasattr(m.fs, 'boron_removal') and hasattr(m.fs.boron_removal, 'costing'):
+        try:
+            m.fs.boron_removal.costing.initialize()
+        except Exception as e:
+            print(f"Warning: Could not initialize costing for boron_removal: {e}")
     
-    # Volumetric LCOLi (for reference)
-    m.fs.density_concentrated_brine = pyo.Param(
-        initialize=1323,  # placeholder value, kg/m^3
-        mutable=True,
-        units=pyunits.kg / pyunits.m**3,
-        doc="Density of concentrated brine for Li+ volume calculation"
-    )
-    vol_flow_li = li_mass_flow / m.fs.density_concentrated_brine  # m³/s
-    if hasattr(m.fs.costing, "add_LCOW"):
-        m.fs.costing.add_LCOW(vol_flow_li, name="LCOLi")
+    if hasattr(m.fs, 'softening') and hasattr(m.fs.softening, 'costing'):
+        try:
+            m.fs.softening.costing.initialize()
+        except Exception as e:
+            print(f"Warning: Could not initialize costing for softening: {e}")
     
-    # Mass-based LCOLi for Li2CO3
-    m.fs.costing.LCOLi2CO3 = pyo.Var(
-        initialize=1000,
-        units=m.fs.costing.base_currency / pyunits.t,
-        bounds=(0, None),
-        doc="Levelized cost of lithium carbonate by mass ($/t)"
-    )
-    m.fs.costing.LCOLi2CO3_constraint = pyo.Constraint(
-        expr=m.fs.costing.LCOLi2CO3 == m.fs.costing.LCOLi / li2co3_mass_flow * pyunits.convert(1 * pyunits.s, to_units=pyunits.year) / 1000
+    # Process costing for both costing blocks
+    for costing_name in ['treatment_costing', 'reflo_costing']:
+        if hasattr(m.fs, costing_name):
+            costing_block = getattr(m.fs, costing_name)
+            try:
+                costing_block.cost_process()
+                costing_block.initialize()
+            except Exception as e:
+                print(f"Warning: Could not process costing for {costing_name}: {e}")
+
+    # Create a simple aggregated costing summary
+    # Calculate total capital and operating costs across both costing blocks
+    m.fs.total_capital_cost = Expression(
+        expr=sum(
+            getattr(m.fs, costing_name).total_capital_cost
+            for costing_name in ['treatment_costing', 'reflo_costing'] 
+            if hasattr(m.fs, costing_name)
+        ),
+        doc="Total capital cost across all costing blocks"
     )
     
-    # Mass-based LCOLi for LiOH·H2O
-    m.fs.costing.LCOLiOH_H2O = pyo.Var(
-        initialize=1000,
-        units=m.fs.costing.base_currency / pyunits.t,
-        bounds=(0, None),
-        doc="Levelized cost of lithium hydroxide monohydrate by mass ($/t)"
+    m.fs.total_operating_cost = Expression(
+        expr=sum(
+            getattr(m.fs, costing_name).total_operating_cost
+            for costing_name in ['treatment_costing', 'reflo_costing'] 
+            if hasattr(m.fs, costing_name)
+        ),
+        doc="Total operating cost across all costing blocks"
     )
-    m.fs.costing.LCOLiOH_H2O_constraint = pyo.Constraint(
-        expr=m.fs.costing.LCOLiOH_H2O == m.fs.costing.LCOLi / lioh_mass_flow * pyunits.convert(1 * pyunits.s, to_units=pyunits.year) / 1000
-    ) 
+    
+    # Add basic LCOW calculation to one of the costing blocks (using reflo_costing if available)
+    costing_for_lcow = None
+    if hasattr(m.fs, 'reflo_costing'):
+        costing_for_lcow = m.fs.reflo_costing
+    elif hasattr(m.fs, 'treatment_costing'):
+        costing_for_lcow = m.fs.treatment_costing
+        
+    if costing_for_lcow is not None:
+        try:
+            # Use the product flow for LCOW calculation
+            product_flow = m.fs.li2co3_product.properties[0].flow_vol_phase["Liq"]
+            costing_for_lcow.add_LCOW(product_flow)
+        except Exception as e:
+            print(f"Warning: Could not add LCOW calculation: {e}") 

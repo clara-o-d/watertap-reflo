@@ -1,0 +1,19 @@
+default:
+  direct_capital_cost: 1000000  # $/unit
+  direct_operating_cost: 50000   # $/year
+  energy_electric_flow_vol_inlet:
+    value: 0.15
+    units: kWh/m^3
+  recovery_frac_mass_H2O:
+    value: 0.95
+    units: dimensionless
+  default_removal_frac_mass_comp:
+    value: 0.0
+    units: dimensionless
+  removal_frac_mass_comp:
+    default:
+      value: 0.0
+      units: dimensionless
+    tss:
+      value: 0.95
+      units: dimensionless 
