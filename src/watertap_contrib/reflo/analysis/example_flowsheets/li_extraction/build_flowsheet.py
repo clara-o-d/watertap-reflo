@@ -82,7 +82,7 @@ def build_flowsheet():
         return b.properties_in[0].temperature == b.properties_out[0].temperature[p]
 
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(477)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.0)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.58)
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1290)
     m.fs.feed.properties[0].temperature.fix(300)  # K
     m.fs.feed.properties[0].pressure.fix(101325)  # Pa

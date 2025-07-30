@@ -38,7 +38,7 @@ def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', i
         if var not in df.columns:
             print(f"  Warning: Parameter '{var}' not found in data columns, skipping")
             continue
-        # Work with full dataframe but filter for valid data for this parameter and target
+
         valid_mask = df[var].notna() & df[target_col].notna()
         valid_data = df[valid_mask]
         
@@ -216,7 +216,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
     plt.tight_layout()
     return fig, ax
 
-def create_data_summary_plot(df, target_col='LCOLi_mass (USD/mt)'):
+def create_data_summary_plot(df, target_col='total_operating_cost (USD/year)'):
     """Create a summary plot showing data availability and basic statistics"""
     param_cols = [col for col in df.columns if col != target_col]
     
@@ -260,7 +260,7 @@ def create_data_summary_plot(df, target_col='LCOLi_mass (USD/mt)'):
     return fig, (ax1, ax2)
 
 def main():
-    target_col = 'LCOLi_mass (USD/mt)'
+    target_col = 'total_operating_cost (USD/year)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
     
@@ -282,17 +282,17 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'inlet_li_concentration',
-        'inlet_vapor_temperature',
-        'evaporation_rate_adjustment_factor',
+        # 'inlet_li_concentration',
+        # 'inlet_vapor_temperature',
+        # 'evaporation_rate_adjustment_factor',
         # 'land_cost',
         # 'pond_liner_cost',
         # 'recovered_solids_revenue',
         # 'dye_cost',
         # 'shipping_cost',
-        # 'dike_height',
-        # 'pipeline_length',
-        # 'utilization_factor',
+        'dike_height',
+        'pipeline_length',
+        'utilization_factor',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -337,7 +337,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Conditions parameter sensitivity analysis: {target_col}")
+                                    title=f"Design parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

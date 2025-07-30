@@ -285,7 +285,91 @@ def build_flowsheet():
     
     print(f"DOF after build_flowsheet: {degrees_of_freedom(m)}")
     
-    # Temporarily comment out assert to proceed with initialization
+    # Set design specifications to resolve underconstrained system
+    set_design_specifications(m)
+    print(f"DOF after specifications: {degrees_of_freedom(m)}")
+    
     # assert_degrees_of_freedom(m, 0)
     
     return m 
+
+
+def set_design_specifications(m):
+    """
+    Set minimal design specifications to achieve DOF = 0.
+    Only fix the essential variables identified in the underconstrained diagnostic.
+    """
+    
+    # === ESSENTIAL TANK AND REACTOR SIZING ===
+    # Storage times for tanks (critical sizing parameters)
+    m.fs.storage.storage_time[0].fix(28800.0)     # 8 hours storage 
+    m.fs.carbonation.storage_time[0].fix(14400.0) # 4 hours carbonation
+    m.fs.drying.storage_time[0].fix(21600.0)      # 6 hours drying
+    
+    # Boron removal reactor retention time
+    m.fs.boron_removal.reactor_retention_time[0].fix(7200.0)  # 2 hours contact time
+    
+    # === CRITICAL SOFTENING PARAMETERS ===
+    # Only fix the most critical softening variables
+    m.fs.softening.pH.fix(11.0)  # Lime softening pH
+    m.fs.softening.retention_time_mixer.fix(0.5)  # 30 minutes mixing
+    
+    # === KEY SEPARATION EFFICIENCIES ===
+    # Fix only the primary product separation efficiencies
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'Li2CO3'].fix(0.95)  # 95% Li2CO3 recovery
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'CaCO3'].fix(0.90)   # 90% CaCO3 removal
+    
+    # === ELIMINATE ELECTRICAL HEATING ===
+    # Remove electrical heating inputs (process assumption)
+    m.fs.storage.energy_electric_flow_vol_inlet.fix(0.0)
+    m.fs.carbonation.energy_electric_flow_vol_inlet.fix(0.0)
+    m.fs.drying.energy_electric_flow_vol_inlet.fix(0.0)
+    
+    print("Minimal design specifications set successfully!")
+    
+    # === ADDITIONAL SPECIFICATIONS TO ACHIEVE DOF = 0 ===
+    # Fix remaining tank surge capacities
+    m.fs.storage.surge_capacity[0].fix(0.20)      # 20% surge capacity
+    m.fs.carbonation.surge_capacity[0].fix(0.15)  # 15% surge capacity  
+    m.fs.drying.surge_capacity[0].fix(0.10)       # 10% surge capacity
+    
+    # Fix softening component removal fractions for mass balance closure
+    m.fs.softening.removal_efficiency['li+'].fix(0.05)    # 5% lithium removal
+    m.fs.softening.removal_efficiency['Na+'].fix(0.02)    # 2% sodium removal
+    m.fs.softening.removal_efficiency['Cl-'].fix(0.01)    # 1% chloride removal
+    m.fs.softening.removal_efficiency['CO3-2'].fix(0.10)  # 10% carbonate consumption
+    m.fs.softening.removal_efficiency['HCO3-'].fix(0.15)  # 15% bicarbonate reaction
+    m.fs.softening.removal_efficiency['OH-'].fix(0.05)    # 5% hydroxide consumption
+    m.fs.softening.removal_efficiency['H+'].fix(0.95)     # 95% acid neutralization
+    m.fs.softening.removal_efficiency['tss'].fix(0.80)    # 80% TSS settling
+    m.fs.softening.removal_efficiency['tds'].fix(0.05)    # 5% TDS reduction
+    m.fs.softening.removal_efficiency['Li2CO3'].fix(0.00) # No Li2CO3 in feed
+    m.fs.softening.removal_efficiency['CaCO3'].fix(0.00)  # No CaCO3 in feed
+    
+    # Fix softening retention times (within valid bounds)
+    m.fs.softening.retention_time_floc.fix(25.0)    # 25 minutes flocculation (bounds: 10-45 min)
+    m.fs.softening.retention_time_sed.fix(150.0)    # 150 minutes (2.5 hours) sedimentation (bounds: 120-240 min)
+    m.fs.softening.retention_time_recarb.fix(20.0)  # 20 minutes recarbonation (bounds: 15-30 min)
+    
+    # Fix softening performance targets
+    m.fs.softening.ca_eff_target.fix(0.95)  # 95% calcium removal
+    m.fs.softening.mg_eff_target.fix(0.90)  # 90% magnesium removal
+    
+    # Fix boron removal performance
+    m.fs.boron_removal.reactor_retention_time[0].fix(7200.0)  # 2 hours contact time (already set above)
+    # Note: Boron removal is controlled by pH and caustic dosing, not direct removal fractions
+    
+    # Fix carbonation separator performance for remaining components
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'Na+'].fix(0.05)      # 5% sodium separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'Cl-'].fix(0.05)      # 5% chloride separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'CO3-2'].fix(0.10)    # 10% carbonate separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'HCO3-'].fix(0.10)    # 10% bicarbonate separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'tss'].fix(0.95)      # 95% TSS separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'tds'].fix(0.05)      # 5% TDS separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'OH-'].fix(0.05)      # 5% hydroxide separation
+    m.fs.carbonation_sep.removal_frac_mass_comp[0,'H+'].fix(0.05)       # 5% acid separation
+    
+    # Note: ClarifierZO units don't have water_recovery attribute
+    # The separation is controlled by removal_frac_mass_comp for each component
+    
+    print(f"All design specifications set - DOF should now be 0") 

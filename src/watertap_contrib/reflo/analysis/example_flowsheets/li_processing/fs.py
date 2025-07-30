@@ -9,9 +9,9 @@ from idaes.core.util import DiagnosticsToolbox
 
 def main():
     m = build_flowsheet()
-    # dt = DiagnosticsToolbox(m)
-    # dt.report_structural_issues(m)
-
+    dt = DiagnosticsToolbox(m)
+    dt.display_underconstrained_set()
+    input("Press enter to solve")
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== LITHIUM PROCESSING FLOWSHEET RESULTS ===")
