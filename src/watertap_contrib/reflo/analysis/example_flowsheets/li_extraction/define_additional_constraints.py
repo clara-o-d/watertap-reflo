@@ -29,35 +29,61 @@ def define_general_parameters(m):
         doc="Shipping distance to next facility (km)"
     )
     
-def define_pumping_head(m):
-    # Pipeline head requirements for 1 km, 12 cm HDPE pipe
+    # Overdesign factor for pond area
+    m.fs.pond_overdesign_factor = Param(
+        initialize=1.1,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Overdesign factor for pond area (multiplier for calculated area)"
+    )
+    
+    # Parameters needed for costing constraints
+    m.fs.number_of_wells = Param(
+        initialize=320,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Number of extraction wells"
+    )
+    m.fs.piping_length = Param(
+        initialize=1,
+        mutable=True,
+        units=pyunits.km,
+        doc="Piping length from wells to pond (km)"
+    )
+    m.fs.pumping_efficiency = Param(
+        initialize=0.7,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Pumping efficiency (fraction)"
+    )
+    
+    # Pumping head parameters
     m.fs.static_head = Param(
         initialize=5.0,
         mutable=True,
         units=pyunits.m,
         doc="Static head (elevation difference)"
     )
-    m.fs.friction_head = Var(
-        initialize=19.1,
-        bounds=(0, None),
-        units=pyunits.m/pyunits.km,
-        doc="Friction head loss for 1 km, 12 cm HDPE pipeline (We can calculate this using the Darcy-Weisbach equation if desired)"
-    )
-    m.fs.friction_head.fix(19.1)
-    m.fs.piping_length = Param(
-        initialize=0.5,
+    m.fs.friction_head = Param(
+        initialize=318,
         mutable=True,
-        units=pyunits.km,
-        doc="Piping length from wells to pond (km)"
+        units=pyunits.m/pyunits.km,
+        doc="Friction head loss per km"
     )
-    m.fs.pressure_increase = Var(
-        initialize=101325,
+    
+    # Pumping head as a variable
+    m.fs.pumping_head = Var(
+        initialize=50,
         bounds=(0, None),
-        units=pyunits.Pa,
-        doc="Pressure increase due to friction losses in pipeline"
+        units=pyunits.m,
+        doc="Pumping head (m)"
     )
-    m.fs.eq_pressure_increase = Constraint(expr=m.fs.pressure_increase == m.fs.rho * 9.81 * pyunits.m / pyunits.s**2 * (m.fs.static_head + m.fs.friction_head * m.fs.piping_length))
-
+    
+    # Constraint to calculate pumping head
+    @m.fs.Constraint(doc="Pumping head calculation")
+    def eq_pumping_head(b):
+        return b.pumping_head == b.static_head + b.friction_head * b.piping_length
+    
 def define_pond_parameters(m):
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1.16)
@@ -202,8 +228,8 @@ def define_evaporative_area_section(m):
     if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
         m.fs.pond.eq_total_evaporative_area_required.deactivate()
     def eq_total_evaporative_area_required_partial(b):
-        return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.water_evaporated
-    m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation")
+        return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.water_evaporated * m.fs.pond_overdesign_factor
+    m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
 
 def fix_evaporation_fraction_for_target_li(m):
     target_li_conc = value(m.fs.target_li_concentration * m.fs.rho)
@@ -212,7 +238,6 @@ def fix_evaporation_fraction_for_target_li(m):
 
 def define_additional_constraints(m):
     define_general_parameters(m)
-    define_pumping_head(m)
     define_pond_parameters(m)
     define_flow_and_evaporation(m)
     define_tds_section(m)

@@ -130,14 +130,14 @@ def build_evaporation_pond_cost_param_block(blk):
     )
 
     blk.land_cost = pyo.Var(
-        initialize=10000,
+        initialize=5000,
         bounds=(0, None),
         units=pyo.units.USD_2001 / pyo.units.acre,
         doc="Land cost per acre",
     )
 
     blk.land_clearing_cost = pyo.Var(
-        initialize=0,
+        initialize=5000,
         bounds=(0, None),
         units=pyo.units.USD_2001 / pyo.units.acre,
         doc="Land clearing cost per acre",
