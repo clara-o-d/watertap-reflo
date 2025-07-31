@@ -178,6 +178,25 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
     # Create bars showing increase and decrease sensitivities on opposite sides
     bar_width = 0.35
     
+    # Determine bar styles based on relationship direction
+    increase_hatch = []
+    decrease_hatch = []
+    
+    for _, row in sensitivity_df.iterrows():
+        # Use the increase sensitivity to determine relationship type
+        # Positive increase sensitivity = direct relationship (parameter increase → target increase)
+        # Negative increase sensitivity = inverse relationship (parameter increase → target decrease)
+        increase_sens = row['avg_increase_sensitivity']
+        
+        if increase_sens >= 0:
+            # Direct relationship: parameter increase leads to target increase
+            increase_hatch.append('')
+            decrease_hatch.append('')
+        else:
+            # Inverse relationship: parameter increase leads to target decrease
+            increase_hatch.append('///')
+            decrease_hatch.append('///')
+    
     # Bars for parameter increase effects (right side, positive direction)
     bars_increase = ax.barh(
         y_pos,
@@ -185,6 +204,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
         height=bar_width,
         color='#3b82f6',
         alpha=0.7,
+        hatch=increase_hatch,
         label='Parameter increase effect'
     )
     
@@ -193,8 +213,9 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
         y_pos,
         -sensitivity_df['avg_decrease_sensitivity'],  # Make negative to show on left side
         height=bar_width,
-        color='#ef4444',
+        color='#3b82f6',
         alpha=0.7,
+        hatch=decrease_hatch,
         label='Parameter decrease effect'
     )
     
@@ -208,15 +229,15 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
     # Create custom legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#3b82f6', alpha=0.7, label='Parameter increase effect'),
-        Patch(facecolor='#ef4444', alpha=0.7, label='Parameter decrease effect')
+        Patch(facecolor='#3b82f6', alpha=0.7, label='Positive'),
+        Patch(facecolor='#3b82f6', alpha=0.7, hatch='///', label='Negative')
     ]
     
     ax.legend(handles=legend_elements, loc='lower right', fontsize=12)
     plt.tight_layout()
     return fig, ax
 
-def create_data_summary_plot(df, target_col='total_operating_cost (USD/year)'):
+def create_data_summary_plot(df, target_col):
     """Create a summary plot showing data availability and basic statistics"""
     param_cols = [col for col in df.columns if col != target_col]
     
@@ -260,7 +281,7 @@ def create_data_summary_plot(df, target_col='total_operating_cost (USD/year)'):
     return fig, (ax1, ax2)
 
 def main():
-    target_col = 'total_operating_cost (USD/year)'
+    target_col = 'LCOLi (USD/mt)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
     
@@ -282,17 +303,17 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        # 'inlet_li_concentration',
-        # 'inlet_vapor_temperature',
-        # 'evaporation_rate_adjustment_factor',
-        # 'land_cost',
-        # 'pond_liner_cost',
-        # 'recovered_solids_revenue',
-        # 'dye_cost',
-        # 'shipping_cost',
-        'dike_height',
-        'pipeline_length',
-        'utilization_factor',
+        # 'Inlet Li concentration',
+        # 'Inlet vapor temperature',
+        # 'Evaporation rate adjustment factor',
+        'Land cost',
+        'Pond liner cost',
+        'Recovered solids cost',
+        'Dye cost',
+        'Shipping cost',
+        # 'Dike height',
+        # 'Pipeline length',
+        # 'Utilization factor',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -337,7 +358,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Design parameter sensitivity analysis: {target_col}")
+                                    title=f"Costing parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

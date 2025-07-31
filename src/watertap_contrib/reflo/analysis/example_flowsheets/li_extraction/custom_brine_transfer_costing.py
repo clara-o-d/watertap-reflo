@@ -3,6 +3,7 @@ from watertap.costing.unit_models.pump import cost_low_pressure_pump
 from watertap.costing.util import make_capital_cost_var, register_costing_parameter_block
 from watertap.costing.util import cost_by_flow_volume
 from pyomo.environ import units as pyunits
+from pyomo.environ import value
 
 def build_brine_transfer_cost_param_block(blk):
     """Build parameter block for brine transfer system costing"""

@@ -17,13 +17,6 @@ def main():
     print("\n=== LITHIUM PROCESSING FLOWSHEET RESULTS ===")
     display_results(m)
     
-    # Costing is disabled for now due to complexity of mixed unit types:
-    # - BoronRemoval (standard WaterTAP) needs specific costing method definition
-    # - ChemicalSoftening (REFLO custom) has default_costing_method but requires REFLOCosting
-    # - StorageTankZO/ClarifierZO (zero-order) need database configuration
-    # This would require significant additional setup to implement properly.
-    
-    # Uncomment these lines when costing setup is completed:
     # print("\n=== INITIAL FLOWSHEET RESULTS (NO COSTING) ===")
     # input("Press enter to solve with costing")
     # add_costing(m)

@@ -1,5 +1,6 @@
 from pyomo.environ import Param, Var, Constraint
 from pyomo.environ import units as pyunits
+from pyomo.environ import value
 
 def process_costing(m):
     m.fs.pond.costing.initialize()
