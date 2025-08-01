@@ -5,6 +5,7 @@ from pyomo.core.base.expression import Expression
 from pyomo.core.base.var import Var
 from pyomo.core.base.param import Param
 from idaes.core.util.math import smooth_min
+from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.utils import compute_evaporation_fraction_for_target_li_conc
 
 def define_general_parameters(m):
     m.fs.rho = Param(
@@ -141,59 +142,59 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=1.736842e+00,
+        initialize=0.04,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
     )
-    # m.fs.li_outflow = Var(
-    #     initialize=0.001,
-    #     bounds=(0, None),
-    #     units=pyunits.kg / pyunits.s,
-    #     doc="Lithium flow rate in the outflow stream"
-    # )
-    # m.fs.li_concentration_outflow = Var(
-    #     initialize=3.500,
-    #     bounds=(0, None),
-    #     units=pyunits.kg / pyunits.m**3,
-    #     doc="Lithium concentration in the outflow stream"
-    # )
-    # prop_in = m.fs.feed.properties[0]
-    # def eq_li_concentration_outflow(b):
-    #     evap_ratio = b.fraction_evaporated
-    #     a = 88.1606
-    #     b_ = -169.2358
-    #     c = 81.4783
-    #     mass_frac_before = 1.0
-    #     mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
-    #     mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-    #     li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
-    #     li_out = li_in * mass_frac
-    #     return b.li_concentration_outflow == li_out / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
-    # m.fs.eq_li_concentration_outflow = Constraint(rule=eq_li_concentration_outflow, doc="Li+ outflow and concentration using polynomial mass fraction")
-    # # def eq_li_outflow(b):
-    #     evap_ratio = b.fraction_evaporated
-    #     a = 88.1606
-    #     b_ = -169.2358
-    #     c = 81.4783
-    #     mass_frac_before = 1.0
-    #     mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
-    #     mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-    #     li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
-    #     return b.li_outflow == li_in * mass_frac
-    # m.fs.eq_li_outflow = Constraint(rule=eq_li_outflow, doc="Li+ outflow mass flow rate")
-    # def li_precipitated_expr():
-    #     evap_ratio = m.fs.fraction_evaporated
-    #     a = 88.1606
-    #     b_ = -169.2358
-    #     c = 81.4783
-    #     mass_frac_before = 1.0
-    #     mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
-    #     mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
-    #     li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
-    #     li_out = li_in * mass_frac
-    #     return li_in - li_out
-    # m.fs.li_precipitated = Expression(expr=li_precipitated_expr())
+    m.fs.li_outflow = Var(
+        initialize=0.001,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="Lithium flow rate in the outflow stream"
+    )
+    m.fs.li_concentration_outflow = Var(
+        initialize=3.500,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.m**3,
+        doc="Lithium concentration in the outflow stream"
+    )
+    prop_in = m.fs.feed.properties[0]
+    def eq_li_concentration_outflow(b):
+        evap_ratio = b.fraction_evaporated
+        a = 88.1606
+        b_ = -169.2358
+        c = 81.4783
+        mass_frac_before = 1.0
+        mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
+        mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
+        li_out = li_in * mass_frac
+        return b.li_concentration_outflow == li_out / (b.water_outflow + 1e-12 * pyunits.kg / pyunits.s) * b.rho
+    m.fs.eq_li_concentration_outflow = Constraint(rule=eq_li_concentration_outflow, doc="Li+ outflow and concentration using polynomial mass fraction")
+    def eq_li_outflow(b):
+        evap_ratio = b.fraction_evaporated
+        a = 88.1606
+        b_ = -169.2358
+        c = 81.4783
+        mass_frac_before = 1.0
+        mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
+        mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
+        return b.li_outflow == li_in * mass_frac
+    m.fs.eq_li_outflow = Constraint(rule=eq_li_outflow, doc="Li+ outflow mass flow rate")
+    def li_precipitated_expr():
+        evap_ratio = m.fs.fraction_evaporated
+        a = 88.1606
+        b_ = -169.2358
+        c = 81.4783
+        mass_frac_before = 1.0
+        mass_frac_after = a * evap_ratio**2 + b_ * evap_ratio + c
+        mass_frac = smooth_min(mass_frac_after, mass_frac_before, eps=1e-3)
+        li_in = prop_in.flow_mass_phase_comp["Liq", "Li+"]
+        li_out = li_in * mass_frac
+        return li_in - li_out
+    m.fs.li_precipitated = Expression(expr=li_precipitated_expr())
 
 def define_precipitate_section(m):
     if hasattr(m.fs.pond, 'mass_flow_precipitate'):
@@ -220,7 +221,7 @@ def define_brine_outflow_section(m):
         doc="Total concentrated brine outflow for shipping (post-evaporation)"
     )
     def eq_concentrated_brine_outflow(b):
-        return b.concentrated_brine_outflow == b.water_outflow + b.tds_outflow #+ b.li_outflow
+        return b.concentrated_brine_outflow == b.water_outflow + b.tds_outflow + b.li_outflow
     m.fs.eq_concentrated_brine_outflow = Constraint(rule=eq_concentrated_brine_outflow, doc="Concentrated brine outflow for shipping")
 
 def define_evaporative_area_section(m):
@@ -230,19 +231,10 @@ def define_evaporative_area_section(m):
         return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.water_evaporated * m.fs.pond_overdesign_factor
     m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
 
-def define_target_li_concentration_constraint(m):
-    # Target lithium concentration constraint using the provided equation
-    @m.fs.Constraint(doc="Target lithium concentration constraint")
-    def eq_target_li_concentration(b):
-        prop_in = m.fs.feed.properties[0]
-        inlet_li_mass_flow = prop_in.flow_mass_phase_comp["Liq", "Li+"]
-        inlet_water_mass_flow = prop_in.flow_mass_phase_comp["Liq", "H2O"]
-        
-        # Calculate outlet lithium concentration using the provided equation
-        outlet_li_concentration = inlet_li_mass_flow * smooth_min(1.0, -9.1674 * b.fraction_evaporated + 8.8961, eps=1e-3) / (inlet_water_mass_flow * (1 - b.fraction_evaporated)) * 1000
-        
-        # Set it equal to target concentration
-        return outlet_li_concentration == b.target_li_concentration
+def fix_evaporation_fraction_for_target_li(m):
+    target_li_conc = value(m.fs.target_li_concentration * m.fs.rho)
+    evap_frac = compute_evaporation_fraction_for_target_li_conc(m, target_li_conc)
+    m.fs.fraction_evaporated.fix(evap_frac)
 
 def define_additional_constraints(m):
     define_general_parameters(m)
@@ -253,4 +245,4 @@ def define_additional_constraints(m):
     define_precipitate_section(m)
     define_brine_outflow_section(m)
     define_evaporative_area_section(m)
-    define_target_li_concentration_constraint(m) 
+    fix_evaporation_fraction_for_target_li(m) 

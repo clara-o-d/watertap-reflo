@@ -16,7 +16,7 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
         water_outflow = water_inlet_flow * (1 - evap_frac)
         if water_outflow < 1e-12:
             return 0
-        return li_outflow / water_outflow * rho_val
+        return li_outflow / water_outflow * 1000#rho_val
 
     sol = root_scalar(
         lambda evap_frac: li_conc_at_evap(evap_frac) - target_li_conc,
