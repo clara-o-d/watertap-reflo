@@ -142,7 +142,7 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=0.04,
+        initialize=50,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
@@ -232,7 +232,8 @@ def define_evaporative_area_section(m):
     m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
 
 def fix_evaporation_fraction_for_target_li(m):
-    target_li_conc = value(m.fs.target_li_concentration * m.fs.rho)
+    # Target is already in g/kg, no need to multiply by density
+    target_li_conc = value(m.fs.target_li_concentration)
     evap_frac = compute_evaporation_fraction_for_target_li_conc(m, target_li_conc)
     m.fs.fraction_evaporated.fix(evap_frac)
 

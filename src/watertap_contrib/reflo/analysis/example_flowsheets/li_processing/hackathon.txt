@@ -1,0 +1,10 @@
+9AM-5PM
+- Understand MSC use
+- Understand solex use
+- Set up solex unit model
+- Define feed conditions
+- Set parameters and fix variables
+- Add necessary constraints
+- Initialize
+- Build
+- Solve

@@ -1,355 +1,515 @@
-import pyomo.environ as pyo
-from pyomo.core import ConcreteModel, TransformationFactory
-from idaes.core import FlowsheetBlock
-from pyomo.network import Arc
-from idaes.core.util.initialization import propagate_state
-from watertap.property_models.multicomp_aq_sol_prop_pack import MCASParameterBlock, DensityCalculation as MCASDensityCalculation
-from idaes.models.unit_models import Feed, Product
-from watertap.unit_models.pressure_changer import Pump
-from watertap_contrib.reflo.unit_models import ChemicalSoftening
-# DewateringUnit removed - using StorageTankZO for simplicity
-from watertap.unit_models.zero_order import StorageTankZO, ClarifierZO
-from watertap.unit_models.boron_removal import BoronRemoval
-from watertap.core.util.initialization import assert_degrees_of_freedom
-import idaes.core.util.scaling as iscale
-from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.define_additional_constraints import define_additional_constraints
-from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.reaction_packages import (
-    get_enhanced_property_config
-)
-from idaes.core.util.model_statistics import degrees_of_freedom
-from pyomo.environ import units as pyunits
-from pyomo.core.base.var import Var
-from pyomo.core.base.param import Param
-from pyomo.core.base.constraint import Constraint
-from pyomo.environ import value
+#################################################################################
+# Lithium Carbonate Plant Flowsheet
+# Salar de Carmen (Antofagasta) Process
+#################################################################################
 
+import pyomo.environ as pyo
+from pyomo.environ import units
+from pyomo.network import Arc
+
+# IDAES imports
+from idaes.core import FlowsheetBlock
+from idaes.models.unit_models import Feed, Pump, Mixer, StoichiometricReactor
+from idaes.core.util.initialization import propagate_state
+from idaes.core import Component, LiquidPhase, PhysicalParameterBlock, StateBlock, StateBlockData, declare_process_block_class, MaterialFlowBasis
+from pyomo.environ import Param, Var, units, Constraint, PositiveReals
+
+# WaterTAP imports
+from watertap.property_models.multicomp_aq_sol_prop_pack import (
+    MCASParameterBlock,
+    MCASStateBlock,
+)
+
+# PROMMIS imports (will be added when we get to solvent extraction)
+# from prommis.solvent_extraction import SolventExtraction
+
+# ============================================================================
+# ORGANIC PROPERTY PACKAGE FOR ISO-OCTANOL/KEROSENE MIXTURE
+# ============================================================================
+
+@declare_process_block_class("OrganicSolventParameters")
+class OrganicSolventParameterData(PhysicalParameterBlock):
+    """
+    Property package for organic solvent mixture (50% iso-octanol + 50% kerosene).
+    
+    Components:
+    - IsoOctanol (C8H18O): 50% by volume
+    - Kerosene (C10H22): 50% by volume
+    """
+    
+    # Set the state block class
+    _state_block_class = None
+    
+    def build(self):
+        super().build()
+        
+        self.organic = LiquidPhase()
+        
+        # Organic solvents
+        self.IsoOctanol = Component()
+        self.Kerosene = Component()
+        
+        # Molecular weights (g/mol)
+        self.mw = Param(
+            self.component_list,
+            units=units.kg / units.mol,
+            initialize={
+                "IsoOctanol": 130.23e-3,  # C8H18O
+                "Kerosene": 142.29e-3,     # C10H22
+            },
+        )
+        
+        # Density of organic mixture (g/mL)
+        self.dens_mass = Param(
+            units=units.kg / units.m**3,
+            initialize=850.0,  # 0.85 g/mL = 850 kg/m³
+        )
+        
+        # Set the state block class
+        self._state_block_class = OrganicSolventStateBlock
+    
+    @classmethod
+    def define_metadata(cls, obj):
+        obj.add_properties(
+            {
+                "flow_mass": {"method": None},
+                "conc_mass_comp": {"method": None},
+                "dens_mass": {"method": None},
+            }
+        )
+        obj.add_default_units(
+            {
+                "time": units.s,
+                "length": units.m,
+                "mass": units.kg,
+                "amount": units.mol,
+                "temperature": units.K,
+            }
+        )
+
+class _OrganicSolventStateBlock(StateBlock):
+    def fix_initialization_states(self):
+        pass
+
+@declare_process_block_class("OrganicSolventStateBlock", block_class=_OrganicSolventStateBlock)
+class OrganicSolventStateBlockData(StateBlockData):
+    def build(self):
+        super().build()
+        
+        # State variables
+        self.flow_mass = Var(
+            initialize=1.0,
+            units=units.kg / units.s,
+            bounds=(0, None),
+            doc="Mass flow rate",
+        )
+        
+        self.conc_mass_comp = Var(
+            self.params.component_list,
+            initialize=1.0,
+            units=units.kg / units.m**3,
+            bounds=(0, None),
+            doc="Mass concentration of component",
+        )
+        
+        self.dens_mass = Var(
+            initialize=850.0,
+            units=units.kg / units.m**3,
+            bounds=(0, None),
+            doc="Mass density",
+        )
+        
+        # Volume flow rate (calculated)
+        self.flow_vol = Var(
+            initialize=1.0,
+            units=units.m**3 / units.s,
+            bounds=(0, None),
+            doc="Volumetric flow rate",
+        )
+        
+        # Temperature and pressure
+        self.temperature = Var(
+            initialize=298.15,
+            bounds=(273.15, 373.15),
+            doc="Temperature [K]",
+            units=units.K,
+        )
+        
+        self.pressure = Var(
+            initialize=101325.0,
+            bounds=(1e3, 1e6),
+            doc="Pressure [Pa]",
+            units=units.Pa,
+        )
+        
+        # Constraints
+        @self.Constraint()
+        def density_constraint(b):
+            return b.dens_mass == sum(b.conc_mass_comp[j] for j in self.params.component_list)
+        
+        @self.Constraint()
+        def volume_flow_constraint(b):
+            return b.flow_vol * b.dens_mass == b.flow_mass
+    
+    def get_material_flow_basis(self):
+        return MaterialFlowBasis.mass
+    
+    def define_state_vars(self):
+        return {
+            "flow_mass": self.flow_mass,
+            "conc_mass_comp": self.conc_mass_comp,
+            "dens_mass": self.dens_mass,
+            "temperature": self.temperature,
+            "pressure": self.pressure,
+        }
+
+# Set the state block class for the parameter block
+# OrganicSolventParameters._state_block_class = OrganicSolventStateBlock
 
 def build_flowsheet():
-    m = ConcreteModel()
-    m.fs = FlowsheetBlock(dynamic=False)
-
-    # Get enhanced property configuration with additional components for reactions
-    enhanced_props = get_enhanced_property_config()
+    """
+    Build the lithium carbonate plant flowsheet.
     
-    m.fs.properties = MCASParameterBlock(
-        solute_list=enhanced_props["solute_list"],
-        mw_data=enhanced_props["mw_data"],
-        density_calculation=MCASDensityCalculation.constant,
+    Process Description:
+    - Brine feed from Salar de Atacama
+    - Acidification to pH ~1 for boron extraction
+    - 4-stage countercurrent boron solvent extraction
+    - Solvent regeneration with NaOH
+    """
+    
+    # Create the model and flowsheet
+    m = pyo.ConcreteModel()
+    m.fs = FlowsheetBlock(dynamic=False)
+    
+    # ============================================================================
+    # PROPERTY PACKAGES
+    # ============================================================================
+    
+    # MCAS Property Package for brine streams
+    m.fs.brine_props = MCASParameterBlock(
+        solute_list=["Na", "K", "Mg", "Li", "Ca", "Cl", "SO4", "B", "H"],
+        charge={"Na": 1, "K": 1, "Mg": 2, "Li": 1, "Ca": 2, "Cl": -1, "SO4": -2, "B": 0, "H": 1},
     )
     
-    # Feed and storage
-    m.fs.feed = Feed(property_package=m.fs.properties)
-    m.fs.storage = StorageTankZO(property_package=m.fs.properties)
-
-    # Boron removal section
-    chem_dict = {
-        'boron_name': 'boron',
-        'borate_name': 'borate',
-        'caustic_additive': {
-            'additive_name': 'NaOH',
-            'cation_name': 'Na+',
-            'mw_additive': (39.997, pyunits.g/pyunits.mol),
-            'moles_cation_per_additive': 1,
-        }
-    }
-    m.fs.boron_removal = BoronRemoval(property_package=m.fs.properties, chemical_mapping_data=chem_dict)
+    # Custom Organic Property Package for iso-octanol/kerosene mixture
+    m.fs.organic_props = OrganicSolventParameters()
     
-    # Chemical softening
-    m.fs.softening = ChemicalSoftening(property_package=m.fs.properties)
+    # ============================================================================
+    # UNIT MODELS - STEP 1: BRINE FEED BLOCK
+    # ============================================================================
     
-    # Li2CO3 precipitation section with constraint-based stoichiometry
-    m.fs.carbonation = StorageTankZO(property_package=m.fs.properties)  # Reactor with constraints
-    m.fs.carbonation_sep = ClarifierZO(property_package=m.fs.properties)
-    m.fs.drying = StorageTankZO(property_package=m.fs.properties)
+    # Brine feed from Salar de Atacama
+    m.fs.brine_feed = Feed(property_package=m.fs.brine_props)
     
-    # Li2CO3 products and waste streams (separated by source for better process understanding)
-    m.fs.li2co3_product = Product(property_package=m.fs.properties)
-    m.fs.li2co3_softening_waste = Product(property_package=m.fs.properties)  # Hardness removal waste (Ca2+, Mg2+, TSS)
-    m.fs.li2co3_separation_waste = Product(property_package=m.fs.properties)  # Clarifier waste (dissolved impurities)
+    # ============================================================================
+    # UNIT MODELS - STEP 2: ACID FEED BLOCK
+    # ============================================================================
     
-    # LiOH section with constraint-based stoichiometry
-    # m.fs.lioh_reactor = StorageTankZO(property_package=m.fs.properties)  # Reactor with constraints
-    # m.fs.lioh_clarifier = ClarifierZO(property_package=m.fs.properties)
-    # m.fs.lioh_filter = StorageTankZO(property_package=m.fs.properties)
-    # m.fs.lioh_evap = StorageTankZO(property_package=m.fs.properties)
-    # m.fs.lioh_centrifuge = StorageTankZO(property_package=m.fs.properties)
-    # m.fs.lioh_dryer = StorageTankZO(property_package=m.fs.properties)
+    # HCl acid feed for acidification (following PROMMIS CMI Process example)
+    m.fs.hcl_feed = Feed(property_package=m.fs.brine_props)
     
-    # LiOH products and waste streams
-    # m.fs.lioh_product = Product(property_package=m.fs.properties)
-    # m.fs.lioh_offspec = Product(property_package=m.fs.properties)
-    # m.fs.lioh_solidwaste = Product(property_package=m.fs.properties)
-    # m.fs.lioh_liquidwaste = Product(property_package=m.fs.properties)
-
+    # ============================================================================
+    # UNIT MODELS - STEP 3: ORGANIC FEED BLOCK
+    # ============================================================================
     
-    # Main Li2CO3 processing train
-    m.fs.feed_to_storage = Arc(source=m.fs.feed.outlet, destination=m.fs.storage.inlet)
-    m.fs.storage_to_boron = Arc(source=m.fs.storage.outlet, destination=m.fs.boron_removal.inlet)
-    m.fs.boron_to_softening = Arc(source=m.fs.boron_removal.outlet, destination=m.fs.softening.inlet)
-    m.fs.softening_to_carbonation = Arc(source=m.fs.softening.outlet, destination=m.fs.carbonation.inlet)
-    m.fs.carbonation_to_sep = Arc(source=m.fs.carbonation.outlet, destination=m.fs.carbonation_sep.inlet)
-    m.fs.sep_to_drying = Arc(source=m.fs.carbonation_sep.treated, destination=m.fs.drying.inlet)
-    m.fs.drying_to_product = Arc(source=m.fs.drying.outlet, destination=m.fs.li2co3_product.inlet)
+    # Organic solvent feed for boron extraction
+    # 50% iso-octanol + 50% kerosene by volume
+    m.fs.organic_feed = Feed(property_package=m.fs.organic_props)
     
-    # Li2CO3 waste streams - separate by source for process clarity
-    m.fs.softening_waste_out = Arc(source=m.fs.softening.waste, destination=m.fs.li2co3_softening_waste.inlet)
-    m.fs.separation_waste_out = Arc(source=m.fs.carbonation_sep.byproduct, destination=m.fs.li2co3_separation_waste.inlet)
+    # ============================================================================
+    # UNIT MODELS - STEP 4: REEXTRACTION FEED BLOCK
+    # ============================================================================
     
-    # LiOH processing train
-    # m.fs.carbonation_to_lioh = Arc(source=m.fs.carbonation.outlet, destination=m.fs.lioh_reactor.inlet)
-    # m.fs.lioh_reactor_to_clarifier = Arc(source=m.fs.lioh_reactor.outlet, destination=m.fs.lioh_clarifier.inlet)
-    # m.fs.lioh_clarifier_to_filter = Arc(source=m.fs.lioh_clarifier.treated, destination=m.fs.lioh_filter.inlet)
-    # m.fs.lioh_clarifier_to_evap = Arc(source=m.fs.lioh_clarifier.byproduct, destination=m.fs.lioh_evap.inlet)
-    # m.fs.lioh_evap_to_centrifuge = Arc(source=m.fs.lioh_evap.outlet, destination=m.fs.lioh_centrifuge.inlet)
-    # m.fs.lioh_centrifuge_to_dryer = Arc(source=m.fs.lioh_centrifuge.outlet, destination=m.fs.lioh_dryer.inlet)
-    # m.fs.lioh_dryer_to_product = Arc(source=m.fs.lioh_dryer.outlet, destination=m.fs.lioh_product.inlet)
+    # NaOH reextraction feed for boron stripping from organic phase
+    # 0.02 N NaOH solution
+    m.fs.reextraction_feed = Feed(property_package=m.fs.brine_props)
     
-    TransformationFactory("network.expand_arcs").apply_to(m)
-
-    define_additional_constraints(m)
-
-    m.fs.feed.properties[0].pressure.fix(101325 * pyunits.Pa)
-    m.fs.feed.properties[0].temperature.fix(298 * pyunits.K)
+    # ============================================================================
+    # SET OPERATING CONDITIONS
+    # ============================================================================
     
-    # Set feed conditions using molar flow rates (mole/s) instead of mass flow rates
-    # Convert mass flow rates to molar flow rates using molecular weights from reaction_packages.py
+    set_brine_feed_conditions(m)
+    set_hcl_feed_conditions(m)
+    set_organic_feed_conditions(m)
+    set_reextraction_feed_conditions(m)
     
-    m.fs.rho = Param(initialize=1300, units=pyunits.kg/pyunits.m**3, doc="Density of inlet brine")
-    m.fs.vol_flow_rate = Param(initialize=1.051, units=pyunits.m**3/pyunits.s, doc="Flow rate of inlet brine")
-    m.fs.mass_flow_rate = Var(initialize=m.fs.rho * m.fs.vol_flow_rate, units=pyunits.kg/pyunits.s, doc="Mass flow rate of inlet brine")
-    m.fs.eq_mass_flow_rate = Constraint(expr=m.fs.mass_flow_rate == m.fs.rho * m.fs.vol_flow_rate)
+    return m
 
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(977 * value(m.fs.vol_flow_rate) / 18.015e-3) # kg/s / kg/mol = mol/s
-    
-    # Solute flow rates
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "li+"].fix(0.05 * value(m.fs.mass_flow_rate) / 6.94e-3) # kg/s / kg/mol = mol/s
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Na+"].fix(37.61 * value(m.fs.vol_flow_rate) / 22.99e-3)   
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Cl-"].fix(215.6 * value(m.fs.vol_flow_rate) / 35.45e-3)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "CO3-2"].fix(0.27 * value(m.fs.vol_flow_rate) / 60.01e-3) #*
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Ca_2+"].fix(0.01 * value(m.fs.vol_flow_rate) / 40.08e-3)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "boron"].fix(4.22 * value(m.fs.vol_flow_rate) / 10.81e-3)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "tds"].fix(0.5 * value(m.fs.mass_flow_rate) / 31.4e-3)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Mg_2+"].fix(0.65 * value(m.fs.vol_flow_rate) / 24.31e-3)      
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "HCO3-"].fix(0.27 * value(m.fs.vol_flow_rate) / 61.02e-3) 
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Alkalinity_2-"].fix(0.54 * value(m.fs.vol_flow_rate) / 61.02e-3)
-
-    # Fix remaining components to small values (trace amounts)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "borate"].fix(0.001 / 61.83e-3)  
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "tss"].fix(0.001 / 1.0)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "Li2CO3"].fix(0.0)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "OH-"].fix(1e-7 / 17.01e-3)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "H+"].fix(1e-7 / 1.01e-3)
-    m.fs.feed.properties[0].flow_mol_phase_comp["Liq", "CaCO3"].fix(0.0)
-    
-    print(f"DOF after setting feed: {degrees_of_freedom(m)}")
-
-    define_additional_constraints(m)
-    print(f"DOF after define_additional_constraints: {degrees_of_freedom(m)}")
-
-    # Scaling factors for molar flow rates (flow_mol_phase_comp)
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-5, index=("Liq", "H2O"))  # Large water flow ~55,500 mol/s
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "li+"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "boron"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "borate"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "Ca_2+"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "Mg_2+"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "Na+"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "Cl-"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "CO3-2"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "HCO3-"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "tss"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "tds"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "Alkalinity_2-"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "Li2CO3"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "OH-"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "H+"))
-    m.fs.properties.set_default_scaling("flow_mol_phase_comp", 1e-1, index=("Liq", "CaCO3"))
-    m.fs.properties.set_default_scaling("temperature", 1e-2)
-    m.fs.properties.set_default_scaling("pressure", 1e-5)
-    m.fs.properties.set_default_scaling("mass_frac_phase_comp", 1e0)
-    
-    # Unit model scaling
-    for unit in [m.fs.feed, m.fs.storage, m.fs.boron_removal, m.fs.softening, m.fs.carbonation,
-                 m.fs.carbonation_sep, m.fs.drying]:  # LiOH units commented out
-        if hasattr(unit, 'control_volume') and hasattr(unit.control_volume, 'work'):
-            iscale.set_scaling_factor(unit.control_volume.work, 1e-6)
-    
-    # Boron removal unit scaling
-    iscale.set_scaling_factor(m.fs.boron_removal.caustic_dose_rate, 1e-2)
-    iscale.set_scaling_factor(m.fs.boron_removal.reactor_volume, 1e-2)
-    # Don't scale reactor_retention_time since it's not fixed (calculated variable)
-
-    iscale.calculate_scaling_factors(m)
-
-    print(f"DOF after scaling: {degrees_of_freedom(m)}")
-    print("Initializing lithium processing flowsheet...")
-    
-    # Feed
-    m.fs.feed.initialize()
-    m.fs.feed.report()
-
-    # Storage
-    propagate_state(m.fs.feed_to_storage)
-    m.fs.storage.initialize()
-    m.fs.storage.report()
-
-    # Boron removal
-    propagate_state(m.fs.storage_to_boron)
-    m.fs.boron_removal.initialize()
-    m.fs.boron_removal.report()
-
-    # Chemical softening - temporarily bypass to test rest of flowsheet
-    propagate_state(m.fs.boron_to_softening)
-    try:
-        m.fs.softening.initialize()
-        m.fs.softening.report()
-    except Exception as e:
-        print(f"Chemical softening initialization failed: {e}")
-        print("Setting manual values for softening outputs to continue...")
-        # Set reasonable values for softening outputs based on input
-        for comp in ["H2O", "li+", "boron", "borate", "Ca_2+", "Mg_2+", "Na+", "Cl-", "CO3-2", "HCO3-", "tss", "tds", "Alkalinity_2-", "Li2CO3", "OH-", "H+", "CaCO3"]:
-            try:
-                inlet_flow = m.fs.softening.properties_in[0].flow_mol_phase_comp["Liq", comp].value
-                # Simple approximation: 95% goes to outlet, 5% to waste
-                m.fs.softening.properties_out[0].flow_mol_phase_comp["Liq", comp].set_value(0.95 * inlet_flow)
-                m.fs.softening.properties_waste[0].flow_mol_phase_comp["Liq", comp].set_value(0.05 * inlet_flow)
-            except:
-                pass
-
-    # Li2CO3 precipitation with constraint-based stoichiometry
-    propagate_state(m.fs.softening_to_carbonation)
-    m.fs.carbonation.initialize()
-    m.fs.carbonation.report()
-
-    # Li2CO3 separation
-    propagate_state(m.fs.carbonation_to_sep)
-    m.fs.carbonation_sep.initialize()
-    m.fs.carbonation_sep.report()
-
-    # Drying and Li2CO3 product
-    propagate_state(m.fs.sep_to_drying)
-    m.fs.drying.initialize()
-    m.fs.drying.report()
-
-    propagate_state(m.fs.drying_to_product)
-    m.fs.li2co3_product.initialize()
-    m.fs.li2co3_product.report()
-
-    # Li2CO3 waste streams - initialize both waste products
-    propagate_state(m.fs.softening_waste_out)
-    m.fs.li2co3_softening_waste.initialize()
-    m.fs.li2co3_softening_waste.report()
-
-    propagate_state(m.fs.separation_waste_out)
-    m.fs.li2co3_separation_waste.initialize()
-    m.fs.li2co3_separation_waste.report()
-
-    # LiOH section with constraint-based stoichiometry
-    # propagate_state(m.fs.carbonation_to_lioh)
-    # m.fs.lioh_reactor.initialize()
-    # m.fs.lioh_reactor.report()
-
-    # propagate_state(m.fs.lioh_reactor_to_clarifier)
-    # m.fs.lioh_clarifier.initialize()
-    # m.fs.lioh_clarifier.report()
-
-    # propagate_state(m.fs.lioh_clarifier_to_filter)
-    # m.fs.lioh_filter.initialize()
-    # m.fs.lioh_filter.report()
-
-    # propagate_state(m.fs.lioh_clarifier_to_evap)
-    # m.fs.lioh_evap.initialize()
-    # m.fs.lioh_evap.report()
-
-    # propagate_state(m.fs.lioh_evap_to_centrifuge)
-    # m.fs.lioh_centrifuge.initialize()
-    # m.fs.lioh_centrifuge.report()
-
-    # propagate_state(m.fs.lioh_centrifuge_to_dryer)
-    # m.fs.lioh_dryer.initialize()
-    # m.fs.lioh_dryer.report()
-
-    # LiOH products and waste
-    # propagate_state(m.fs.lioh_dryer_to_product)
-    # m.fs.lioh_product.initialize()
-    # m.fs.lioh_product.report()
-
-    # Initialize unconnected waste products
-    # m.fs.lioh_offspec.initialize()
-    # m.fs.lioh_solidwaste.initialize()
-    # m.fs.lioh_liquidwaste.initialize()
-    # m.fs.lioh_offspec.report()
-    # m.fs.lioh_solidwaste.report()
-    # m.fs.lioh_liquidwaste.report()
-
-    
-    print(f"DOF after build_flowsheet: {degrees_of_freedom(m)}")
-    
-    # Set design specifications to resolve underconstrained system
-    set_design_specifications(m)
-    print(f"DOF after specifications: {degrees_of_freedom(m)}")
-    
-    # assert_degrees_of_freedom(m, 0)
-    
-    return m 
-
-
-def set_design_specifications(m):
+def set_brine_feed_conditions(m):
     """
-    Set minimal design specifications to achieve DOF = 0.
-    Only fix the essential variables identified in the underconstrained diagnostic.
+    Set the brine feed conditions based on Salar de Carmen specifications.
+    
+    Feed Conditions:
+    - Na: 570 ppm
+    - K: 160 ppm  
+    - Mg: 19200 ppm
+    - Li: 60000 ppm
+    - Ca: 530 ppm
+    - Cl: 351000 ppm
+    - SO4: 220 ppm
+    - B: 6270 ppm
+    - Density: 1.252 kg/L
+    - pH: 6.50
     """
     
-    m.fs.storage.storage_time[0].fix(28800.0)     # 8 hours storage 
-    m.fs.carbonation.storage_time[0].fix(14400.0) # 4 hours carbonation
-    m.fs.drying.storage_time[0].fix(21600.0)      # 6 hours drying
+    # Reference conditions
+    T_ref = 298.15 * units.K  # 25°C
+    P_ref = 101325 * units.Pa  # 1 atm
+    
+    # Set temperature and pressure
+    m.fs.brine_feed.properties[0].temperature.fix(T_ref)
+    m.fs.brine_feed.properties[0].pressure.fix(P_ref)
+    
+    # Set flow rate (will be scaled based on plant capacity)
+    # Using 1000 L/min as base flow rate
+    flow_rate = 1000 * units.L / units.minute
+    m.fs.brine_feed.properties[0].flow_vol_phase["Liq"].fix(flow_rate)
+    
+    # Convert ppm to mass concentration (mg/L = ppm)
+    # Density = 1.252 kg/L = 1252 g/L
+    density = 1252 * units.g / units.L
+    
+    # Calculate mass concentrations from ppm
+    # mass_conc = ppm * density / 1e6
+    mass_conc_Na = 570 * density / 1e6  # ppm to g/L
+    mass_conc_K = 160 * density / 1e6
+    mass_conc_Mg = 19200 * density / 1e6
+    mass_conc_Li = 60000 * density / 1e6
+    mass_conc_Ca = 530 * density / 1e6
+    mass_conc_Cl = 351000 * density / 1e6
+    mass_conc_SO4 = 220 * density / 1e6
+    mass_conc_B = 6270 * density / 1e6
+    
+    # Set mass concentrations
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Na"].fix(mass_conc_Na)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "K"].fix(mass_conc_K)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Mg"].fix(mass_conc_Mg)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Li"].fix(mass_conc_Li)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Ca"].fix(mass_conc_Ca)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Cl"].fix(mass_conc_Cl)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "SO4"].fix(mass_conc_SO4)
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "B"].fix(mass_conc_B)
+    
+    # Set H+ concentration based on pH = 6.50
+    # pH = -log10([H+])
+    # [H+] = 10^(-pH) = 10^(-6.50) = 3.16e-7 mol/L
+    H_conc_mol = 3.16e-7 * units.mol / units.L
+    # Convert to mass concentration (H+ has MW = 1.008 g/mol)
+    H_conc_mass = H_conc_mol * 1.008 * units.g / units.mol
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "H"].fix(H_conc_mass)
+    
+    # Set water concentration (remaining mass)
+    # Total mass concentration = density
+    total_conc = (mass_conc_Na + mass_conc_K + mass_conc_Mg + mass_conc_Li + 
+                  mass_conc_Ca + mass_conc_Cl + mass_conc_SO4 + mass_conc_B + H_conc_mass)
+    water_conc = density - total_conc
+    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "H2O"].fix(water_conc)
 
-    m.fs.boron_removal.reactor_retention_time[0].fix(7200.0)  # 2 hours contact time
+def set_hcl_feed_conditions(m):
+    """
+    Set the HCl acid feed conditions for acidification.
     
-    m.fs.softening.pH.fix(11.0)  # Lime softening pH
-    m.fs.softening.retention_time_mixer.fix(0.5)  # 30 minutes mixing
+    Target: 0.1 N H+ concentration for optimal boron extraction
+    HCl concentration: ~12 M HCl (concentrated hydrochloric acid)
+    """
     
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'Li2CO3'].fix(0.95)  # 95% Li2CO3 recovery
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'CaCO3'].fix(0.90)   # 90% CaCO3 removal
+    # Reference conditions
+    T_ref = 298.15 * units.K  # 25°C
+    P_ref = 101325 * units.Pa  # 1 atm
     
-    m.fs.storage.energy_electric_flow_vol_inlet.fix(0.0)
-    m.fs.carbonation.energy_electric_flow_vol_inlet.fix(0.0)
-    m.fs.drying.energy_electric_flow_vol_inlet.fix(0.0)
+    # Set temperature and pressure
+    m.fs.hcl_feed.properties[0].temperature.fix(T_ref)
+    m.fs.hcl_feed.properties[0].pressure.fix(P_ref)
     
-    print("Minimal design specifications set successfully!")
+    # Set flow rate (will be calculated based on target 0.1 N H+ in final mixture)
+    # Using 100 L/min as base flow rate for HCl feed
+    flow_rate = 100 * units.L / units.minute
+    m.fs.hcl_feed.properties[0].flow_vol_phase["Liq"].fix(flow_rate)
     
-    m.fs.storage.surge_capacity[0].fix(0.20)      # 20% surge capacity
-    m.fs.carbonation.surge_capacity[0].fix(0.15)  # 15% surge capacity  
-    m.fs.drying.surge_capacity[0].fix(0.10)       # 10% surge capacity
+    # HCl concentration: 12 M HCl (concentrated hydrochloric acid)
+    # 12 M = 12 mol/L
+    HCl_conc_mol = 12.0 * units.mol / units.L
     
-    m.fs.softening.removal_efficiency['li+'].fix(0.05)    # 5% lithium removal
-    m.fs.softening.removal_efficiency['Na+'].fix(0.02)    # 2% sodium removal
-    m.fs.softening.removal_efficiency['Cl-'].fix(0.01)    # 1% chloride removal
-    m.fs.softening.removal_efficiency['CO3-2'].fix(0.10)  # 10% carbonate consumption
-    m.fs.softening.removal_efficiency['HCO3-'].fix(0.15)  # 15% bicarbonate reaction
-    m.fs.softening.removal_efficiency['OH-'].fix(0.05)    # 5% hydroxide consumption
-    m.fs.softening.removal_efficiency['H+'].fix(0.95)     # 95% acid neutralization
-    m.fs.softening.removal_efficiency['tss'].fix(0.80)    # 80% TSS settling
-    m.fs.softening.removal_efficiency['tds'].fix(0.05)    # 5% TDS reduction
-    m.fs.softening.removal_efficiency['Li2CO3'].fix(0.00) # No Li2CO3 in feed
-    m.fs.softening.removal_efficiency['CaCO3'].fix(0.00)  # No CaCO3 in feed
+    # Convert to mass concentration (HCl has MW = 36.46 g/mol)
+    HCl_conc_mass = HCl_conc_mol * 36.46 * units.g / units.mol
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "H"].fix(HCl_conc_mass)
     
-    m.fs.softening.retention_time_floc.fix(25.0)    # 25 minutes flocculation (bounds: 10-45 min)
-    m.fs.softening.retention_time_sed.fix(150.0)    # 150 minutes (2.5 hours) sedimentation (bounds: 120-240 min)
-    m.fs.softening.retention_time_recarb.fix(20.0)  # 20 minutes recarbonation (bounds: 15-30 min)
+    # Cl- concentration (same as HCl concentration)
+    Cl_conc_mass = HCl_conc_mol * 35.45 * units.g / units.mol  # Cl- MW = 35.45 g/mol
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Cl"].fix(Cl_conc_mass)
     
-    m.fs.softening.ca_eff_target.fix(0.95)  # 95% calcium removal
-    m.fs.softening.mg_eff_target.fix(0.90)  # 90% magnesium removal
+    # Set other components to zero (HCl feed contains only HCl and H2O)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Na"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "K"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Mg"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Li"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Ca"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "SO4"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "B"].fix(0 * units.g / units.L)
     
-    m.fs.boron_removal.reactor_retention_time[0].fix(7200.0)  # 2 hours contact time (already set above)
+    # Set water concentration (remaining mass)
+    # Density of 12 M HCl ≈ 1.18 g/mL = 1180 g/L
+    density = 1180 * units.g / units.L
+    total_conc = HCl_conc_mass + Cl_conc_mass
+    water_conc = density - total_conc
+    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "H2O"].fix(water_conc)
 
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'Na+'].fix(0.05)      # 5% sodium separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'Cl-'].fix(0.05)      # 5% chloride separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'CO3-2'].fix(0.10)    # 10% carbonate separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'HCO3-'].fix(0.10)    # 10% bicarbonate separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'tss'].fix(0.95)      # 95% TSS separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'tds'].fix(0.05)      # 5% TDS separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'OH-'].fix(0.05)      # 5% hydroxide separation
-    m.fs.carbonation_sep.removal_frac_mass_comp[0,'H+'].fix(0.05)       # 5% acid separation
+def set_organic_feed_conditions(m):
+    """
+    Set the organic feed conditions for the solvent extraction process.
     
-    print(f"All design specifications set - DOF should now be 0") 
+    Organic Feed:
+    - 50% iso-octanol (C8H18O) by volume
+    - 50% kerosene (C10H22) by volume
+    - Density: 0.85 g/mL
+    """
+    
+    # Reference conditions
+    T_ref = 298.15 * units.K  # 25°C
+    P_ref = 101325 * units.Pa  # 1 atm
+    
+    # Set temperature and pressure
+    m.fs.organic_feed.properties[0].temperature.fix(T_ref)
+    m.fs.organic_feed.properties[0].pressure.fix(P_ref)
+    
+    # Set flow rate (will be scaled based on plant capacity)
+    # Using 100 L/min as base flow rate for organic feed
+    flow_rate = 100 * units.L / units.minute
+    m.fs.organic_feed.properties[0].flow_vol.fix(flow_rate)
+    
+    # Density of organic solvent mixture
+    # Density = 0.85 g/mL = 850 kg/m³
+    density = 850.0 * units.kg / units.m**3
+    m.fs.organic_feed.properties[0].dens_mass.fix(density)
+    
+    # Calculate mass concentrations for 50% iso-octanol + 50% kerosene by volume
+    # Iso-octanol (C8H18O): density ≈ 0.83 g/mL = 830 kg/m³
+    # Kerosene (C10H22): density ≈ 0.81 g/mL = 810 kg/m³
+    
+    # For 50% by volume mixture:
+    iso_octanol_conc = 0.5 * 830.0 * units.kg / units.m**3  # 50% of 830 kg/m³
+    kerosene_conc = 0.5 * 810.0 * units.kg / units.m**3  # 50% of 810 kg/m³
+    
+    # Set mass concentrations
+    m.fs.organic_feed.properties[0].conc_mass_comp["IsoOctanol"].fix(iso_octanol_conc)
+    m.fs.organic_feed.properties[0].conc_mass_comp["Kerosene"].fix(kerosene_conc)
+    
+    # Set mass flow rate
+    mass_flow = flow_rate * density
+    m.fs.organic_feed.properties[0].flow_mass.fix(mass_flow)
+
+def set_reextraction_feed_conditions(m):
+    """
+    Set the reextraction feed conditions for the NaOH reextraction process.
+    
+    Reextraction Feed:
+    - 0.02 N NaOH solution
+    - pH: ~12.3 (basic)
+    - Density: 1.02 g/mL
+    """
+    
+    # Reference conditions
+    T_ref = 298.15 * units.K  # 25°C
+    P_ref = 101325 * units.Pa  # 1 atm
+    
+    # Set temperature and pressure
+    m.fs.reextraction_feed.properties[0].temperature.fix(T_ref)
+    m.fs.reextraction_feed.properties[0].pressure.fix(P_ref)
+    
+    # Set flow rate (will be scaled based on plant capacity)
+    # Using 100 L/min as base flow rate for reextraction feed
+    flow_rate = 100 * units.L / units.minute
+    m.fs.reextraction_feed.properties[0].flow_vol_phase["Liq"].fix(flow_rate)
+    
+    # Density of 0.02 N NaOH solution
+    # Density = 1.02 g/mL = 1020 g/L
+    density = 1020 * units.g / units.L
+    
+    # Calculate NaOH concentration for 0.02 N NaOH
+    # 0.02 N = 0.02 mol/L NaOH
+    NaOH_conc_mol = 0.02 * units.mol / units.L
+    
+    # Convert to mass concentration (NaOH has MW = 40 g/mol)
+    NaOH_conc_mass = NaOH_conc_mol * 40 * units.g / units.mol
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "Na"].fix(NaOH_conc_mass)
+    
+    # Set H+ concentration based on pH = 12.3 (basic)
+    # pH = -log10([H+])
+    # [H+] = 10^(-pH) = 10^(-12.3) = 5.01e-13 mol/L
+    H_conc_mol = 5.01e-13 * units.mol / units.L
+    # Convert to mass concentration (H+ has MW = 1.008 g/mol)
+    H_conc_mass = H_conc_mol * 1.008 * units.g / units.mol
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "H"].fix(H_conc_mass)
+    
+    # Set other components to zero (NaOH solution contains only NaOH and H2O)
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "K"].fix(0 * units.g / units.L)
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "Mg"].fix(0 * units.g / units.L)
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "Li"].fix(0 * units.g / units.L)
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "Ca"].fix(0 * units.g / units.L)
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "SO4"].fix(0 * units.g / units.L)
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "B"].fix(0 * units.g / units.L)
+    
+    # Set Cl- concentration (minimal in NaOH solution)
+    Cl_conc_mass = 1e-7 * units.g / units.L
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "Cl"].fix(Cl_conc_mass)
+    
+    # Set water concentration (remaining mass)
+    total_conc = NaOH_conc_mass + H_conc_mass + Cl_conc_mass
+    water_conc = density - total_conc
+    m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "H2O"].fix(water_conc)
+
+def main():
+    """
+    Main function to build and run the flowsheet.
+    """
+    print("Building lithium carbonate plant flowsheet...")
+    
+    # Build the flowsheet
+    m = build_flowsheet()
+    
+    print("Flowsheet built successfully!")
+    print(f"Number of variables: {len(list(m.fs.component_data_objects(pyo.Var)))}")
+    print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
+    
+    # Print brine feed conditions
+    print("\nBrine Feed Conditions:")
+    print(f"Temperature: {m.fs.brine_feed.properties[0].temperature.value} K")
+    print(f"Pressure: {m.fs.brine_feed.properties[0].pressure.value} Pa")
+    print(f"Flow rate: {m.fs.brine_feed.properties[0].flow_vol_phase['Liq'].value} L/min")
+    print(f"pH: 6.50")
+    print(f"Density: 1.252 kg/L")
+    
+    # Print HCl feed conditions
+    print("\nHCl Feed Conditions:")
+    print(f"Temperature: {m.fs.hcl_feed.properties[0].temperature.value} K")
+    print(f"Pressure: {m.fs.hcl_feed.properties[0].pressure.value} Pa")
+    print(f"Flow rate: {m.fs.hcl_feed.properties[0].flow_vol_phase['Liq'].value} L/min")
+    print(f"HCl concentration: 12 M (concentrated hydrochloric acid)")
+    print(f"pH: ~-1.08 (very acidic)")
+    print(f"Density: 1.18 g/mL")
+    
+    # Print organic feed conditions
+    print("\nOrganic Feed Conditions:")
+    print(f"Temperature: {m.fs.organic_feed.properties[0].temperature.value} K")
+    print(f"Pressure: {m.fs.organic_feed.properties[0].pressure.value} Pa")
+    print(f"Flow rate: {m.fs.organic_feed.properties[0].flow_vol.value} L/min")
+    print(f"Mass flow rate: {m.fs.organic_feed.properties[0].flow_mass.value} kg/min")
+    print(f"Density: 0.85 g/mL")
+    print(f"Composition: 50% iso-octanol + 50% kerosene by volume")
+    print(f"Iso-octanol concentration: {m.fs.organic_feed.properties[0].conc_mass_comp['IsoOctanol'].value} kg/m³")
+    print(f"Kerosene concentration: {m.fs.organic_feed.properties[0].conc_mass_comp['Kerosene'].value} kg/m³")
+    
+    # Print reextraction feed conditions
+    print("\nReextraction Feed Conditions:")
+    print(f"Temperature: {m.fs.reextraction_feed.properties[0].temperature.value} K")
+    print(f"Pressure: {m.fs.reextraction_feed.properties[0].pressure.value} Pa")
+    print(f"Flow rate: {m.fs.reextraction_feed.properties[0].flow_vol_phase['Liq'].value} L/min")
+    print(f"Density: 1.02 g/mL")
+    print(f"Composition: 0.02 N NaOH solution")
+    print(f"pH: ~12.3 (basic)")
+    print(f"NaOH concentration: {m.fs.reextraction_feed.properties[0].conc_mass_phase_comp['Liq', 'Na'].value} g/L")
+    
+    return m
+
+if __name__ == "__main__":
+    m = main()

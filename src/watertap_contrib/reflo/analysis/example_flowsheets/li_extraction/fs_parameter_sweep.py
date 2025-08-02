@@ -38,7 +38,11 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep"""
     sweep_params = dict()
  
-    # Sweep over target lithium concentration
+    # Sweep over lithium concentrations
+    sweep_params['inlet_li_concentration'] = LinearSample(
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 1.29, 5.0, 10
+    )
+
     sweep_params['target_li_concentration'] = LinearSample(
         m.fs.target_li_concentration, 0.0001, 20, 20
     )
