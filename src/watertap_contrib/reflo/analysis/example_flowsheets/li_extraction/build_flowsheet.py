@@ -7,7 +7,7 @@ from idaes.models.unit_models import Feed
 from watertap_contrib.reflo.unit_models.evaporation_pond import EvaporationPond
 from watertap.core.util.initialization import assert_degrees_of_freedom
 import idaes.core.util.scaling as iscale
-from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints import define_additional_constraints
+from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints_function import define_additional_constraints
 from idaes.core.util.model_statistics import degrees_of_freedom
 from pyomo.environ import units as pyunits
 from pyomo.environ import value

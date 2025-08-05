@@ -29,8 +29,8 @@ def build_model(**kwargs):
     results = solve(m)
     
     # Add costing
-    # add_costing(m)
-    # process_costing(m)
+    add_costing(m)
+    process_costing(m)
     
     return m
 
@@ -38,15 +38,26 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep"""
     sweep_params = dict()
  
-    # Sweep over lithium concentrations
-    sweep_params['inlet_li_concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 1.29, 5.0, 10
+    sweep_params['Land cost'] = LinearSample(
+        m.fs.costing.evaporation_pond.land_cost, 9000, 11000, 3
     )
 
-    sweep_params['target_li_concentration'] = LinearSample(
-        m.fs.target_li_concentration, 0.0001, 20, 20
+    sweep_params['Pond liner cost'] = LinearSample(
+        m.fs.costing.evaporation_pond.nominal_liner_capital_cost_base, 4500, 5500, 3
     )
-    
+
+    sweep_params['Recovered solids cost'] = LinearSample(
+        m.fs.costing.recovered_solids.cost, 1, 2, 3
+    )
+
+    sweep_params['Dye cost'] = LinearSample(
+        m.fs.costing.organic_dye.cost, 7000, 9000, 3
+    )
+
+    sweep_params['Shipping cost'] = LinearSample(
+        m.fs.shipping_unit_cost, 2.5e-5, 3.5e-5, 3
+    )
+
     return sweep_params
 
 def build_outputs(m, **kwargs):
@@ -63,19 +74,23 @@ def build_outputs(m, **kwargs):
     outputs = dict()
     
     # User-specified output metrics
-    # outputs['LCOLi_mass (USD/mt)'] = m.fs.costing.LCOLi_mass
-    # outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
-    # outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
-    # outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
-    # outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
-    # outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
+    outputs['LCOLi_mass (USD/mt)'] = m.fs.costing.LCOLi_mass
+    outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
+    outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
+    outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
+    outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
+    outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
     outputs['fraction_evaporated'] = m.fs.fraction_evaporated
     
     # Input parameter (for verification that it matches)
-    outputs['resultant target_li_concentration (g/kg)'] = m.fs.target_li_concentration
+    outputs['Resultant land cost'] = m.fs.costing.evaporation_pond.land_cost
+    outputs['Resultant liner cost'] = m.fs.costing.evaporation_pond.nominal_liner_capital_cost_base
+    outputs['Resultant recovered solids cost'] = m.fs.costing.recovered_solids.cost
+    outputs['Resultant dye cost'] = m.fs.costing.organic_dye.cost
+    outputs['Resultant shipping cost'] = m.fs.shipping_unit_cost
 
     # Additional useful outputs
-    # outputs['li_concentration_outflow (kg/m³)'] = m.fs.li_concentration_outflow
+    outputs['li_concentration_outflow (kg/m³)'] = m.fs.li_concentration_outflow
     outputs['total_evaporative_area (m²)'] = m.fs.pond.total_evaporative_area_required
     
     return outputs

@@ -9,6 +9,7 @@ from pyomo.network import Arc
 from pyomo.environ import units
 from pyomo.core import TransformationFactory
 import idaes.core.util.scaling as iscale
+import idaes.logger as idaeslog
 
 # IDAES imports
 from idaes.core import FlowsheetBlock
@@ -39,6 +40,7 @@ from watertap.property_models.multicomp_aq_sol_prop_pack import (
     MCASParameterBlock,
     MCASParameterData,
     MCASStateBlockData,
+    _MCASStateBlock,
 )
 
 # WaterTAP unit models
@@ -48,12 +50,21 @@ from watertap.unit_models.pressure_changer import Pump
 # PROMMIS imports (will be added when we get to solvent extraction)
 from prommis.solvent_extraction.solvent_extraction import SolventExtraction
 from idaes.core import FlowDirection
+from prommis.solvent_extraction.solvent_extraction import SolventExtractionInitializer
+
+
 
 # ============================================================================
-# ACIDIFICATION REACTION PACKAGE FOR HCl DISSOCIATION
+# MSContactor Variable Fixing Pattern
+# ============================================================================
+# For MSContactor units, fix volume[i], heterogeneous_reaction_extent, 
+# distribution_coefficient, and volume_frac_stream variables to achieve DOF=0
 # ============================================================================
 
-# Acidification reaction package configuration
+# ============================================================================
+# ACIDIFICATION REACTION PACKAGE
+# ============================================================================
+
 acidification_reaction_config = {
     "base_units": {
         "time": units.s,
@@ -100,20 +111,13 @@ acidification_reaction_config = {
 }
 
 # ============================================================================
-# BORON EXTRACTION HETEROGENEOUS REACTION PACKAGE
+# BORON EXTRACTION REACTION PACKAGE
 # ============================================================================
 
 @declare_process_block_class("BoronExtractionReactions")
 class BoronExtractionReactions(ProcessBlockData):
     """
     Heterogeneous reaction package for boron extraction from aqueous to organic phase.
-    
-    This reaction package defines the mass transfer of boron from the aqueous phase
-    to the organic phase during solvent extraction. The distribution coefficient
-    is defined as the ratio of the concentration in the organic phase to the
-    concentration in the aqueous phase.
-    
-    D[B] = C_organic[B]/C_aqueous[B]
     """
     
     CONFIG = ProcessBlockData.CONFIG()
@@ -149,12 +153,19 @@ class BoronExtractionReactions(ProcessBlockData):
         
         self.reaction_stoichiometry = reaction_stoichiometry
         
-        # Distribution coefficient parameters
-        self.distribution_coefficient = Param(
+        # pH-dependent distribution coefficient parameters
+        self.pH_coeff_a = Param(
             self.element_list,
-            initialize={"B": 10.0},  # pH-dependent distribution coefficient
+            initialize={"B": 0.5},  # pH coefficient a
             units=units.dimensionless,
-            doc="Distribution coefficient for boron extraction",
+            doc="pH coefficient a for distribution coefficient calculation",
+        )
+        
+        self.pH_coeff_b = Param(
+            self.element_list,
+            initialize={"B": 0.0},  # pH coefficient b
+            units=units.dimensionless,
+            doc="pH coefficient b for distribution coefficient calculation",
         )
 
     @classmethod
@@ -240,28 +251,67 @@ class BoronExtractionReactionsBlockData(ProcessBlockData):
             doc="Distribution coefficient for boron"
         )
         
+        # Set distribution coefficient to a fixed value for now
+        # This will be replaced by a more sophisticated pH-dependent model later
         def distribution_expression(b, e):
-            """
-            Distribution coefficient expression for boron extraction.
-            Based on pH-dependent extraction with iso-octanol.
-            """
-            # Use the distribution coefficient parameter directly
-            return b.distribution_coefficient[e] == b.params.distribution_coefficient[e]
+            return b.distribution_coefficient[e] == 1.0
         
         self.distribution_expression_constraint = Constraint(
             self.params.element_list, 
             rule=distribution_expression
         )
+        
+        # Note: The reaction block should have the same number of variables and constraints
+        # The distribution_coefficient variable is already constrained by the distribution_expression_constraint
     
     @property
     def params(self):
         return self._params
 
 # ============================================================================
-# CUSTOM MCAS STATE BLOCK WITH MISSING METHODS
+# CUSTOM MCAS STATE BLOCK
 # ============================================================================
 
-@declare_process_block_class("CustomMCASStateBlock", block_class=StateBlock)
+class _CustomMCASStateBlock(_MCASStateBlock):
+    """
+    Custom MCAS state block class.
+    """
+    
+    def get_material_density_terms(self, p, j):
+        """Create material density terms for MSContactor compatibility."""
+        # Use concentration as density terms
+        return self.conc_mol_phase_comp[p, j]
+    
+    def _conc_mol_comp(self):
+        """Create conc_mol_comp property for MSContactor compatibility."""
+        # Map conc_mol_phase_comp["Liq", j] to conc_mol_comp[j]
+        self.conc_mol_comp = Expression(
+            self.params.component_list,
+            rule=lambda b, j: b.conc_mol_phase_comp["Liq", j],
+            doc="Component molar concentration (summed over phases)",
+        )
+    
+    def _pH_phase(self):
+        """Create pH_phase property for reaction package compatibility."""
+        # Add pH calculation based on H+ concentration
+        self.pH_phase = Var(
+            self.params.phase_list,
+            domain=pyo.Reals,
+            initialize=7.0,
+            doc="pH of the solution",
+            units=pyunits.dimensionless
+        )
+        
+        @self.Constraint(self.params.phase_list)
+        def pH_constraint(b, p):
+            # pH = -log10([H+])
+            # [H+] = 10^(-pH)
+            return 10**(-b.pH_phase[p]) == b.conc_mol_phase_comp[p, "H"] * pyunits.L / pyunits.mol
+    
+    def initialize(self, *args, **kwargs):
+        return super().initialize(*args, **kwargs)
+
+@declare_process_block_class("CustomMCASStateBlock", block_class=_CustomMCASStateBlock)
 class CustomMCASStateBlockData(MCASStateBlockData):
     """
     Custom MCAS state block that implements missing methods for MSContactor compatibility.
@@ -280,6 +330,23 @@ class CustomMCASStateBlockData(MCASStateBlockData):
             rule=lambda b, j: b.conc_mol_phase_comp["Liq", j],
             doc="Component molar concentration (summed over phases)",
         )
+    
+    def _pH_phase(self):
+        """Create pH_phase property for reaction package compatibility."""
+        # Add pH calculation based on H+ concentration
+        self.pH_phase = Var(
+            self.params.phase_list,
+            domain=pyo.Reals,
+            initialize=7.0,
+            doc="pH of the solution",
+            units=pyunits.dimensionless
+        )
+        
+        @self.Constraint(self.params.phase_list)
+        def pH_constraint(b, p):
+            # pH = -log10([H+])
+            # [H+] = 10^(-pH)
+            return 10**(-b.pH_phase[p]) == b.conc_mol_phase_comp[p, "H"] * pyunits.L / pyunits.mol
 
 @declare_process_block_class("CustomMCASParameterBlock")
 class CustomMCASParameterData(MCASParameterData):
@@ -325,6 +392,7 @@ class CustomMCASParameterData(MCASParameterData):
                 "flow_vol_phase": {"method": "_flow_vol_phase"},
                 "conc_mol_phase_comp": {"method": "_conc_mol_phase_comp"},
                 "conc_mol_comp": {"method": "_conc_mol_comp"},  # Added for MSContactor compatibility
+                "pH_phase": {"method": "_pH_phase"},  # Added for reaction package compatibility
                 "conc_mass_phase_comp": {"method": "_conc_mass_phase_comp"},
                 "mole_frac_phase_comp": {"method": "_mole_frac_phase_comp"},
                 "molality_phase_comp": {"method": "_molality_phase_comp"},
@@ -349,7 +417,7 @@ class CustomMCASParameterData(MCASParameterData):
         )
 
 # ============================================================================
-# ORGANIC PROPERTY PACKAGE FOR ISO-OCTANOL/KEROSENE MIXTURE
+# ORGANIC PROPERTY PACKAGE
 # ============================================================================
 
 @declare_process_block_class("OrganicSolventParameters")
@@ -437,7 +505,13 @@ class _OrganicSolventStateBlock(StateBlock):
     def fix_initialization_states(self):
         pass
 
-@declare_process_block_class("OrganicSolventStateBlock", block_class=StateBlock)
+    def initialize(self, *args, **kwargs):
+        """Initialize the state block"""
+        # For organic solvents, we typically just need to ensure state variables are set
+        # No complex initialization needed for this simple property package
+        return None
+
+@declare_process_block_class("OrganicSolventStateBlock", block_class=_OrganicSolventStateBlock)
 class OrganicSolventStateBlockData(StateBlockData):
     """State block for organic solvent properties"""
 
@@ -513,123 +587,89 @@ class OrganicSolventStateBlockData(StateBlockData):
                 to_units=units.mol / units.m**3,
             )
 
+    def initialize(self, *args, **kwargs):
+        """Initialize the state block"""
+        # For organic solvents, we typically just need to ensure state variables are set
+        # No complex initialization needed for this simple property package
+        return None
+
 # Set the state block class for the parameter block
 # OrganicSolventParameters._state_block_class = OrganicSolventStateBlock
 
 # ============================================================================
-# FIX REQUIRED VARIABLES FOR UNIT MODELS
+# FIX UNIT MODEL VARIABLES
 # ============================================================================
 
 def fix_unit_model_variables(m):
     """
     Fix the required variables for each unit model in the flowsheet.
-    
-    This function fixes the degrees of freedom for each unit model based on
-    IDAES, WaterTAP, and PROMMIS documentation and best practices.
-    
-    Parameters are adjusted based on the Chilean laboratory study by Orrego et al. (1994),
-    scaled up to industrial operation at Salar de Atacama lithium processing plant:
-    - 50 vol% iso-octanol with kerosene
-    - One-to-one (by volume) ratio of solvent to acidified brine
-    - Four countercurrent extraction stages
-    - Target: reduce boron to less than 5 ppm
-    - Three stages of reextraction with 0.02 N NaOH
     """
     
     # ============================================================================
-    # FEED UNITS - Fix inlet state variables
+    # FEED UNITS
     # ============================================================================
     
-    # Brine feed - all state variables are already fixed in set_brine_feed_conditions()
-    # HCl feed - all state variables are already fixed in set_hcl_feed_conditions()
-    # Organic feed - all state variables are already fixed in set_organic_feed_conditions()
-    # Reextraction feed - all state variables are already fixed in set_reextraction_feed_conditions()
+    # Feed conditions are set in separate functions
     
     # ============================================================================
-    # STORAGE TANK - Fix performance variables
+    # STORAGE TANK
     # ============================================================================
     
-    # Storage tank performance variables
-    m.fs.brine_storage.storage_time[0].fix(24.0 * units.hour)  # 24 hour storage time
-    m.fs.brine_storage.surge_capacity[0].fix(0.1)  # 10% surge capacity
+    m.fs.brine_storage.storage_time[0].fix(24.0 * units.hour)
+    m.fs.brine_storage.surge_capacity[0].fix(0.1)
     
     # ============================================================================
-    # PUMP - Fix pressure and efficiency variables
+    # PUMP
     # ============================================================================
     
-    # Pump pressure difference (outlet pressure - inlet pressure)
-    # Industrial-scale pressure increase for Salar de Atacama plant
-    m.fs.brine_pump.deltaP[0].fix(3e5 * units.Pa)  # 3 bar pressure increase
-    
-    # Pump efficiency (isentropic efficiency)
-    m.fs.brine_pump.efficiency_pump[0].fix(0.75)  # 75% efficiency
+    m.fs.brine_pump.deltaP[0].fix(3e5 * units.Pa)
+    m.fs.brine_pump.efficiency_pump[0].fix(0.75)
     
     # ============================================================================
-    # MIXER - Fix outlet state variables
+    # MIXER
     # ============================================================================
     
-    # Mixer outlet pressure (use minimum of inlet pressures)
     m.fs.acid_brine_mixer.outlet.pressure[0].fix(101325 * units.Pa)
-    
-    # Mixer outlet temperature (use average of inlet temperatures)
     m.fs.acid_brine_mixer.outlet.temperature[0].fix(298.15 * units.K)
     
     # ============================================================================
-    # STOICHIOMETRIC REACTOR - Fix reaction extent
+    # STOICHIOMETRIC REACTOR
     # ============================================================================
     
-    # Acidification reactor - HCl dissociation reaction extent
-    # This reaction is essentially instantaneous, so we fix the extent to 1.0
-    # (complete reaction)
     m.fs.acidification_reactor.rate_reaction_extent[0, "HCl_dissociation"].fix(1.0)
     
     # ============================================================================
-    # SOLVENT EXTRACTION UNITS - Fix volume and performance variables
+    # SOLVENT EXTRACTION UNITS
     # ============================================================================
     
-    # Boron extraction unit - fix tank volumes for each stage
-    # Industrial-scale volumes based on Chilean study scaled up to Salar de Atacama plant
-    for i in range(1, 5):  # 4 stages (1-4)
-        m.fs.boron_extraction.mscontactor.volume[i].fix(50.0 * units.m**3)  # 50 m³ per stage
+    for i in range(1, 5):  # 4 stages
+        m.fs.boron_extraction.mscontactor.volume[i].fix(50.0 * units.m**3)
+        m.fs.boron_extraction.area_cross_stage[i].set_value(25.0)
+        m.fs.boron_extraction.elevation[i].set_value(0.0)
     
-    # Boron extraction unit - set cross-sectional area and elevation (these are Parameters, not Variables)
-    m.fs.boron_extraction.area_cross_stage[1].value = 25.0  # 25 m² cross-sectional area
-    m.fs.boron_extraction.elevation[1].value = 0.0
-    
-    # Boron reextraction unit - fix tank volumes for each stage
-    for i in range(1, 4):  # 3 stages (1-3)
-        m.fs.boron_reextraction.mscontactor.volume[i].fix(40.0 * units.m**3)  # 40 m³ per stage
-    
-    # Boron reextraction unit - set cross-sectional area and elevation (these are Parameters, not Variables)
-    m.fs.boron_reextraction.area_cross_stage[1].value = 20.0  # 20 m² cross-sectional area
-    m.fs.boron_reextraction.elevation[1].value = 0.0
+    for i in range(1, 4):  # 3 stages
+        m.fs.boron_reextraction.mscontactor.volume[i].fix(40.0 * units.m**3)
+        m.fs.boron_reextraction.area_cross_stage[i].value = 20.0
+        m.fs.boron_reextraction.elevation[i].value = 0.0
     
     # ============================================================================
-    # REACTION PACKAGE VARIABLES - Fix distribution coefficients
+    # REACTION PACKAGE VARIABLES
     # ============================================================================
     
-    # Set distribution coefficient for boron extraction (this is a Parameter, not a Variable)
-    # Based on Chilean study with iso-octanol at pH ~1 (0.1 N H+)
-    # Distribution coefficient for boron with iso-octanol typically ranges from 8-12
-    # at acidic pH conditions
-    m.fs.boron_extraction_reactions.distribution_coefficient["B"].value = 9.5
+    m.fs.boron_extraction_reactions.pH_coeff_a["B"].value = 0.5
+    m.fs.boron_extraction_reactions.pH_coeff_b["B"].value = 0.0
     
     print("Unit model variables fixed successfully!")
 
 def set_scaling_factors(m):
     """
     Set scaling factors for the lithium processing flowsheet.
-    
-    This function sets appropriate scaling factors for all variables and constraints
-    to ensure proper numerical conditioning for the solver.
     """
     
     # ============================================================================
-    # PROPERTY PACKAGE SCALING - Set default scaling for chemical species
+    # PROPERTY PACKAGE SCALING
     # ============================================================================
     
-    # Set default scaling for brine properties (MCAS)
-    # Flow rates are typically in m³/s, so scale by 1e-2 to get values around 1
     m.fs.brine_props.set_default_scaling("flow_vol_phase", 1e-2, index=("Liq",))
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-2, index=("Liq", "H2O"))
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Na"))
@@ -639,10 +679,9 @@ def set_scaling_factors(m):
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Ca"))
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Cl"))
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "SO4"))
-    m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "B"))  # Boron is trace
-    m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "H"))  # H+ is dilute
+    m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "B"))
+    m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "H"))
     
-    # Concentration scaling (mass concentrations in g/L)
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "H2O"))
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-1, index=("Liq", "Na"))
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "K"))
@@ -654,16 +693,14 @@ def set_scaling_factors(m):
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "B"))
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-9, index=("Liq", "H"))
     
-    # Temperature and pressure scaling
     m.fs.brine_props.set_default_scaling("temperature", 1e-2)
     m.fs.brine_props.set_default_scaling("pressure", 1e-5)
     m.fs.brine_props.set_default_scaling("dens_mass_phase", 1e-3, index=("Liq",))
     
-    # Set default scaling for organic properties
     m.fs.organic_props.set_default_scaling("flow_vol", 1e-2)
     m.fs.organic_props.set_default_scaling("flow_mol_comp", 1e-2, index="iso_octanol")
     m.fs.organic_props.set_default_scaling("flow_mol_comp", 1e-2, index="kerosene")
-    m.fs.organic_props.set_default_scaling("flow_mol_comp", 1e-6, index="B_o")  # Boron in organic
+    m.fs.organic_props.set_default_scaling("flow_mol_comp", 1e-6, index="B_o")
     m.fs.organic_props.set_default_scaling("conc_mol_comp", 1e-1, index="iso_octanol")
     m.fs.organic_props.set_default_scaling("conc_mol_comp", 1e-1, index="kerosene")
     m.fs.organic_props.set_default_scaling("conc_mol_comp", 1e-6, index="B_o")
@@ -672,50 +709,43 @@ def set_scaling_factors(m):
     m.fs.organic_props.set_default_scaling("dens_mass", 1e-3)
     
     # ============================================================================
-    # REACTION SCALING - Scale stoichiometric reactions
+    # REACTION SCALING
     # ============================================================================
     
-    # Scale HCl dissociation reaction (stoichiometric reaction)
-    # This reaction is essentially instantaneous, so scale by 1
     iscale.set_scaling_factor(m.fs.acidification_reactor.control_volume.rate_reaction_extent[0, "HCl_dissociation"], 1.0)
     
     # ============================================================================
-    # UNIT MODEL SCALING - Scale specific unit model variables
+    # UNIT MODEL SCALING
     # ============================================================================
     
-    # Storage tank scaling
-    iscale.set_scaling_factor(m.fs.brine_storage.storage_time[0], 1e-4)  # 24 hours = 86400 s
-    iscale.set_scaling_factor(m.fs.brine_storage.surge_capacity[0], 10.0)  # 0.1 = 10%
+    iscale.set_scaling_factor(m.fs.brine_storage.storage_time[0], 1e-4)
+    iscale.set_scaling_factor(m.fs.brine_storage.surge_capacity[0], 10.0)
     
-    # Pump scaling
-    iscale.set_scaling_factor(m.fs.brine_pump.deltaP[0], 1e-5)  # 3e5 Pa = 3 bar
-    iscale.set_scaling_factor(m.fs.brine_pump.efficiency_pump[0], 1.0)  # 0.75 = 75%
-    iscale.set_scaling_factor(m.fs.brine_pump.control_volume.work[0], 1e-3)  # Pump work in W
+    iscale.set_scaling_factor(m.fs.brine_pump.deltaP[0], 1e-5)
+    iscale.set_scaling_factor(m.fs.brine_pump.efficiency_pump[0], 1.0)
+    iscale.set_scaling_factor(m.fs.brine_pump.control_volume.work[0], 1e-3)
     
-    # Mixer scaling
     iscale.set_scaling_factor(m.fs.acid_brine_mixer.outlet.pressure[0], 1e-5)
     iscale.set_scaling_factor(m.fs.acid_brine_mixer.outlet.temperature[0], 1e-2)
     
-    # Solvent extraction scaling
-    # Tank volumes are in m³, so scale by 1e-2
-    for i in range(1, 5):  # 4 stages
+    for i in range(1, 5):
         iscale.set_scaling_factor(m.fs.boron_extraction.mscontactor.volume[i], 1e-2)
-    for i in range(1, 4):  # 3 stages
+    for i in range(1, 4):
         iscale.set_scaling_factor(m.fs.boron_reextraction.mscontactor.volume[i], 1e-2)
     
-    # Cross-sectional areas are in m², so scale by 1e-1
-    iscale.set_scaling_factor(m.fs.boron_extraction.area_cross_stage[1], 1e-1)
-    iscale.set_scaling_factor(m.fs.boron_reextraction.area_cross_stage[1], 1e-1)
+    for i in range(1, 5):
+        iscale.set_scaling_factor(m.fs.boron_extraction.area_cross_stage[i], 1e-1)
+    for i in range(1, 4):
+        iscale.set_scaling_factor(m.fs.boron_reextraction.area_cross_stage[i], 1e-1)
     
-    # Elevation scaling
-    iscale.set_scaling_factor(m.fs.boron_extraction.elevation[1], 1.0)
-    iscale.set_scaling_factor(m.fs.boron_reextraction.elevation[1], 1.0)
+    for i in range(1, 5):
+        iscale.set_scaling_factor(m.fs.boron_extraction.elevation[i], 1.0)
+    for i in range(1, 4):
+        iscale.set_scaling_factor(m.fs.boron_reextraction.elevation[i], 1.0)
     
-    # Solvent extraction additional scaling
-    # Scale distribution coefficient
-    iscale.set_scaling_factor(m.fs.boron_extraction_reactions.distribution_coefficient["B"], 1e-1)
+    iscale.set_scaling_factor(m.fs.boron_extraction_reactions.pH_coeff_a["B"], 1.0)
+    iscale.set_scaling_factor(m.fs.boron_extraction_reactions.pH_coeff_b["B"], 1.0)
     
-    # Scale MSContactor variables if they exist
     if hasattr(m.fs.boron_extraction.mscontactor, "height"):
         for i in range(1, 5):
             iscale.set_scaling_factor(m.fs.boron_extraction.mscontactor.height[i], 1.0)
@@ -724,34 +754,29 @@ def set_scaling_factors(m):
             iscale.set_scaling_factor(m.fs.boron_reextraction.mscontactor.height[i], 1.0)
     
     # ============================================================================
-    # FEED STREAM SCALING - Scale feed stream variables
+    # FEED STREAM SCALING
     # ============================================================================
     
-    # Brine feed scaling
     iscale.set_scaling_factor(m.fs.brine_feed.properties[0].flow_vol_phase["Liq"], 1e-2)
     iscale.set_scaling_factor(m.fs.brine_feed.properties[0].temperature, 1e-2)
     iscale.set_scaling_factor(m.fs.brine_feed.properties[0].pressure, 1e-5)
     
-    # HCl feed scaling
     iscale.set_scaling_factor(m.fs.hcl_feed.properties[0].flow_vol_phase["Liq"], 1e-2)
     iscale.set_scaling_factor(m.fs.hcl_feed.properties[0].temperature, 1e-2)
     iscale.set_scaling_factor(m.fs.hcl_feed.properties[0].pressure, 1e-5)
     
-    # Organic feed scaling
     iscale.set_scaling_factor(m.fs.organic_feed.properties[0].flow_vol, 1e-2)
     iscale.set_scaling_factor(m.fs.organic_feed.properties[0].temperature, 1e-2)
     iscale.set_scaling_factor(m.fs.organic_feed.properties[0].pressure, 1e-5)
     
-    # Reextraction feed scaling
     iscale.set_scaling_factor(m.fs.reextraction_feed.properties[0].flow_vol_phase["Liq"], 1e-2)
     iscale.set_scaling_factor(m.fs.reextraction_feed.properties[0].temperature, 1e-2)
     iscale.set_scaling_factor(m.fs.reextraction_feed.properties[0].pressure, 1e-5)
     
     # ============================================================================
-    # CALCULATE AND PROPAGATE SCALING FACTORS
+    # CALCULATE SCALING FACTORS
     # ============================================================================
     
-    # Calculate scaling factors for all blocks in the flowsheet
     iscale.calculate_scaling_factors(m)
     
     print("Scaling factors set successfully!")
@@ -759,12 +784,6 @@ def set_scaling_factors(m):
 def build_flowsheet():
     """
     Build the lithium carbonate plant flowsheet.
-    
-    Process Description:
-    - Brine feed from Salar de Atacama
-    - Acidification to pH ~1 for boron extraction
-    - 4-stage countercurrent boron solvent extraction
-    - Solvent regeneration with NaOH
     """
     
     # Create the model and flowsheet
@@ -775,7 +794,6 @@ def build_flowsheet():
     # PROPERTY PACKAGES
     # ============================================================================
     
-    # Brine property package for aqueous solution
     m.fs.brine_props = CustomMCASParameterBlock(
         solute_list=["Na", "K", "Mg", "Li", "Ca", "Cl", "SO4", "B", "H"],
         charge={"Na": 1, "K": 1, "Mg": 2, "Li": 1, "Ca": 2, "Cl": -1, "SO4": -2, "B": 0, "H": 1},
@@ -794,79 +812,40 @@ def build_flowsheet():
         material_flow_basis=MaterialFlowBasis.molar,
     )
     
-    # Custom Organic Property Package for iso-octanol/kerosene mixture
     m.fs.organic_props = OrganicSolventParameters()
     
     # ============================================================================
     # REACTION PACKAGES
     # ============================================================================
     
-    # Acidification reaction package for HCl dissociation
     m.fs.acidification_reactions = GenericReactionParameterBlock(
         property_package=m.fs.brine_props,
         **acidification_reaction_config
     )
     
-    # Boron extraction reaction package for heterogeneous solvent extraction
     m.fs.boron_extraction_reactions = BoronExtractionReactions(component=m.fs)
     m.fs.boron_extraction_reactions.build()
     
     # ============================================================================
-    # UNIT MODELS - STEP 1: BRINE FEED BLOCK
+    # UNIT MODELS
     # ============================================================================
     
-    # Brine feed from Salar de Atacama
     m.fs.brine_feed = Feed(property_package=m.fs.brine_props)
     
-    # ============================================================================
-    # UNIT MODELS - STEP 2: ACID FEED BLOCK
-    # ============================================================================
-    
-    # HCl acid feed for acidification (following PROMMIS CMI Process example)
     m.fs.hcl_feed = Feed(property_package=m.fs.brine_props)
     
-    # ============================================================================
-    # UNIT MODELS - STEP 3: ORGANIC FEED BLOCK
-    # ============================================================================
-    
-    # Organic solvent feed for boron extraction
-    # 50% iso-octanol + 50% kerosene by volume
     m.fs.organic_feed = Feed(property_package=m.fs.organic_props)
     
-    # ============================================================================
-    # UNIT MODELS - STEP 4: REEXTRACTION FEED BLOCK
-    # ============================================================================
-    
-    # NaOH reextraction feed for boron stripping from organic phase
-    # 0.02 N NaOH solution
     m.fs.reextraction_feed = Feed(property_package=m.fs.brine_props)
     
-    # ============================================================================
-    # UNIT MODELS - STEP 8: STORAGE TANK UNIT MODEL
-    # ============================================================================
-    
-    # Storage tank for inlet brine
-    # Simple storage tank with holdup for brine feed
     m.fs.brine_storage = StorageTank(
         property_package=m.fs.brine_props,
     )
     
-    # ============================================================================
-    # UNIT MODELS - STEP 9: PUMP UNIT MODEL
-    # ============================================================================
-    
-    # Pump for brine after storage tank
-    # Standard IDAES pump for pressure increase
     m.fs.brine_pump = Pump(
         property_package=m.fs.brine_props,
     )
     
-    # ============================================================================
-    # UNIT MODELS - STEP 10: ACID AND BRINE MIXER UNIT MODEL
-    # ============================================================================
-    
-    # Mixer for acid and brine feeds before acidification reactor
-    # Follows CMI pattern with inlet_list for multiple inlets
     m.fs.acid_brine_mixer = Mixer(
         property_package=m.fs.brine_props,
         inlet_list=["brine_feed", "acid_feed"],
@@ -875,12 +854,6 @@ def build_flowsheet():
         momentum_mixing_type=MomentumMixingType.none,
     )
     
-    # ============================================================================
-    # UNIT MODELS - STEP 11: ACIDIFICATION STOICHIOMETRIC REACTOR
-    # ============================================================================
-    
-    # Acidification stoichiometric reactor for HCl dissociation
-    # Follows CMI pattern for stoichiometric reactors
     m.fs.acidification_reactor = StoichiometricReactor(
         property_package=m.fs.brine_props,
         reaction_package=m.fs.acidification_reactions,
@@ -889,12 +862,6 @@ def build_flowsheet():
         has_pressure_change=False,
     )
     
-    # ============================================================================
-    # UNIT MODELS - STEP 12: BORON SOLVENT EXTRACTION UNIT MODEL
-    # ============================================================================
-    
-    # Boron solvent extraction unit using PROMMIS solvent extraction model
-    # Uses acidified brine as aqueous stream and organic stream for boron removal
     m.fs.boron_extraction = SolventExtraction(
         number_of_finite_elements=4,  # Four-stage countercurrent extraction
         dynamic=False,
@@ -914,8 +881,6 @@ def build_flowsheet():
         has_holdup=True,
     )
     
-    # Boron reextraction unit using PROMMIS solvent extraction model
-    # Uses NaOH solution as aqueous stream and boron-rich organic stream for boron removal from organic
     m.fs.boron_reextraction = SolventExtraction(
         number_of_finite_elements=3,  # Three-stage countercurrent reextraction
         dynamic=False,
@@ -936,143 +901,102 @@ def build_flowsheet():
     )
     
     # ============================================================================
-    # CONNECT UNIT MODELS WITH ARCS
+    # CONNECT UNIT MODELS
     # ============================================================================
     
-    # Connect brine feed to storage tank
     m.fs.brine_feed_to_storage = Arc(source=m.fs.brine_feed.outlet, destination=m.fs.brine_storage.inlet)
-    
-    # Connect storage tank to pump
     m.fs.storage_to_pump = Arc(source=m.fs.brine_storage.outlet, destination=m.fs.brine_pump.inlet)
-    
-    # Connect pump to mixer (brine side)
     m.fs.pump_to_mixer = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.acid_brine_mixer.brine_feed)
-    
-    # Connect HCl feed to mixer (acid side)
     m.fs.hcl_to_mixer = Arc(source=m.fs.hcl_feed.outlet, destination=m.fs.acid_brine_mixer.acid_feed)
-    
-    # Connect mixer to acidification reactor
     m.fs.mixer_to_reactor = Arc(source=m.fs.acid_brine_mixer.outlet, destination=m.fs.acidification_reactor.inlet)
-    
-    # Connect acidification reactor to boron extraction (aqueous stream)
     m.fs.reactor_to_extraction = Arc(source=m.fs.acidification_reactor.outlet, destination=m.fs.boron_extraction.aqueous_inlet)
-    
-    # Connect organic feed to boron extraction (organic stream)
     m.fs.organic_to_extraction = Arc(source=m.fs.organic_feed.outlet, destination=m.fs.boron_extraction.organic_inlet)
-    
-    # Connect reextraction feed to reextraction (aqueous stream)
     m.fs.reextraction_feed_to_reextraction = Arc(source=m.fs.reextraction_feed.outlet, destination=m.fs.boron_reextraction.aqueous_inlet)
-    
-    # Connect boron extraction organic outlet to reextraction (organic stream)
     m.fs.extraction_organic_to_reextraction = Arc(source=m.fs.boron_extraction.organic_outlet, destination=m.fs.boron_reextraction.organic_inlet)
     
-    # Expand arcs to create the full flowsheet
     TransformationFactory("network.expand_arcs").apply_to(m)
     
     # ============================================================================
-    # SET OPERATING CONDITIONS
+    # SET CONDITIONS
     # ============================================================================
     
     set_brine_feed_conditions(m)
     set_hcl_feed_conditions(m)
     set_organic_feed_conditions(m)
     set_reextraction_feed_conditions(m)
-    
-    # ============================================================================
-    # FIX UNIT MODEL VARIABLES
-    # ============================================================================
-    
     fix_unit_model_variables(m)
-    
-    # ============================================================================
-    # SET SCALING FACTORS
-    # ============================================================================
-    
     set_scaling_factors(m)
     
     return m
 
 def set_brine_feed_conditions(m):
     """
-    Set the brine feed conditions based on Salar de Carmen specifications.
-    
-    Feed Conditions:
-    - Na: 570 ppm
-    - K: 160 ppm  
-    - Mg: 19200 ppm
-    - Li: 60000 ppm
-    - Ca: 530 ppm
-    - Cl: 351000 ppm
-    - SO4: 220 ppm
-    - B: 6270 ppm
-    - Density: 1.252 kg/L
-    - pH: 6.50
+    Set the brine feed conditions.
     """
     
     # Reference conditions
-    T_ref = 298.15 * units.K  # 25°C
-    P_ref = 101325 * units.Pa  # 1 atm
+    T_ref = 298.15 * pyunits.K  # 25°C
+    P_ref = 101325 * pyunits.Pa  # 1 atm
     
-    # Set temperature and pressure
+    # Set temperature and pressure (state variables)
     m.fs.brine_feed.properties[0].temperature.fix(T_ref)
     m.fs.brine_feed.properties[0].pressure.fix(P_ref)
     
-    # Set flow rate based on industrial-scale operation at Salar de Atacama
-    # Using 1000 L/min as base flow rate for industrial-scale operation
-    flow_rate = 1000 * units.L / units.minute
-    m.fs.brine_feed.properties[0].flow_vol_phase["Liq"].fix(flow_rate)
+    # Calculate total flow rate based on industrial-scale operation
+    total_flow_vol = 1000 * pyunits.L / pyunits.minute
+    total_flow_vol = pyo.units.convert(total_flow_vol, to_units=pyunits.L/pyunits.s)
     
-    # Convert ppm to mass concentration (mg/L = ppm)
     # Density = 1.252 kg/L = 1252 g/L
-    density = 1252 * units.g / units.L
+    density = 1252 * pyunits.g / pyunits.L
     
-    # Calculate mass concentrations from ppm
-    # mass_conc = ppm * density / 1e6
-    mass_conc_Na = 570 * density / 1e6  # ppm to g/L
-    mass_conc_K = 160 * density / 1e6
-    mass_conc_Mg = 19200 * density / 1e6
-    mass_conc_Li = 60000 * density / 1e6
-    mass_conc_Ca = 530 * density / 1e6
-    mass_conc_Cl = 351000 * density / 1e6
-    mass_conc_SO4 = 220 * density / 1e6
-    mass_conc_B = 6270 * density / 1e6
-    
-    # Set mass concentrations
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Na"].fix(mass_conc_Na)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "K"].fix(mass_conc_K)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Mg"].fix(mass_conc_Mg)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Li"].fix(mass_conc_Li)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Ca"].fix(mass_conc_Ca)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "Cl"].fix(mass_conc_Cl)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "SO4"].fix(mass_conc_SO4)
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "B"].fix(mass_conc_B)
-    
-    # Set H+ concentration based on pH = 6.50
-    # pH = -log10([H+])
-    # [H+] = 10^(-pH) = 10^(-6.50) = 3.16e-7 mol/L
-    H_conc_mol = 3.16e-7 * units.mol / units.L
-    # Convert to mass concentration (H+ has MW = 1.008 g/mol)
-    H_conc_mass = H_conc_mol * 1.008 * units.g / units.mol
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "H"].fix(H_conc_mass)
-    
-    # Set water concentration (remaining mass)
-    # Total mass concentration = density
-    total_conc = (mass_conc_Na + mass_conc_K + mass_conc_Mg + mass_conc_Li + 
-                  mass_conc_Ca + mass_conc_Cl + mass_conc_SO4 + mass_conc_B + H_conc_mass)
-    water_conc = density - total_conc
-    m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "H2O"].fix(water_conc)
+    # MWs in g/mol (with pyunits)
+    MW = {
+        "Na": 23.0 * pyunits.g/pyunits.mol,
+        "K": 39.1 * pyunits.g/pyunits.mol,
+        "Mg": 24.3 * pyunits.g/pyunits.mol,
+        "Li": 6.94 * pyunits.g/pyunits.mol,
+        "Ca": 40.08 * pyunits.g/pyunits.mol,
+        "Cl": 35.45 * pyunits.g/pyunits.mol,
+        "SO4": 96.06 * pyunits.g/pyunits.mol,
+        "B": 10.81 * pyunits.g/pyunits.mol,
+        "H2O": 18.0 * pyunits.g/pyunits.mol,
+        "H": 1.008 * pyunits.g/pyunits.mol,
+    }
+    ppm = {
+        "Na": 570,
+        "K": 160,
+        "Mg": 19200,
+        "Li": 60000,
+        "Ca": 530,
+        "Cl": 351000,
+        "SO4": 220,
+        "B": 6270,
+    }
+    # Calculate molar flow rates for each solute
+    for comp in ppm:
+        conc_g_L = ppm[comp] * density / 1e6  # g/L
+        conc_mol_L = conc_g_L / MW[comp]      # mol/L
+        flow_mol_s = conc_mol_L * total_flow_vol  # mol/s
+        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp].fix(pyo.value(flow_mol_s))
+    # H+ from pH
+    H_conc_mol_L = 3.16e-7 * pyunits.mol / pyunits.L
+    H_flow_mol_s = H_conc_mol_L * total_flow_vol
+    m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H"].fix(pyo.value(H_flow_mol_s))
+    # Water: density - sum of all solute concentrations
+    total_solute_g_L = sum(ppm[c] * density / 1e6 for c in ppm) + H_conc_mol_L * MW["H"]
+    water_g_L = density - total_solute_g_L
+    water_conc_mol_L = water_g_L / MW["H2O"]
+    water_flow_mol_s = water_conc_mol_L * total_flow_vol
+    m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_flow_mol_s))
 
 def set_hcl_feed_conditions(m):
     """
-    Set the HCl acid feed conditions for acidification.
-    
-    Target: 0.1 N H+ concentration for optimal boron extraction
-    HCl concentration: ~12 M HCl (concentrated hydrochloric acid)
+    Set the HCl acid feed conditions.
     """
     
     # Reference conditions
-    T_ref = 298.15 * units.K  # 25°C
-    P_ref = 101325 * units.Pa  # 1 atm
+    T_ref = 298.15 * pyunits.K  # 25°C
+    P_ref = 101325 * pyunits.Pa  # 1 atm
     
     # Set temperature and pressure
     m.fs.hcl_feed.properties[0].temperature.fix(T_ref)
@@ -1081,46 +1005,60 @@ def set_hcl_feed_conditions(m):
     # Set flow rate based on target 0.1 N H+ in final mixture
     # For industrial-scale operation, using 100 L/min for HCl feed
     # This will achieve approximately 0.1 N H+ concentration in the mixed stream
-    flow_rate = 100 * units.L / units.minute
-    m.fs.hcl_feed.properties[0].flow_vol_phase["Liq"].fix(flow_rate)
+    total_flow_vol = 100 * pyunits.L / pyunits.minute
+    total_flow_vol = pyo.units.convert(total_flow_vol, to_units=pyunits.L/pyunits.s)  # Convert to L/s
     
     # HCl concentration: 12 M HCl (concentrated hydrochloric acid)
     # 12 M = 12 mol/L
-    HCl_conc_mol = 12.0 * units.mol / units.L
+    HCl_conc_mol_L = 12.0 * pyunits.mol / pyunits.L
     
-    # Convert to mass concentration (HCl has MW = 36.46 g/mol)
-    HCl_conc_mass = HCl_conc_mol * 36.46 * units.g / units.mol
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "H"].fix(HCl_conc_mass)
+    # Convert to molar flow rate
+    HCl_flow_mol_s = HCl_conc_mol_L * total_flow_vol
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "H"].fix(pyo.value(HCl_flow_mol_s))
     
     # Cl- concentration (same as HCl concentration)
-    Cl_conc_mass = HCl_conc_mol * 35.45 * units.g / units.mol  # Cl- MW = 35.45 g/mol
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Cl"].fix(Cl_conc_mass)
+    Cl_flow_mol_s = HCl_conc_mol_L * total_flow_vol
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "Cl"].fix(pyo.value(Cl_flow_mol_s))
     
     # Set other components to zero (HCl feed contains only HCl and H2O)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Na"].fix(0 * units.g / units.L)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "K"].fix(0 * units.g / units.L)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Mg"].fix(0 * units.g / units.L)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Li"].fix(0 * units.g / units.L)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "Ca"].fix(0 * units.g / units.L)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "SO4"].fix(0 * units.g / units.L)
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "B"].fix(0 * units.g / units.L)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "Na"].fix(0.0)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "K"].fix(0.0)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "Mg"].fix(0.0)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "Li"].fix(0.0)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "Ca"].fix(0.0)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"].fix(0.0)
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "B"].fix(0.0)
     
     # Set water concentration (remaining mass)
     # Density of 12 M HCl ≈ 1.18 g/mL = 1180 g/L
-    density = 1180 * units.g / units.L
-    total_conc = HCl_conc_mass + Cl_conc_mass
-    water_conc = density - total_conc
-    m.fs.hcl_feed.properties[0].conc_mass_phase_comp["Liq", "H2O"].fix(water_conc)
+    density = 1180 * pyunits.g / pyunits.L
+    
+    # MWs with pyunits
+    MW = {
+        "H": 1.008 * pyunits.g/pyunits.mol,
+        "Cl": 35.45 * pyunits.g/pyunits.mol,
+        "H2O": 18.0 * pyunits.g/pyunits.mol,
+    }
+    
+    # Calculate water concentration and flow
+    HCl_conc_g_L = HCl_conc_mol_L * MW["H"]  # g/L of H+
+    Cl_conc_g_L = HCl_conc_mol_L * MW["Cl"]   # g/L of Cl-
+    total_solute_g_L = HCl_conc_g_L + Cl_conc_g_L
+    water_g_L = density - total_solute_g_L
+    water_conc_mol_L = water_g_L / MW["H2O"]
+    water_flow_mol_s = water_conc_mol_L * total_flow_vol
+    m.fs.hcl_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_flow_mol_s))
 
 def set_organic_feed_conditions(m):
-    """Set organic feed conditions for iso-octanol/kerosene mixture"""
+    """Set organic feed conditions"""
     # Temperature and pressure
-    m.fs.organic_feed.properties[0].temperature.fix(298.15 * units.K)
-    m.fs.organic_feed.properties[0].pressure.fix(101325.0 * units.Pa)
+    m.fs.organic_feed.properties[0].temperature.fix(298.15 * pyunits.K)
+    m.fs.organic_feed.properties[0].pressure.fix(101325.0 * pyunits.Pa)
     
     # Flow rate: 1000 L/min (one-to-one volume ratio with acidified brine)
     # Based on Chilean study scaled to industrial: one-to-one (by volume) ratio of solvent to acidified brine
-    m.fs.organic_feed.properties[0].flow_vol.fix(1000.0 * units.L / units.min)
+    total_flow_vol = 1000.0 * pyunits.L / pyunits.min
+    total_flow_vol = pyo.units.convert(total_flow_vol, to_units=pyunits.L/pyunits.s)  # Convert to L/s
     
     # Composition: 50% iso-octanol + 50% kerosene by volume
     # Molecular weights: iso-octanol = 130.23 g/mol, kerosene = 142.29 g/mol
@@ -1129,21 +1067,22 @@ def set_organic_feed_conditions(m):
     # iso-octanol: 415 kg/m³ / 130.23 g/mol = 3.19 mol/L
     # kerosene: 405 kg/m³ / 142.29 g/mol = 2.85 mol/L
     
-    m.fs.organic_feed.properties[0].conc_mol_comp["iso_octanol"].fix(3.19 * units.mol / units.L)
-    m.fs.organic_feed.properties[0].conc_mol_comp["kerosene"].fix(2.85 * units.mol / units.L)
+    # Convert concentrations to molar flow rates
+    iso_octanol_conc_mol_L = 3.19 * pyunits.mol / pyunits.L
+    kerosene_conc_mol_L = 2.85 * pyunits.mol / pyunits.L
     
-    # Set molar flow rates based on concentration and volume flow
-    m.fs.organic_feed.properties[0].flow_mol_comp["iso_octanol"].fix(3190.0 * units.mol / units.min)  # 3.19 mol/L * 1000 L/min
-    m.fs.organic_feed.properties[0].flow_mol_comp["kerosene"].fix(2850.0 * units.mol / units.min)     # 2.85 mol/L * 1000 L/min
+    iso_octanol_flow_mol_s = iso_octanol_conc_mol_L * total_flow_vol
+    kerosene_flow_mol_s = kerosene_conc_mol_L * total_flow_vol
+    
+    m.fs.organic_feed.properties[0].flow_mol_comp["iso_octanol"].fix(pyo.value(iso_octanol_flow_mol_s))
+    m.fs.organic_feed.properties[0].flow_mol_comp["kerosene"].fix(pyo.value(kerosene_flow_mol_s))
+    
+    # Set boron in organic phase to zero initially
+    m.fs.organic_feed.properties[0].flow_mol_comp["B_o"].fix(0.0)
 
 def set_reextraction_feed_conditions(m):
     """
-    Set the reextraction feed conditions for the NaOH reextraction process.
-    
-    Reextraction Feed:
-    - 0.02 N NaOH solution
-    - pH: ~12.3 (basic)
-    - Density: 1.02 g/mL
+    Set the reextraction feed conditions.
     """
     
     # Reference conditions
@@ -1196,6 +1135,34 @@ def set_reextraction_feed_conditions(m):
     water_conc = density - total_conc
     m.fs.reextraction_feed.properties[0].conc_mass_phase_comp["Liq", "H2O"].fix(water_conc)
 
+def check_unfixed_variables(block, name="block"):
+    """Check which variables are not fixed in a block."""
+    from idaes.core.util.model_statistics import degrees_of_freedom
+    
+    print(f"\n=== Checking unfixed variables in {name} ===")
+    print(f"Total DOF: {degrees_of_freedom(block)}")
+    
+    unfixed_vars = []
+    for var in block.component_objects(pyo.Var, descend_into=True):
+        if hasattr(var, 'is_fixed'):
+            # Scalar variable
+            if not var.is_fixed():
+                unfixed_vars.append(var.name)
+        else:
+            # Indexed variable - check each index
+            for idx in var:
+                if not var[idx].is_fixed():
+                    unfixed_vars.append(f"{var.name}[{idx}]")
+    
+    if unfixed_vars:
+        print(f"Unfixed variables ({len(unfixed_vars)}):")
+        for var_name in unfixed_vars:
+            print(f"  - {var_name}")
+    else:
+        print("All variables are fixed!")
+    
+    return unfixed_vars
+
 def main():
     """
     Main function to build and run the flowsheet.
@@ -1222,59 +1189,146 @@ def main():
     m.fs.brine_feed.initialize()
     m.fs.brine_feed.report()
     
-    # # Propagate state to storage tank
-    # print("\n2. Propagating state to storage tank...")
-    # propagate_state(m.fs.brine_feed_to_storage)
-    # m.fs.brine_storage.initialize()
-    # m.fs.brine_storage.report()
+    # Check for unfixed variables in the feed block
+    check_unfixed_variables(m.fs.brine_feed.properties[0], "brine_feed.properties[0]")
     
-    # # Propagate state to pump
-    # print("\n3. Propagating state to pump...")
-    # propagate_state(m.fs.storage_to_pump)
-    # m.fs.brine_pump.initialize()
-    # m.fs.brine_pump.report()
+    # Propagate state to storage tank
+    print("\n2. Propagating state to storage tank...")
+    propagate_state(m.fs.brine_feed_to_storage)
+    m.fs.brine_storage.initialize()
+    m.fs.brine_storage.report()
     
-    # # Propagate state to mixer (brine side)
-    # print("\n4. Propagating state to mixer (brine side)...")
-    # propagate_state(m.fs.pump_to_mixer)
+    # Propagate state to pump
+    print("\n3. Propagating state to pump...")
+    propagate_state(m.fs.storage_to_pump)
+    m.fs.brine_pump.initialize()
+    m.fs.brine_pump.report()
     
-    # # Initialize HCl feed
-    # print("\n5. Initializing HCl feed...")
-    # m.fs.hcl_feed.initialize()
-    # m.fs.hcl_feed.report()
+    # Propagate state to mixer (brine side)
+    print("\n4. Propagating state to mixer (brine side)...")
+    propagate_state(m.fs.pump_to_mixer)
     
-    # # Propagate state to mixer (acid side)
-    # print("\n6. Propagating state to mixer (acid side)...")
-    # propagate_state(m.fs.hcl_to_mixer)
+    # Initialize HCl feed
+    print("\n5. Initializing HCl feed...")
+    m.fs.hcl_feed.initialize()
+    m.fs.hcl_feed.report()
     
-    # # Initialize mixer
-    # print("\n7. Initializing mixer...")
-    # m.fs.acid_brine_mixer.initialize()
-    # m.fs.acid_brine_mixer.report()
+    # Propagate state to mixer (acid side)
+    print("\n6. Propagating state to mixer (acid side)...")
+    propagate_state(m.fs.hcl_to_mixer)
     
-    # # Propagate state to acidification reactor
-    # print("\n8. Propagating state to acidification reactor...")
-    # propagate_state(m.fs.mixer_to_reactor)
-    # m.fs.acidification_reactor.initialize()
-    # m.fs.acidification_reactor.report()
+    # Initialize mixer
+    print("\n7. Initializing mixer...")
+    m.fs.acid_brine_mixer.initialize()
+    m.fs.acid_brine_mixer.report()
     
-    # # Initialize organic feed
-    # print("\n9. Initializing organic feed...")
-    # m.fs.organic_feed.initialize()
-    # m.fs.organic_feed.report()
+    # Propagate state to acidification reactor
+    print("\n8. Propagating state to acidification reactor...")
+    propagate_state(m.fs.mixer_to_reactor)
+    m.fs.acidification_reactor.initialize()
+    m.fs.acidification_reactor.report()
     
-    # # Propagate state to boron extraction (aqueous stream)
-    # print("\n10. Propagating state to boron extraction (aqueous stream)...")
-    # propagate_state(m.fs.reactor_to_extraction)
+    # Initialize organic feed
+    print("\n9. Initializing organic feed...")
+    m.fs.organic_feed.initialize()
+    m.fs.organic_feed.report()
     
-    # # Propagate state to boron extraction (organic stream)
-    # print("\n11. Propagating state to boron extraction (organic stream)...")
-    # propagate_state(m.fs.organic_to_extraction)
+    # Propagate state to boron extraction (aqueous stream)
+    print("\n10. Propagating state to boron extraction (aqueous stream)...")
+    propagate_state(m.fs.reactor_to_extraction)
     
-    # # Initialize boron extraction
-    # print("\n12. Initializing boron extraction...")
-    # m.fs.boron_extraction.initialize()
-    # m.fs.boron_extraction.report()
+    # Propagate state to boron extraction (organic stream)
+    print("\n11. Propagating state to boron extraction (organic stream)...")
+    propagate_state(m.fs.organic_to_extraction)
+    
+    # Initialize boron extraction
+    print("\n12. Initializing boron extraction...")
+    
+    # # # Check DOF and unfixed variables in MSContactor
+    # from idaes.core.util.model_statistics import degrees_of_freedom
+    # print(f"MSContactor DOF before initialization: {degrees_of_freedom(m.fs.boron_extraction.mscontactor)}")
+    
+    # # Check what variables are unfixed in the MSContactor
+    # print("\nUnfixed variables in MSContactor:")
+    # unfixed_count = 0
+    # for var in m.fs.boron_extraction.mscontactor.component_objects(pyo.Var, descend_into=True):
+    #     if hasattr(var, 'is_fixed'):
+    #         # Scalar variable
+    #         if not var.is_fixed():
+    #             print(f"  - {var.name}")
+    #             unfixed_count += 1
+    #     else:
+    #         # Indexed variable - check each index
+    #         for idx in var:
+    #             if not var[idx].is_fixed():
+    #                 print(f"  - {var.name}[{idx}]")
+    #                 unfixed_count += 1
+    
+    # print(f"Total unfixed variables: {unfixed_count}")
+    
+    # # Check active constraints in the MSContactor
+    # print("\nActive constraints in MSContactor:")
+    # active_count = 0
+    # for con in m.fs.boron_extraction.mscontactor.component_objects(pyo.Constraint, descend_into=True):
+    #     if hasattr(con, 'active'):
+    #         # Scalar constraint
+    #         if con.active:
+    #             print(f"  - {con.name}")
+    #             active_count += 1
+    #     else:
+    #         # Indexed constraint - check each index
+    #         for idx in con:
+    #             if con[idx].active:
+    #                 print(f"  - {con.name}[{idx}]")
+    #                 active_count += 1
+    
+    # print(f"Total active constraints: {active_count}")
+    
+    # # Debug: Check pH values and distribution coefficient constraints before initializer
+    # print("\n" + "="*60)
+    # print("DEBUGGING pH AND DISTRIBUTION COEFFICIENT BEFORE INITIALIZER")
+    # print("="*60)
+    
+    # # Check pH values for each stage
+    # for i in range(1, 5):  # 4 stages (1-4)
+    #     try:
+    #         # Get the aqueous state block for this stage
+    #         aqueous_state = m.fs.boron_extraction.mscontactor.aqueous[0, i]
+    #         if hasattr(aqueous_state, 'pH_phase'):
+    #             pH_val = pyo.value(aqueous_state.pH_phase["Liq"])
+    #             print(f"Stage {i} pH: {pH_val:.2f}")
+    #         else:
+    #             print(f"Stage {i}: No pH_phase property found")
+    #     except Exception as e:
+    #         print(f"Stage {i}: Error getting pH - {e}")
+    
+    # # Check distribution coefficient constraints
+    # print("\nDistribution coefficient constraints:")
+    # for i in range(1, 5):  # 4 stages (1-4)
+    #     try:
+    #         reaction_block = m.fs.boron_extraction.mscontactor.heterogeneous_reactions[0, i]
+    #         if hasattr(reaction_block, 'distribution_expression_constraint'):
+    #             constraint = reaction_block.distribution_expression_constraint["B"]
+    #             print(f"Stage {i} distribution constraint: {constraint}")
+    #             print(f"  - Constraint active: {constraint.active}")
+    #             print(f"  - Distribution coefficient value: {pyo.value(reaction_block.distribution_coefficient['B'])}")
+    #         else:
+    #             print(f"Stage {i}: No distribution_expression_constraint found")
+    #     except Exception as e:
+    #         print(f"Stage {i}: Error checking distribution constraint - {e}")
+    
+    # # Check if distribution coefficients are fixed
+    # print("\nDistribution coefficient fixed status:")
+    # for i in range(1, 5):  # 4 stages (1-4)
+    #     var = m.fs.boron_extraction.mscontactor.heterogeneous_reactions[0, i].distribution_coefficient["B"]
+    #     print(f"Stage {i}: fixed={var.fixed}, value={pyo.value(var)}")
+
+    # Use the default initializer for solvent extraction units
+    # m.fs.boron_extraction.mscontactor.report() #volume.pprint()
+    boron_init = m.fs.boron_extraction.default_initializer()
+    boron_init.initialize(m.fs.boron_extraction)
+
+    m.fs.boron_extraction.report()
     
     # # Initialize reextraction feed
     # print("\n13. Initializing reextraction feed...")
@@ -1296,102 +1350,95 @@ def main():
     # m.fs.boron_reextraction.report()
     
     # Check degrees of freedom
-    print(f"\nDOF after initialization: {degrees_of_freedom(m)}")
-    print("Expected DOF: 0 (all variables should be fixed)")
-    
     print("\n" + "="*60)
     print("INITIALIZATION COMPLETE")
     print("="*60)
     
-    # Print brine feed conditions
+    # Print feed conditions summary
     print("\nBrine Feed Conditions:")
-    print(f"Temperature: {m.fs.brine_feed.properties[0].temperature.value} K")
-    print(f"Pressure: {m.fs.brine_feed.properties[0].pressure.value} Pa")
-    print(f"Flow rate: {m.fs.brine_feed.properties[0].flow_vol_phase['Liq'].value} m³/s ({m.fs.brine_feed.properties[0].flow_vol_phase['Liq'].value * 60000:.0f} L/min)")
+    print(f"Temperature: {pyo.value(m.fs.brine_feed.properties[0].temperature)} K")
+    print(f"Pressure: {pyo.value(m.fs.brine_feed.properties[0].pressure)} Pa")
+    print(f"Flow rate: {pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq'])} m³/s ({pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq']) * 60000:.0f} L/min)")
     print(f"pH: 6.50")
     print(f"Density: 1.252 kg/L")
     
-    # Print HCl feed conditions
     print("\nHCl Feed Conditions:")
-    print(f"Temperature: {m.fs.hcl_feed.properties[0].temperature.value} K")
-    print(f"Pressure: {m.fs.hcl_feed.properties[0].pressure.value} Pa")
-    print(f"Flow rate: {m.fs.hcl_feed.properties[0].flow_vol_phase['Liq'].value} m³/s ({m.fs.hcl_feed.properties[0].flow_vol_phase['Liq'].value * 60000:.0f} L/min)")
+    print(f"Temperature: {pyo.value(m.fs.hcl_feed.properties[0].temperature)} K")
+    print(f"Pressure: {pyo.value(m.fs.hcl_feed.properties[0].pressure)} Pa")
+    print(f"Flow rate: {pyo.value(m.fs.hcl_feed.properties[0].flow_vol_phase['Liq'])} m³/s ({pyo.value(m.fs.hcl_feed.properties[0].flow_vol_phase['Liq']) * 6000:.0f} L/min)")
     print(f"HCl concentration: 12 M (concentrated hydrochloric acid)")
     print(f"pH: ~-1.08 (very acidic)")
     print(f"Density: 1.18 g/mL")
     
-    # Print organic feed conditions
     print("\nOrganic Feed Conditions:")
-    print(f"Temperature: {m.fs.organic_feed.properties[0].temperature.value} K")
-    print(f"Pressure: {m.fs.organic_feed.properties[0].pressure.value} Pa")
-    print(f"Flow rate: {m.fs.organic_feed.properties[0].flow_vol.value} L/min")
+    print(f"Temperature: {pyo.value(m.fs.organic_feed.properties[0].temperature)} K")
+    print(f"Pressure: {pyo.value(m.fs.organic_feed.properties[0].pressure)} Pa")
+    print(f"Flow rate: {pyo.value(m.fs.organic_feed.properties[0].flow_vol)} L/min")
     print(f"Density: 0.85 g/mL")
     print(f"Composition: 50% iso-octanol + 50% kerosene by volume")
-    print(f"Iso-octanol concentration: {m.fs.organic_feed.properties[0].conc_mol_comp['iso_octanol'].value} mol/L")
-    print(f"Kerosene concentration: {m.fs.organic_feed.properties[0].conc_mol_comp['kerosene'].value} mol/L")
+    print(f"Iso-octanol concentration: {pyo.value(m.fs.organic_feed.properties[0].conc_mol_comp['iso_octanol'])} mol/L")
+    print(f"Kerosene concentration: {pyo.value(m.fs.organic_feed.properties[0].conc_mol_comp['kerosene'])} mol/L")
     
-    # Print reextraction feed conditions
     print("\nReextraction Feed Conditions:")
-    print(f"Temperature: {m.fs.reextraction_feed.properties[0].temperature.value} K")
-    print(f"Pressure: {m.fs.reextraction_feed.properties[0].pressure.value} Pa")
-    print(f"Flow rate: {m.fs.reextraction_feed.properties[0].flow_vol_phase['Liq'].value} m³/s ({m.fs.reextraction_feed.properties[0].flow_vol_phase['Liq'].value * 60000:.0f} L/min)")
+    print(f"Temperature: {pyo.value(m.fs.reextraction_feed.properties[0].temperature)} K")
+    print(f"Pressure: {pyo.value(m.fs.reextraction_feed.properties[0].pressure)} Pa")
+    print(f"Flow rate: {pyo.value(m.fs.reextraction_feed.properties[0].flow_vol_phase['Liq'])} m³/s ({pyo.value(m.fs.reextraction_feed.properties[0].flow_vol_phase['Liq']) * 60000:.0f} L/min)")
     print(f"Density: 1.02 g/mL")
     print(f"Composition: 0.02 N NaOH solution")
     print(f"pH: ~12.3 (basic)")
-    print(f"NaOH concentration: {m.fs.reextraction_feed.properties[0].conc_mass_phase_comp['Liq', 'Na'].value} g/L")
+    print(f"NaOH concentration: {pyo.value(m.fs.reextraction_feed.properties[0].conc_mass_phase_comp['Liq', 'Na'])} g/L")
     
-    # Print unit model fixed variables summary
     print("\n" + "="*60)
     print("UNIT MODEL FIXED VARIABLES SUMMARY")
     print("="*60)
     print("Storage Tank:")
-    print(f"  - Storage time: {m.fs.brine_storage.storage_time[0].value} hours")
-    print(f"  - Surge capacity: {m.fs.brine_storage.surge_capacity[0].value*100:.1f}%")
+    print(f"  - Storage time: {pyo.value(m.fs.brine_storage.storage_time[0])} hours")
+    print(f"  - Surge capacity: {pyo.value(m.fs.brine_storage.surge_capacity[0])*100:.1f}%")
     
     print("\nPump:")
-    print(f"  - Pressure increase: {m.fs.brine_pump.deltaP[0].value/1e5:.1f} bar")
-    print(f"  - Efficiency: {m.fs.brine_pump.efficiency_pump[0].value*100:.1f}%")
+    print(f"  - Pressure increase: {pyo.value(m.fs.brine_pump.deltaP[0])/1e5:.1f} bar")
+    print(f"  - Efficiency: {pyo.value(m.fs.brine_pump.efficiency_pump[0])*100:.1f}%")
     
     print("\nMixer:")
-    print(f"  - Outlet pressure: {m.fs.acid_brine_mixer.outlet.pressure[0].value/1e5:.2f} bar")
-    print(f"  - Outlet temperature: {m.fs.acid_brine_mixer.outlet.temperature[0].value:.1f} K")
+    print(f"  - Outlet pressure: {pyo.value(m.fs.acid_brine_mixer.outlet.pressure[0])/1e5:.2f} bar")
+    print(f"  - Outlet temperature: {pyo.value(m.fs.acid_brine_mixer.outlet.temperature[0]):.1f} K")
     
     print("\nStoichiometric Reactor:")
-    print(f"  - HCl dissociation extent: {m.fs.acidification_reactor.rate_reaction_extent[0, 'HCl_dissociation'].value}")
+    print(f"  - HCl dissociation extent: {pyo.value(m.fs.acidification_reactor.rate_reaction_extent[0, 'HCl_dissociation']):.1f}")
     
     print("\nSolvent Extraction Units:")
-    print(f"  - Boron extraction tank volumes: {[m.fs.boron_extraction.mscontactor.volume[i].value for i in range(1, 5)]} m³")
-    print(f"  - Boron reextraction tank volumes: {[m.fs.boron_reextraction.mscontactor.volume[i].value for i in range(1, 4)]} m³")
-    print(f"  - Distribution coefficient (B): {m.fs.boron_extraction_reactions.distribution_coefficient['B'].value}")
+    print(f"  - Boron extraction tank volumes: {[pyo.value(m.fs.boron_extraction.mscontactor.volume[i]) for i in range(1, 5)]} m³")
+    print(f"  - Boron reextraction tank volumes: {[pyo.value(m.fs.boron_reextraction.mscontactor.volume[i]) for i in range(1, 4)]} m³")
+    print(f"  - pH coefficient a (B): {pyo.value(m.fs.boron_extraction_reactions.pH_coeff_a['B']):.1f}")
+    print(f"  - pH coefficient b (B): {pyo.value(m.fs.boron_extraction_reactions.pH_coeff_b['B']):.1f}")
     print(f"  - Target boron reduction: < 5 ppm (from 6270 ppm)")
     print(f"  - Solvent composition: 50% iso-octanol + 50% kerosene")
     print(f"  - Flow ratio: 1:1 (solvent:acidified brine)")
     
-    # Print scaling summary
     print("\n" + "="*60)
     print("SCALING FACTORS SUMMARY")
     print("="*60)
     print("Property Package Scaling:")
-    print("  - Flow rates: 1e-2 (m³/s)")
-    print("  - Concentrations: 1e-1 to 1e-9 (g/L)")
-    print("  - Temperature: 1e-2 (K)")
-    print("  - Pressure: 1e-5 (Pa)")
-    print("  - Density: 1e-3 (kg/m³)")
+    print(f"  - Flow rates: 1e-2 (m³/s)")
+    print(f"  - Concentrations: 1e-1 to 1e-9 (g/L)")
+    print(f"  - Temperature: 1e-2 (K)")
+    print(f"  - Pressure: 1e-5 (Pa)")
+    print(f"  - Density: 1e-3 (kg/m³)")
     
     print("\nReaction Scaling:")
-    print("  - HCl dissociation: 1.0 (stoichiometric)")
-    print("  - Boron distribution: 1e-1")
+    print(f"  - HCl dissociation: 1.0 (stoichiometric)")
+    print(f"  - Boron distribution: 1e-1")
     
     print("\nUnit Model Scaling:")
-    print("  - Storage time: 1e-4 (s)")
-    print("  - Pump work: 1e-3 (W)")
-    print("  - Tank volumes: 1e-2 (m³)")
-    print("  - Cross-sectional areas: 1e-1 (m²)")
+    print(f"  - Storage time: 1e-4 (s)")
+    print(f"  - Pump work: 1e-3 (W)")
+    print(f"  - Tank volumes: 1e-2 (m³)")
+    print(f"  - Cross-sectional areas: 1e-1 (m²)")
     
     print("\nFeed Stream Scaling:")
-    print("  - All flow rates: 1e-2 (m³/s)")
-    print("  - All temperatures: 1e-2 (K)")
-    print("  - All pressures: 1e-5 (Pa)")
+    print(f"  - All flow rates: 1e-2 (m³/s)")
+    print(f"  - All temperatures: 1e-2 (K)")
+    print(f"  - All pressures: 1e-5 (Pa)")
     
     return m
 

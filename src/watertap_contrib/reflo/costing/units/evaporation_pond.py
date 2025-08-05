@@ -43,7 +43,7 @@ def build_recovered_solids_cost_param_block(blk):
 
     blk.cost = pyo.Param(
         mutable=True,
-        initialize=0.0001,
+        initialize=0,
         doc="Revenue from recovered salt",
         units=pyo.units.USD_2023 / pyo.units.kg,
     )
@@ -130,14 +130,14 @@ def build_evaporation_pond_cost_param_block(blk):
     )
 
     blk.land_cost = pyo.Var(
-        initialize=5000,
+        initialize=10000,
         bounds=(0, None),
         units=pyo.units.USD_2001 / pyo.units.acre,
         doc="Land cost per acre",
     )
 
     blk.land_clearing_cost = pyo.Var(
-        initialize=5000,
+        initialize=0,
         bounds=(0, None),
         units=pyo.units.USD_2001 / pyo.units.acre,
         doc="Land clearing cost per acre",
