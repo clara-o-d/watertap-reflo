@@ -103,7 +103,7 @@ def define_flow_and_evaporation(m):
     )
     m.fs.fraction_evaporated = Var(
         initialize=0.95,
-        bounds=(0.01, 1.0),
+        bounds=(0.87, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that is evaporated"
     )
@@ -238,7 +238,7 @@ def define_target_li_concentration_constraint(m):
         inlet_li_mass_flow = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         
         # Calculate outlet lithium concentration using the provided equation
-        outlet_li_concentration = inlet_li_mass_flow * smooth_min(1.0, -9.1674 * b.fraction_evaporated + 8.8961, eps=1e-3) / (b.water_outflow + b.tds_outflow) * 1000
+        outlet_li_concentration = inlet_li_mass_flow * (-9.1674 * b.fraction_evaporated + 8.8961) / (b.water_outflow + b.tds_outflow) * 1000
         
         # Set it equal to target concentration
         return outlet_li_concentration == b.target_li_concentration

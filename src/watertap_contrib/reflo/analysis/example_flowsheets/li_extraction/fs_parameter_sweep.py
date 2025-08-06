@@ -38,24 +38,16 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep"""
     sweep_params = dict()
  
-    sweep_params['Land cost'] = LinearSample(
-        m.fs.costing.evaporation_pond.land_cost, 9000, 11000, 3
+    sweep_params['Inlet lithium concentration'] = LinearSample(
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 1.29, 2.58, 5
     )
 
-    sweep_params['Pond liner cost'] = LinearSample(
-        m.fs.costing.evaporation_pond.nominal_liner_capital_cost_base, 4500, 5500, 3
+    sweep_params['Inlet vapor temperature'] = LinearSample(
+        m.fs.feed.properties[0].temperature["Vap"], 290, 310, 5
     )
 
-    sweep_params['Recovered solids cost'] = LinearSample(
-        m.fs.costing.recovered_solids.cost, 1, 2, 3
-    )
-
-    sweep_params['Dye cost'] = LinearSample(
-        m.fs.costing.organic_dye.cost, 7000, 9000, 3
-    )
-
-    sweep_params['Shipping cost'] = LinearSample(
-        m.fs.shipping_unit_cost, 2.5e-5, 3.5e-5, 3
+    sweep_params['Evaporation rate adjustment factor'] = LinearSample(
+        m.fs.pond.evaporation_rate_enhancement_adjustment_factor, 1.02, 1.14, 5
     )
 
     return sweep_params
@@ -83,11 +75,9 @@ def build_outputs(m, **kwargs):
     outputs['fraction_evaporated'] = m.fs.fraction_evaporated
     
     # Input parameter (for verification that it matches)
-    outputs['Resultant land cost'] = m.fs.costing.evaporation_pond.land_cost
-    outputs['Resultant liner cost'] = m.fs.costing.evaporation_pond.nominal_liner_capital_cost_base
-    outputs['Resultant recovered solids cost'] = m.fs.costing.recovered_solids.cost
-    outputs['Resultant dye cost'] = m.fs.costing.organic_dye.cost
-    outputs['Resultant shipping cost'] = m.fs.shipping_unit_cost
+    outputs['Resultant inlet lithium concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
+    outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
+    outputs['Resultant evaporation rate adjustment factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
 
     # Additional useful outputs
     outputs['li_concentration_outflow (kg/m³)'] = m.fs.li_concentration_outflow

@@ -29,6 +29,7 @@ from idaes.models.properties.modular_properties.base.utility import Concentratio
 
 # PROMMIS imports for heterogeneous reaction packages
 from idaes.core import ProcessBlockData, ProcessBlock, declare_process_block_class
+from idaes.core.base import property_meta
 from pyomo.environ import Set, Param, Var, Constraint
 from pyomo.common.config import ConfigValue
 from idaes.core.util.misc import add_object_reference
@@ -115,7 +116,9 @@ acidification_reaction_config = {
 # ============================================================================
 
 @declare_process_block_class("BoronExtractionReactions")
-class BoronExtractionReactions(ProcessBlockData):
+class BoronExtractionReactions(
+    ProcessBlockData, property_meta.HasPropertyClassMetadata
+):
     """
     Heterogeneous reaction package for boron extraction from aqueous to organic phase.
     """
@@ -642,15 +645,21 @@ def fix_unit_model_variables(m):
     # SOLVENT EXTRACTION UNITS
     # ============================================================================
     
-    for i in range(1, 5):  # 4 stages
-        m.fs.boron_extraction.mscontactor.volume[i].fix(50.0 * units.m**3)
-        m.fs.boron_extraction.area_cross_stage[i].set_value(25.0)
-        m.fs.boron_extraction.elevation[i].set_value(0.0)
+    m.fs.boron_extraction.mscontactor.volume[:].fix(50.0 * units.m**3)
+    m.fs.boron_extraction.area_cross_stage[:].set_value(25.0)
+    m.fs.boron_extraction.elevation[:].set_value(0.0)
     
-    for i in range(1, 4):  # 3 stages
-        m.fs.boron_reextraction.mscontactor.volume[i].fix(40.0 * units.m**3)
-        m.fs.boron_reextraction.area_cross_stage[i].value = 20.0
-        m.fs.boron_reextraction.elevation[i].value = 0.0
+    # Fix temperature for MSContactor internal states
+    m.fs.boron_extraction.mscontactor.aqueous[:, :].temperature.fix(298.15 * units.K)
+    m.fs.boron_extraction.mscontactor.organic[:, :].temperature.fix(298.15 * units.K)
+    
+    m.fs.boron_reextraction.mscontactor.volume[:].fix(40.0 * units.m**3)
+    m.fs.boron_reextraction.area_cross_stage[:].value = 20.0
+    m.fs.boron_reextraction.elevation[:].value = 0.0
+    
+    # Fix temperature for MSContactor internal states
+    m.fs.boron_reextraction.mscontactor.aqueous[:, :].temperature.fix(298.15 * units.K)
+    m.fs.boron_reextraction.mscontactor.organic[:, :].temperature.fix(298.15 * units.K)
     
     # ============================================================================
     # REACTION PACKAGE VARIABLES
@@ -1163,23 +1172,16 @@ def check_unfixed_variables(block, name="block"):
     
     return unfixed_vars
 
-def main():
+def initialize_flowsheet(m):
     """
-    Main function to build and run the flowsheet.
+    Initialize the flowsheet by setting up all unit models in sequence.
+    
+    Args:
+        m: The flowsheet model to initialize
+        
+    Returns:
+        m: The initialized flowsheet model
     """
-    print("Building lithium carbonate plant flowsheet...")
-    
-    # Build the flowsheet
-    m = build_flowsheet()
-    
-    print("Flowsheet built successfully!")
-    print(f"Number of variables: {len(list(m.fs.component_data_objects(pyo.Var)))}")
-    print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
-    
-    # ============================================================================
-    # INITIALIZATION SEQUENCE
-    # ============================================================================
-    
     print("\n" + "="*60)
     print("INITIALIZATION SEQUENCE")
     print("="*60)
@@ -1324,7 +1326,10 @@ def main():
     #     print(f"Stage {i}: fixed={var.fixed}, value={pyo.value(var)}")
 
     # Use the default initializer for solvent extraction units
-    # m.fs.boron_extraction.mscontactor.report() #volume.pprint()
+    print(f'solex DOF: {degrees_of_freedom(m.fs.boron_extraction)}')
+    print(f'aqueous stream DOF: {degrees_of_freedom(m.fs.boron_extraction.mscontactor.aqueous)}')
+    print(f'organic stream DOF: {degrees_of_freedom(m.fs.boron_extraction.mscontactor.organic)}')
+    print(f'mscontactor DOF: {degrees_of_freedom(m.fs.boron_extraction.mscontactor)}')
     boron_init = m.fs.boron_extraction.default_initializer()
     boron_init.initialize(m.fs.boron_extraction)
 
@@ -1439,6 +1444,24 @@ def main():
     print(f"  - All flow rates: 1e-2 (m³/s)")
     print(f"  - All temperatures: 1e-2 (K)")
     print(f"  - All pressures: 1e-5 (Pa)")
+    
+    return m
+
+def main():
+    """
+    Main function to build and run the flowsheet.
+    """
+    print("Building lithium carbonate plant flowsheet...")
+    
+    # Build the flowsheet
+    m = build_flowsheet()
+    
+    print("Flowsheet built successfully!")
+    print(f"Number of variables: {len(list(m.fs.component_data_objects(pyo.Var)))}")
+    print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
+    
+    # Initialize the flowsheet
+    m = initialize_flowsheet(m)
     
     return m
 

@@ -3,6 +3,7 @@ from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOC
 from pyomo.environ import Param, Var, Constraint, Expression
 from pyomo.environ import units as pyunits
 import idaes.core.util.scaling as iscale
+from pyomo.environ import value
 
 def add_costing(m):
     m.fs.costing = REFLOCosting()
@@ -71,7 +72,7 @@ def add_costing(m):
 
     @m.fs.Constraint(doc="Pumping flow calculation")
     def eq_pumping_flow(b):
-        return b.pumping_flow == pyunits.convert(b.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] / b.rho, to_units=pyunits.m**3/pyunits.year)
+        return b.pumping_flow == pyunits.convert((b.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] + b.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"]) / b.rho, to_units=pyunits.m**3/pyunits.year)
 
     # Pumping unit cost as a variable with constraint
     m.fs.pumping_unit_cost = Var(

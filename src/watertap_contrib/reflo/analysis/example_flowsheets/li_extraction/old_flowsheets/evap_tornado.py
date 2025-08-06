@@ -281,7 +281,7 @@ def create_data_summary_plot(df, target_col):
     return fig, (ax1, ax2)
 
 def main():
-    target_col = 'LCOLi (USD/mt)'
+    target_col = 'Operating cost (USD/year)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
     
@@ -303,14 +303,14 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        # 'Inlet Li concentration',
-        # 'Inlet vapor temperature',
-        # 'Evaporation rate adjustment factor',
-        'Land cost',
-        'Pond liner cost',
-        'Recovered solids cost',
-        'Dye cost',
-        'Shipping cost',
+        'Inlet lithium concentration',
+        'Inlet vapor temperature',
+        'Evaporation rate adjustment factor',
+        # 'Land cost',
+        # 'Pond liner cost',
+        # 'Recovered solids cost',
+        # 'Dye cost',
+        # 'Shipping cost',
         # 'Dike height',
         # 'Pipeline length',
         # 'Utilization factor',
@@ -358,7 +358,7 @@ def main():
     
     if not sensitivity_df.empty:
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Costing parameter sensitivity analysis: {target_col}")
+                                    title=f"Exogenous parameter sensitivity analysis: {target_col}")
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")
