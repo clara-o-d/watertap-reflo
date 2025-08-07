@@ -157,11 +157,19 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=1.736842e+00,
+        initialize=10,#1.736842e+00,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
     )
+    m.fs.li_outflow = Var(
+        initialize=1,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.second,
+        doc="Li+ outflow"
+    )
+    def eq_li_outflow(b):
+        return b.li_outflow * 1000 == b.target_li_concentration * (b.water_outflow + b.tds_outflow)
 
 def define_brine_outflow_section(m):
     m.fs.concentrated_brine_outflow = Var(
@@ -190,7 +198,7 @@ def define_target_li_concentration_constraint(m):
         inlet_water_mass_flow = prop_in.flow_mass_phase_comp["Liq", "H2O"]
         
         # Calculate outlet lithium concentration using the provided equation
-        outlet_li_concentration = inlet_li_mass_flow * smooth_min(1.0, -9.1674 * b.fraction_evaporated + 8.8961, eps=1e-3) / (inlet_water_mass_flow * (1 - b.fraction_evaporated)) * 1000
+        outlet_li_concentration = inlet_li_mass_flow * smooth_min(1.0, 88.1606 * b.fraction_evaporated**2 + -169.2358 * b.fraction_evaporated + 81.4783, eps=1e-3) / (b.water_outflow + b.tds_outflow) * 1000
         
         # Set it equal to target concentration
         return outlet_li_concentration == b.target_li_concentration

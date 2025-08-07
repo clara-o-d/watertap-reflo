@@ -83,11 +83,11 @@ def build_flowsheet():
     if hasattr(m.fs.pond, 'total_evaporative_area_required'):
         iscale.set_scaling_factor(m.fs.pond.total_evaporative_area_required, 1e-7)
     
-    if hasattr(m.fs.pond, 'evaporative_area_per_pond'):
-        iscale.set_scaling_factor(m.fs.pond.evaporative_area_per_pond, 1e-4)
+    # if hasattr(m.fs.pond, 'evaporative_area_per_pond'):
+    #     iscale.set_scaling_factor(m.fs.pond.evaporative_area_per_pond, 1e-4)
 
-    if hasattr(m.fs.pond, 'evaporation_pond_area'):
-        iscale.set_scaling_factor(m.fs.pond.evaporation_pond_area, 1e-5)
+    # if hasattr(m.fs.pond, 'evaporation_pond_area'):
+    #     iscale.set_scaling_factor(m.fs.pond.evaporation_pond_area, 1e-5)
 
     if hasattr(m.fs.pond, 'number_evaporation_ponds'):
         iscale.set_scaling_factor(m.fs.pond.number_evaporation_ponds, 1e-2)
