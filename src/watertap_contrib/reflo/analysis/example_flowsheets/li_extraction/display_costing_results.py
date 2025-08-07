@@ -20,6 +20,33 @@ def display_costing_results(m, detailed=False):
             lcoli_mass = value(m.fs.costing.LCOLi_mass)
             print(f"Levelized Cost of Lithium (LCOLi): ${lcoli_vol:.2f} per m³ Li, ${lcoli_mass:.2f} per mt Li")
         
+        # Specific energy consumption information
+        if hasattr(m.fs.costing, 'specific_energy_consumption'):
+            spec_energy = value(m.fs.costing.specific_energy_consumption)
+            print(f"Specific Energy Consumption: {spec_energy:.3f} kWh/m³")
+            
+            # Show total electricity consumption if available
+            if hasattr(m.fs.costing, 'aggregate_flow_electricity'):
+                total_electricity = value(m.fs.costing.aggregate_flow_electricity)
+                print(f"Total Electricity Consumption: {total_electricity:.1f} kW")
+            
+            # Show specific electrical carbon intensity if available
+            if hasattr(m.fs.costing, 'specific_electrical_carbon_intensity'):
+                spec_carbon = value(m.fs.costing.specific_electrical_carbon_intensity)
+                print(f"Specific Electrical Carbon Intensity: {spec_carbon:.3f} kg CO₂eq/m³")
+            
+            # Display component breakdown if available
+            if hasattr(m.fs.costing, 'specific_energy_consumption_component'):
+                print("  Component Breakdown:")
+                for component, consumption in m.fs.costing.specific_energy_consumption_component.items():
+                    try:
+                        comp_value = value(consumption)
+                        if comp_value > 0:
+                            percentage = (comp_value / spec_energy) * 100
+                            print(f"    {component}: {comp_value:.3f} kWh/m³ ({percentage:.1f}%)")
+                    except Exception:
+                        pass
+        
         # Well information
         if hasattr(m.fs, 'number_of_wells') and hasattr(m.fs, 'well_capital_cost'):
             print(f"\nWell Information:")
@@ -49,7 +76,7 @@ def display_costing_results(m, detailed=False):
             print(f"  Friction head: {value(m.fs.friction_head):.1f} m/km")
             print(f"  Calculated pumping head: {value(m.fs.pumping_head):.1f} m")
             print(f"  Pumping efficiency: {value(m.fs.pumping_efficiency):.1%}")
-            print(f"  Pumping unit cost: ${value(m.fs.pumping_unit_cost):.4f} per m³")
+            print(f"  Pumping power: {value(m.fs.pumping_power):,.0f} kW")
             
         # Shipping cost information
         if hasattr(m.fs, 'shipping_distance'):
@@ -197,7 +224,64 @@ def display_costing_results(m, detailed=False):
                     if hasattr(m.fs.costing, 'aggregate_flow_costs'):
                         flow_cost = value(m.fs.costing.aggregate_flow_costs[flow])
                         print(f"    - {flow.capitalize()} Flow Cost:    ${flow_cost:,.0f}/year")
+            
+            # Energy Consumption Breakdown
+            print("\nENERGY CONSUMPTION BREAKDOWN:")
+            print("-" * 30)
+            
+            if hasattr(m.fs.costing, 'specific_energy_consumption'):
+                total_spec_energy = value(m.fs.costing.specific_energy_consumption)
+                print(f"Total Specific Energy Consumption: {total_spec_energy:.3f} kWh/m³")
+                
+                # Show aggregate electricity consumption
+                if hasattr(m.fs.costing, 'aggregate_flow_electricity'):
+                    total_electricity = value(m.fs.costing.aggregate_flow_electricity)
+                    print(f"Total Electricity Consumption:    {total_electricity:.1f} kW")
+                
+                # Show specific electrical carbon intensity if available
+                if hasattr(m.fs.costing, 'specific_electrical_carbon_intensity'):
+                    spec_carbon = value(m.fs.costing.specific_electrical_carbon_intensity)
+                    print(f"Specific Electrical Carbon Intensity: {spec_carbon:.3f} kg CO₂eq/m³")
+                    
+                    # Show carbon intensity component breakdown if available
+                    if hasattr(m.fs.costing, 'specific_electrical_carbon_intensity_component'):
+                        print("  Carbon Intensity Component Breakdown:")
+                        for component, carbon_intensity in m.fs.costing.specific_electrical_carbon_intensity_component.items():
+                            try:
+                                comp_value = value(carbon_intensity)
+                                if comp_value > 0:
+                                    percentage = (comp_value / spec_carbon) * 100
+                                    print(f"    {component}: {comp_value:.3f} kg CO₂eq/m³ ({percentage:.1f}%)")
+                            except Exception:
+                                pass
+                
+                # Show component breakdown
+                if hasattr(m.fs.costing, 'specific_energy_consumption_component'):
+                    print("  Component Breakdown:")
+                    for component, consumption in m.fs.costing.specific_energy_consumption_component.items():
+                        try:
+                            comp_value = value(consumption)
+                            if comp_value > 0:
+                                percentage = (comp_value / total_spec_energy) * 100
+                                print(f"    {component}: {comp_value:.3f} kWh/m³ ({percentage:.1f}%)")
+                        except Exception:
+                            pass
+                
+                # Show annual water production for context
+                if hasattr(m.fs.costing, 'annual_water_production'):
+                    annual_production = value(m.fs.costing.annual_water_production)
+                    print(f"Annual Water Production:         {annual_production:,.0f} m³/year")
+                    
+                    # Calculate total annual energy consumption
+                    if hasattr(m.fs.costing, 'aggregate_flow_electricity'):
+                        annual_energy = total_electricity * 8760  # hours per year
+                        print(f"Total Annual Energy Consumption: {annual_energy:,.0f} kWh/year")
                         
+                        # Calculate total annual carbon emissions
+                        if hasattr(m.fs.costing, 'specific_electrical_carbon_intensity'):
+                            annual_carbon = spec_carbon * annual_production
+                            print(f"Total Annual Carbon Emissions:  {annual_carbon:,.0f} kg CO₂eq/year")
+            
             print("="*50)
             
     except Exception as e:

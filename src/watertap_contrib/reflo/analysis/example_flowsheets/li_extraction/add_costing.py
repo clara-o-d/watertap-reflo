@@ -68,29 +68,37 @@ def add_costing(m):
         return b.capital_cost == b.total_capital_cost
 
     # Pumping flow variable and constraint
-    m.fs.pumping_flow = Var(initialize=100000, units=pyunits.m**3/pyunits.year, bounds=(0, None), doc="Pumping mass flow rate")
+    m.fs.pumping_flow = Var(
+        initialize=100000, 
+        units=pyunits.m**3/pyunits.year, 
+        bounds=(0, None), 
+        doc="Pumping volumetric flow rate"
+    )
 
     @m.fs.Constraint(doc="Pumping flow calculation")
     def eq_pumping_flow(b):
-        return b.pumping_flow == pyunits.convert((b.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] + b.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"]) / b.rho, to_units=pyunits.m**3/pyunits.year)
+        return b.pumping_flow == pyunits.convert(
+            (b.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] + 
+             b.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"]) / b.rho, 
+            to_units=pyunits.m**3/pyunits.year
+        )
 
-    # Pumping unit cost as a variable with constraint
-    m.fs.pumping_unit_cost = Var(
+    m.fs.pumping_power = Var(
         initialize=0.1,
         bounds=(0, None),
-        units=m.fs.costing.base_currency/pyunits.m**3,
-        doc="Pumping cost per m³"
+        units=pyunits.kW,
+        doc="Mechanical power for pumping"
     )
 
-    @m.fs.Constraint(doc="Pumping unit cost calculation")
-    def eq_pumping_unit_cost(b):
-        # Calculate energy required per m³: (head * g * density) / efficiency
-        energy_per_m3 = pyunits.convert(9.81 * pyunits.m/pyunits.s**2 * b.pumping_head * b.rho / b.pumping_efficiency, to_units=pyunits.kWh/pyunits.m**3)
-        # Convert to cost per m³: energy * electricity_cost
-        return b.pumping_unit_cost == energy_per_m3 * b.costing.electricity_cost
+    @m.fs.Constraint(doc="Pumping power calculation")
+    def eq_pumping_power(b):
+        work_per_m3 = pyunits.convert(
+            9.81 * pyunits.m/pyunits.s**2 * b.pumping_head * b.rho / b.pumping_efficiency, 
+            to_units=pyunits.kWh/pyunits.m**3
+        )
+        return b.pumping_power == work_per_m3 * b.pumping_flow / pyunits.convert(1 * pyunits.year, to_units=pyunits.hr)
 
-    m.fs.costing.register_flow_type("pumping", m.fs.pumping_unit_cost)
-    m.fs.costing.cost_flow(m.fs.pumping_flow, "pumping")
+    m.fs.costing.cost_flow(m.fs.pumping_power, "electricity")
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
@@ -119,6 +127,7 @@ def add_costing(m):
     iscale.calculate_scaling_factors(m)
     
     # Fix global costing parameters
+    m.fs.costing.base_currency = pyunits.USD_2022
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.07)
     m.fs.costing.electricity_cost.fix(0.16)

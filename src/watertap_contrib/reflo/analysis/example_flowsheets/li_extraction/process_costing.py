@@ -15,6 +15,7 @@ def process_costing(m):
     )
     vol_flow_li = m.fs.li_outflow / m.fs.density_concentrated_brine  # m³/s
     m.fs.costing.add_LCOW(vol_flow_li, name="LCOLi") # $/m³ Li
+    m.fs.costing.add_specific_energy_consumption(vol_flow_li, name="specific_energy_consumption")
     # Add variable and constraint for $/kg
     m.fs.costing.LCOLi_mass = Var(
         initialize=1000,

@@ -91,7 +91,7 @@ def define_pond_parameters(m):
 def define_flow_and_evaporation(m):
     m.fs.fraction_outflow = Var(
         initialize=0.05,
-        bounds=(0.01, 0.99),
+        bounds=(0.87, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that flows out (not evaporated)"
     )
@@ -116,6 +116,23 @@ def define_flow_and_evaporation(m):
     def eq_water_outflow(b):
         return b.water_outflow == prop_in.flow_mass_phase_comp["Liq", "H2O"] * b.fraction_outflow
     m.fs.eq_water_outflow = Constraint(rule=eq_water_outflow, doc="Water outflow mass balance")
+
+def define_precipitate_section(m):
+    if hasattr(m.fs.pond, 'mass_flow_precipitate'):
+        m.fs.pond.del_component('mass_flow_precipitate')
+    m.fs.pond.mass_flow_precipitate = Var(
+        initialize=1000,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual mass flow of precipitate"
+    )
+    prop_in = m.fs.feed.properties[0]
+    def eq_mass_flow_precipitate(b):
+        precipitate_concentration = m.fs.pond.annual_solid_precipitate_a * (1 - m.fs.fraction_evaporated) + m.fs.pond.annual_solid_precipitate_b
+        original_water_volume = prop_in.flow_mass_phase_comp["Liq", "H2O"] / m.fs.rho
+        annual_mass_flow = pyunits.convert(precipitate_concentration * original_water_volume, to_units=pyunits.kg/pyunits.year)
+        return b.mass_flow_precipitate == annual_mass_flow
+    m.fs.pond.eq_mass_flow_precipitate = Constraint(rule=eq_mass_flow_precipitate, doc="Annual mass flow of precipitate from concentration and water volume")
 
 def define_tds_section(m):
     m.fs.tds_outflow = Var(
@@ -195,23 +212,6 @@ def define_lithium_section(m):
     #     return li_in - li_out
     # m.fs.li_precipitated = Expression(expr=li_precipitated_expr())
 
-def define_precipitate_section(m):
-    if hasattr(m.fs.pond, 'mass_flow_precipitate'):
-        m.fs.pond.del_component('mass_flow_precipitate')
-    m.fs.pond.mass_flow_precipitate = Var(
-        initialize=1000,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.year,
-        doc="Annual mass flow of precipitate"
-    )
-    prop_in = m.fs.feed.properties[0]
-    def eq_mass_flow_precipitate(b):
-        precipitate_concentration = m.fs.pond.annual_solid_precipitate_a * (1 - m.fs.fraction_evaporated) + m.fs.pond.annual_solid_precipitate_b
-        original_water_volume = prop_in.flow_mass_phase_comp["Liq", "H2O"] / m.fs.rho
-        annual_mass_flow = pyunits.convert(precipitate_concentration * original_water_volume, to_units=pyunits.kg/pyunits.year)
-        return b.mass_flow_precipitate == annual_mass_flow
-    m.fs.pond.eq_mass_flow_precipitate = Constraint(rule=eq_mass_flow_precipitate, doc="Annual mass flow of precipitate from concentration and water volume")
-
 def define_brine_outflow_section(m):
     m.fs.concentrated_brine_outflow = Var(
         initialize=1,
@@ -238,18 +238,18 @@ def define_target_li_concentration_constraint(m):
         inlet_li_mass_flow = prop_in.flow_mass_phase_comp["Liq", "Li+"]
         
         # Calculate outlet lithium concentration using the provided equation
-        outlet_li_concentration = inlet_li_mass_flow * (-9.1674 * b.fraction_evaporated + 8.8961) / (b.water_outflow + b.tds_outflow) * 1000
+        # outlet_li_concentration = inlet_li_mass_flow * (-9.1674 * b.fraction_evaporated + 8.8961) / (b.water_outflow + b.tds_outflow) * 1000
         
         # Set it equal to target concentration
-        return outlet_li_concentration == b.target_li_concentration
+        return inlet_li_mass_flow * (-9.1674 * b.fraction_evaporated + 8.8961) * 1000 == b.target_li_concentration * (b.water_outflow + b.tds_outflow)
 
 def define_additional_constraints(m):
     define_general_parameters(m)
     define_pond_parameters(m)
     define_flow_and_evaporation(m)
+    define_precipitate_section(m)
     define_tds_section(m)
     define_lithium_section(m)
-    define_precipitate_section(m)
     define_brine_outflow_section(m)
     define_evaporative_area_section(m)
     define_target_li_concentration_constraint(m) 

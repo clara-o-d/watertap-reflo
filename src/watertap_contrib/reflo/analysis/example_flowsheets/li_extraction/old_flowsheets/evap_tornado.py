@@ -164,7 +164,7 @@ def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', i
         sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=False)
     return sensitivity_df
 
-def create_tornado_plot(sensitivity_df, target_col, title=None):
+def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mapping=None):
     if title is None:
         title = f"Sensitivity Analysis: {target_col}"
     if sensitivity_df.empty:
@@ -172,8 +172,14 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
         return None, None
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
     sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=True)
-    fig, ax = plt.subplots(figsize=(11.5, 7))
+    fig, ax = plt.subplots(figsize=(4, 4))
     y_pos = np.arange(len(sensitivity_df))
+    
+    # Apply custom parameter name mapping if provided
+    if param_name_mapping is not None:
+        sensitivity_df['display_name'] = sensitivity_df['variable'].map(param_name_mapping).fillna(sensitivity_df['variable'])
+    else:
+        sensitivity_df['display_name'] = sensitivity_df['variable']
     
     # Create bars showing increase and decrease sensitivities on opposite sides
     bar_width = 0.35
@@ -202,7 +208,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
         y_pos,
         sensitivity_df['avg_increase_sensitivity'],
         height=bar_width,
-        color='#3b82f6',
+        color='#4198b5',
         alpha=0.7,
         hatch=increase_hatch,
         label='Parameter increase effect'
@@ -213,15 +219,15 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
         y_pos,
         -sensitivity_df['avg_decrease_sensitivity'],  # Make negative to show on left side
         height=bar_width,
-        color='#3b82f6',
+        color='#4198b5',
         alpha=0.7,
         hatch=decrease_hatch,
         label='Parameter decrease effect'
     )
     
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(sensitivity_df['variable'], fontsize=12)
-    ax.set_xlabel(f'Percent change in {target_col} per percent change in parameter', fontsize=11)
+    ax.set_yticklabels(sensitivity_df['display_name'], fontsize=8)
+    ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
@@ -229,11 +235,11 @@ def create_tornado_plot(sensitivity_df, target_col, title=None):
     # Create custom legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#3b82f6', alpha=0.7, label='Positive'),
-        Patch(facecolor='#3b82f6', alpha=0.7, hatch='///', label='Negative')
+        Patch(facecolor='#4198b5', alpha=0.7, label='Positive'),
+        Patch(facecolor='#4198b5', alpha=0.7, hatch='///', label='Negative')
     ]
     
-    ax.legend(handles=legend_elements, loc='lower right', fontsize=12)
+    ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
     plt.tight_layout()
     return fig, ax
 
@@ -281,7 +287,7 @@ def create_data_summary_plot(df, target_col):
     return fig, (ax1, ax2)
 
 def main():
-    target_col = 'Operating cost (USD/year)'
+    target_col = 'LCOLi (USD/mt)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
     
@@ -303,14 +309,15 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'Inlet lithium concentration',
-        'Inlet vapor temperature',
-        'Evaporation rate adjustment factor',
-        # 'Land cost',
-        # 'Pond liner cost',
-        # 'Recovered solids cost',
-        # 'Dye cost',
-        # 'Shipping cost',
+        # 'Inlet lithium concentration',
+        # 'Fraction of water evaporated',
+        # 'Inlet vapor temperature',
+        # 'Evaporation rate adjustment factor',
+        'Land cost',
+        'Pond liner cost',
+        'Recovered solids cost',
+        'Dye cost',
+        'Shipping cost',
         # 'Dike height',
         # 'Pipeline length',
         # 'Utilization factor',
@@ -357,8 +364,22 @@ def main():
     sensitivity_df = oat_sensitivity(df, target_col, input_params=input_vars)
     
     if not sensitivity_df.empty:
+        # Optional: Define custom parameter name mapping for display
+        # Uncomment and modify the mapping below to use custom parameter names in the plot
+        param_name_mapping = {
+            # 'Inlet lithium concentration': f'Inlet Li\nconcentration',
+            # 'Inlet vapor temperature': f'Vapor\ntemperature',
+            # 'Evaporation rate adjustment factor': f'Evaporation\nrate',
+            'Land cost': f'Land\ncost',
+            'Pond liner cost': f'Pond\nliner\ncost',
+            'Recovered solids cost': f'Recovered\nsolids\ncost',
+            'Dye cost': f'Dye\ncost',
+            'Shipping cost': f'Shipping\ncost',
+        }
+        
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Exogenous parameter sensitivity analysis: {target_col}")
+                                    title=f"Parameter sensitivities",
+                                    param_name_mapping=param_name_mapping)
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
             print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")

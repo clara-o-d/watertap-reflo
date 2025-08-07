@@ -35,25 +35,32 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
             return 0
         
         # Lithium concentration in g/kg
-        return li_outflow / total_mass_outflow * 1000
+        return li_outflow / total_mass_outflow * 1000, li_outflow, total_mass_outflow
 
-    evap_fractions = np.linspace(0.01, 0.99, 2000)
+    evap_fractions = np.linspace(0.01, 0.99, 3000)
     concentrations = []
+    li_outflows = []
+    total_mass_outflows = []
     
     for evap_frac in evap_fractions:
-        conc = li_conc_at_evap(evap_frac)
+        conc, li_outflow, total_mass_outflow = li_conc_at_evap(evap_frac)
         concentrations.append(conc)
+        li_outflows.append(li_outflow)
+        total_mass_outflows.append(total_mass_outflow)
     
     # Find the evaporation fraction that gives the closest concentration to target
     objective_values = [abs(conc - target_li_conc) for conc in concentrations]
     best_idx = np.argmin(objective_values)
     best_evap_frac = evap_fractions[best_idx]
     best_conc = concentrations[best_idx]
-    
+    best_li_outflow = li_outflows[best_idx]
+    best_total_mass_outflow = total_mass_outflows[best_idx]
+
     # Check if the solution is reasonable
     tolerance = 0.1
     if abs(best_conc - target_li_conc) > tolerance:
         print(f"Warning: Best achievable concentration is {best_conc:.3f} g/kg, target was {target_li_conc:.3f} g/kg")
         print(f"Using evaporation fraction: {best_evap_frac:.4f}")
+        print(f"Total mass outflow: {best_total_mass_outflow:.2f} kg/s")
     
-    return best_evap_frac 
+    return best_evap_frac

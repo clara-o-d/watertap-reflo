@@ -28,16 +28,17 @@ def display_initial_results(m, weather_name="Station 34"):
     
     # Partial evaporation results
     print(f"\nPARTIAL EVAPORATION RESULTS:")
-    print(f"  Fraction of water evaporated: {value(m.fs.fraction_evaporated):.3f}")
+    print(f"  Fraction of water evaporated: {value(m.fs.fraction_evaporated):.8f}")
     print(f"  Water evaporated: {value(m.fs.water_evaporated):.2f} kg/s")
     print(f"  Water outflow: {value(m.fs.water_outflow):.2f} kg/s")
     print(f"  TDS outflow: {value(m.fs.tds_outflow):.2f} kg/s")
     print(f"  Li+ outflow: {value(m.fs.li_outflow):.2f} kg/s")
     print(f"  TDS concentration in outflow: {value(m.fs.tds_concentration_outflow):.2f} kg/m³")
-    print(f"  Li+ concentration in outflow: {value(m.fs.li_concentration_outflow):.2f} kg/m³ ({value(m.fs.li_concentration_outflow * 100 / value(m.fs.rho)):.2f}%)")
+    print(f"  Li+ concentration in outflow: {value(m.fs.li_concentration_outflow):.2f} kg/m³")
+    print(f"  Li+ mass fraction in outflow: {value(m.fs.li_outflow / (m.fs.concentrated_brine_outflow) * 100):.2f}%")
     print(f"  Concentrated brine outflow: {value(m.fs.concentrated_brine_outflow):.2f} kg/s")
     
     # Target Li+ concentration
     print(f"\nTARGET CONCENTRATION:")
     print(f"  Target Li+ concentration: {value(m.fs.target_li_concentration):.3f} g/kg")
-    print(f"  Achieved Li+ concentration: {value(m.fs.li_concentration_outflow * 1000 / value(m.fs.rho)):.3f} g/kg") 
+    print(f"  Achieved Li+ concentration: {value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 1000):.3f} g/kg") 

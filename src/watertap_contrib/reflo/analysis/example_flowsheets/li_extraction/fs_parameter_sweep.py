@@ -39,15 +39,19 @@ def build_sweep_params(m, **kwargs):
     sweep_params = dict()
  
     sweep_params['Inlet lithium concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 1.29, 2.58, 5
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2.5, 2.5, 1
+    )
+
+    sweep_params['Fraction of water evaporated'] = LinearSample(
+        m.fs.fraction_evaporated, 0.86223074, 0.86223074, 1
     )
 
     sweep_params['Inlet vapor temperature'] = LinearSample(
-        m.fs.feed.properties[0].temperature["Vap"], 290, 310, 5
+        m.fs.feed.properties[0].temperature["Vap"], 290, 310, 3
     )
 
     sweep_params['Evaporation rate adjustment factor'] = LinearSample(
-        m.fs.pond.evaporation_rate_enhancement_adjustment_factor, 1.02, 1.14, 5
+        m.fs.pond.evaporation_rate_enhancement_adjustment_factor, 1.02, 1.14, 3
     )
 
     return sweep_params
@@ -76,12 +80,15 @@ def build_outputs(m, **kwargs):
     
     # Input parameter (for verification that it matches)
     outputs['Resultant inlet lithium concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
+    outputs['Resultant fraction of water evaporated'] = m.fs.fraction_evaporated
     outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
     outputs['Resultant evaporation rate adjustment factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
 
     # Additional useful outputs
     outputs['li_concentration_outflow (kg/m³)'] = m.fs.li_concentration_outflow
     outputs['total_evaporative_area (m²)'] = m.fs.pond.total_evaporative_area_required
+    outputs['Lithium outflow (kg/s)'] = m.fs.li_outflow
+    outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
     
     return outputs
 
