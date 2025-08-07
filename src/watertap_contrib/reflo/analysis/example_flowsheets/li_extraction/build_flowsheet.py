@@ -70,8 +70,6 @@ def build_flowsheet():
     m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e2, index=("Liq", "Li+"))
     m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0, index=("Vap", "H2O"))
     m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0, index=("Vap", "Air"))
-
-    iscale.calculate_scaling_factors(m)
     
     # Unit model scaling
     for unit in [m.fs.feed, m.fs.pond]:
@@ -109,6 +107,8 @@ def build_flowsheet():
     if hasattr(m.fs.pond.weather[0], 'pressure_vap_sat'):
         for d in m.fs.pond.days_of_year:
             iscale.set_scaling_factor(m.fs.pond.weather[d].pressure_vap_sat['H2O'], 1e-3)
+
+    iscale.calculate_scaling_factors(m)
 
     m.fs.feed.initialize()
     m.fs.feed.report()
