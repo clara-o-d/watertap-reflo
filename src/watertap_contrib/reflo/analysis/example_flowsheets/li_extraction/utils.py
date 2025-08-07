@@ -27,7 +27,7 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
         tds_precipitated = precipitate_concentration * original_water_volume  # kg/s
 
         # TDS outflow = TDS inlet - TDS precipitated
-        tds_outflow = max(0, tds_inlet_flow - tds_precipitated)
+        tds_outflow = tds_inlet_flow - tds_precipitated
         # Calculate total mass outflow
         total_mass_outflow = water_outflow + tds_outflow
         
@@ -60,7 +60,8 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
     tolerance = 0.1
     if abs(best_conc - target_li_conc) > tolerance:
         print(f"Warning: Best achievable concentration is {best_conc:.3f} g/kg, target was {target_li_conc:.3f} g/kg")
-        print(f"Using evaporation fraction: {best_evap_frac:.4f}")
-        print(f"Total mass outflow: {best_total_mass_outflow:.2f} kg/s")
+    print(f"Using evaporation fraction: {best_evap_frac:.4f}")
+    print(f"Total mass outflow: {best_total_mass_outflow:.2f} kg/s")
+    print(f"Li+ outflow: {best_li_outflow:.2f} kg/s")
     
     return best_evap_frac

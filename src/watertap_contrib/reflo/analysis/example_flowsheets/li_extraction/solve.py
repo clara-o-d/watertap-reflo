@@ -17,7 +17,7 @@ def solve(m, solver=None):
 
     # If first attempt fails, try with improved settings
     if (results is None or tc != TerminationCondition.optimal):
-        print("Default solve failed, trying with improved settings...")
+        input("Default solve failed. Press Enter to try with improved settings...")
         solver.options = {
             "tol": 1e-5,
             "constr_viol_tol": 1e-5,

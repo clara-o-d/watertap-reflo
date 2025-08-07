@@ -7,11 +7,11 @@ from idaes.models.unit_models import Feed
 from watertap_contrib.reflo.unit_models.evaporation_pond import EvaporationPond
 from watertap.core.util.initialization import assert_degrees_of_freedom
 import idaes.core.util.scaling as iscale
-from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints_function import define_additional_constraints
+from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints import define_additional_constraints
 from idaes.core.util.model_statistics import degrees_of_freedom
 from pyomo.environ import units as pyunits
 from pyomo.environ import value
-from pyomo.environ import Constraint
+from pyomo.environ import Constraint, Var
 
 def build_flowsheet():
     m = ConcreteModel()
@@ -59,20 +59,56 @@ def build_flowsheet():
     
     # Air property package scaling
     m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-3, index=("Liq", "H2O"))
-    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-1, index=("Liq", "TDS"))
-    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-1, index=("Liq", "Li+"))
-    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-3, index=("Vap", "H2O"))
-    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-3, index=("Vap", "Air"))
+    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-2, index=("Liq", "TDS"))
+    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e0, index=("Liq", "Li+"))
+    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e0, index=("Vap", "H2O"))
+    m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e0, index=("Vap", "Air"))
     m.fs.prop_air.set_default_scaling("temperature", 1e-2)
     m.fs.prop_air.set_default_scaling("pressure", 1e-5)
-    m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0)
+    m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e1, index=("Liq", "H2O"))
+    m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e1, index=("Liq", "TDS"))
+    m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e2, index=("Liq", "Li+"))
+    m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0, index=("Vap", "H2O"))
+    m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0, index=("Vap", "Air"))
+
+    iscale.calculate_scaling_factors(m)
     
     # Unit model scaling
     for unit in [m.fs.feed, m.fs.pond]:
         if hasattr(unit, 'control_volume'):
             iscale.set_scaling_factor(unit.control_volume.work, 1e-6)
     
-    iscale.calculate_scaling_factors(m)
+    if hasattr(m.fs.pond, 'net_radiation'):
+        for d in m.fs.pond.days_of_year:
+            iscale.set_scaling_factor(m.fs.pond.net_radiation[d], 1e-1)
+
+    if hasattr(m.fs.pond, 'total_evaporative_area_required'):
+        iscale.set_scaling_factor(m.fs.pond.total_evaporative_area_required, 1e-7)
+    
+    if hasattr(m.fs.pond, 'evaporative_area_per_pond'):
+        iscale.set_scaling_factor(m.fs.pond.evaporative_area_per_pond, 1e-4)
+
+    if hasattr(m.fs.pond, 'evaporation_pond_area'):
+        iscale.set_scaling_factor(m.fs.pond.evaporation_pond_area, 1e-5)
+
+    if hasattr(m.fs.pond, 'number_evaporation_ponds'):
+        iscale.set_scaling_factor(m.fs.pond.number_evaporation_ponds, 1e-2)
+
+    if hasattr(m.fs.pond, 'solids_precipitation_rate'):
+        iscale.set_scaling_factor(m.fs.pond.solids_precipitation_rate, 1e1)
+
+    if hasattr(m.fs.pond.properties_in[0.0], 'conc_mass_phase_comp'):
+        iscale.set_scaling_factor(m.fs.pond.properties_in[0.0].conc_mass_phase_comp['Liq', 'TDS'], 1e-2)
+        iscale.set_scaling_factor(m.fs.pond.properties_in[0.0].conc_mass_phase_comp['Liq', 'Li+'], 1e0)
+        iscale.set_scaling_factor(m.fs.pond.properties_in[0.0].conc_mass_phase_comp['Liq', 'H2O'], 1e-2)
+
+    if hasattr(m.fs.pond.weather[0], 'pressure'):
+        for d in m.fs.pond.days_of_year:
+            iscale.set_scaling_factor(m.fs.pond.weather[d].pressure, 1e-3)
+
+    if hasattr(m.fs.pond.weather[0], 'pressure_vap_sat'):
+        for d in m.fs.pond.days_of_year:
+            iscale.set_scaling_factor(m.fs.pond.weather[d].pressure_vap_sat['H2O'], 1e-3)
 
     m.fs.feed.initialize()
     m.fs.feed.report()

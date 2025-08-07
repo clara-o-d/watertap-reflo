@@ -92,7 +92,7 @@ def define_pond_parameters(m):
 def define_flow_and_evaporation(m):
     m.fs.fraction_outflow = Var(
         initialize=0.05,
-        bounds=(0.01, 0.99),
+        bounds=(0.01, 0.13),
         units=pyunits.dimensionless,
         doc="Fraction of water that flows out (not evaporated)"
     )
@@ -158,7 +158,7 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=10,
+        initialize=18,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"

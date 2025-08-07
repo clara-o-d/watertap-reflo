@@ -1,3 +1,4 @@
+from pyomo.core import value
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.build_flowsheet import build_flowsheet
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve import solve
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.display_initial_results import display_initial_results
@@ -6,6 +7,7 @@ from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.process_co
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.display_costing_results import display_costing_results
 from idaes.core.util import DiagnosticsToolbox
 from pyomo.environ import assert_optimal_termination
+from pyomo.environ import Var
 
 def main():
     m = build_flowsheet()
