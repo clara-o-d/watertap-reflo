@@ -69,7 +69,7 @@ def add_costing(m):
 
     # Pumping flow variable and constraint
     m.fs.pumping_flow = Var(
-        initialize=1e7, 
+        initialize=100000, 
         units=pyunits.m**3/pyunits.year, 
         bounds=(0, None), 
         doc="Pumping volumetric flow rate"
@@ -124,15 +124,10 @@ def add_costing(m):
     m.fs.costing.register_flow_type("shipping", m.fs.shipping_cost)
     m.fs.costing.cost_flow(m.fs.annual_concentrated_brine_outflow, "shipping")
 
-    iscale.set_scaling_factor(m.fs.total_well_capital_cost, 1e-8)
-    iscale.set_scaling_factor(m.fs.total_piping_pump_capital_cost, 1e-8)
-    iscale.set_scaling_factor(m.fs.total_facilities_electrical_capital_cost, 1e-7)
-    iscale.set_scaling_factor(m.fs.pumping_flow, 1e-7)
-    iscale.set_scaling_factor(m.fs.pumping_power, 1e-3)
-    iscale.set_scaling_factor(m.fs.annual_concentrated_brine_outflow, 1e-9)
+    iscale.calculate_scaling_factors(m)
     
     # Fix global costing parameters
-    m.fs.costing.base_currency = pyunits.USD_2022
+    # m.fs.costing.base_currency = pyunits.USD_2022
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.07)
     m.fs.costing.electricity_cost.fix(0.16)
