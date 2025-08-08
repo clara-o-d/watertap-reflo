@@ -28,7 +28,7 @@ def display_initial_results(m, weather_name="Station 34"):
     
     # Partial evaporation results
     print(f"\nPARTIAL EVAPORATION RESULTS:")
-    print(f"  Fraction of water evaporated: {value(m.fs.fraction_evaporated):.8f}")
+    print(f"  Fraction of water evaporated: {value(m.fs.fraction_evaporated):.2f}")
     print(f"  Water evaporated: {value(m.fs.water_evaporated):.2f} kg/s")
     print(f"  Water outflow: {value(m.fs.water_outflow):.2f} kg/s")
     print(f"  TDS outflow: {value(m.fs.tds_outflow):.2f} kg/s")
@@ -37,5 +37,5 @@ def display_initial_results(m, weather_name="Station 34"):
     if hasattr(m.fs, 'li_concentration_outflow'):
         print(f"  Li+ concentration in outflow: {value(m.fs.li_concentration_outflow):.2f} kg/m³")
     else:
-        print(f"  Li+ concentration in outflow: {value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 1000):.2f} g/kg ({value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 100):.2f}%)")
+        print(f"  Li+ concentration in outflow: {value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 1000):.5f} g/kg ({value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 100):.2f}%)")
     print(f"  Concentrated brine outflow: {value(m.fs.concentrated_brine_outflow):.2f} kg/s")

@@ -1,23 +1,8 @@
-"""
-Parameter sweep for lithium extraction flowsheet (fs.py)
-
-Input parameters:
-- target_li_concentration: Target Li+ concentration in outflow (100-300 g/kg)
-
-Output parameters:
-- LCOLi_mass: Levelized cost of lithium by mass (USD/mt)
-- aggregate_capital_cost: Total capital costs (USD)
-- aggregate_operating_cost: Total operating costs (USD/year)
-- fraction_evaporated: Fraction of water evaporated
-"""
-
 from parameter_sweep import parameter_sweep, LinearSample
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.build_flowsheet import build_flowsheet
-from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.define_additional_constraints import define_additional_constraints
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve import solve
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.add_costing import add_costing
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.process_costing import process_costing
-from pyomo.environ import assert_optimal_termination, TerminationCondition
 import os
 
 def build_model(**kwargs): 
@@ -38,8 +23,8 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep"""
     sweep_params = dict()
  
-    sweep_params['Target Li+ concentration'] = LinearSample(
-        m.fs.target_li_concentration, 1.736842e+00, 2, 2
+    sweep_params['Number of extraction wells'] = LinearSample(
+        m.fs.number_of_wells, 320, 320, 1
     )
 
     return sweep_params
@@ -58,21 +43,21 @@ def build_outputs(m, **kwargs):
     outputs = dict()
     
     # User-specified output metrics
-    outputs['LCOLi_mass (USD/mt)'] = m.fs.costing.LCOLi_mass
-    outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
-    outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
-    outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
-    outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
-    outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
-    outputs['fraction_evaporated'] = m.fs.fraction_evaporated
+    # outputs['LCOLi_mass (USD/mt)'] = m.fs.costing.LCOLi_mass
+    # outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
+    # outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
+    # outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
+    # outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
+    # outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
+    # outputs['fraction_evaporated'] = m.fs.fraction_evaporated
     
     # Input parameter (for verification that it matches)
-    outputs['Resultant target Li+ concentration'] = m.fs.target_li_concentration
+    outputs['Resultant number of extraction wells'] = m.fs.number_of_wells
         
-    # Additional useful outputs
-    outputs['total_evaporative_area (m²)'] = m.fs.pond.total_evaporative_area_required
-    outputs['Lithium outflow (kg/s)'] = m.fs.li_outflow
-    outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
+    # # Additional useful outputs
+    # outputs['total_evaporative_area (m²)'] = m.fs.pond.total_evaporative_area_required
+    # outputs['Lithium outflow (kg/s)'] = m.fs.li_outflow
+    # outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
     
     return outputs
 
