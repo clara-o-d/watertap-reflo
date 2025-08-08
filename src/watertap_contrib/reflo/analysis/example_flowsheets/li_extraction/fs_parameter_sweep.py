@@ -29,7 +29,6 @@ def build_model(**kwargs):
     
     # Add costing
     # add_costing(m)
-    # process_costing(m)
     # solve(m)
     
     return m
@@ -38,8 +37,8 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep"""
     sweep_params = dict()
  
-    sweep_params['Target lithium concentration'] = LinearSample(
-        m.fs.target_li_concentration, 20, 20, 1
+    sweep_params['Number of wells'] = LinearSample(
+        m.fs.number_of_wells, 320, 330, 2
     )
 
     return sweep_params
@@ -64,13 +63,13 @@ def build_outputs(m, **kwargs):
     # outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
     # outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
     # outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
-    outputs['fraction_evaporated'] = m.fs.fraction_evaporated
+    # outputs['fraction_evaporated'] = m.fs.fraction_evaporated
     
     # Input parameter (for verification that it matches)
-    outputs['Resultant target lithium concentration'] = m.fs.target_li_concentration
+    outputs['Number of wells'] = m.fs.number_of_wells
     # Additional useful outputs
-    outputs['Li outflow (kg/s)'] = m.fs.li_outflow
-    outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
+    # outputs['Li outflow (kg/s)'] = m.fs.li_outflow
+    # outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
     
     return outputs
 

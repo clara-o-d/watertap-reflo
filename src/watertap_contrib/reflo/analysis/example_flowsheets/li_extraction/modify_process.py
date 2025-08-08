@@ -4,7 +4,8 @@ from pyomo.core.base.constraint import Constraint
 from pyomo.core.base.expression import Expression
 from pyomo.core.base.var import Var
 from pyomo.core.base.param import Param
-from idaes.core.util.math import smooth_min
+from idaes.core.util.math import smooth_min, smooth_max
+from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.utils import compute_evaporation_fraction_for_target_li_conc
 
 def define_general_parameters(m):
     m.fs.rho = Param(
@@ -82,11 +83,6 @@ def define_general_parameters(m):
     @m.fs.Constraint(doc="Pumping head calculation")
     def eq_pumping_head(b):
         return b.pumping_head == b.static_head + b.friction_head * b.piping_length
-    
-def define_pond_parameters(m):
-    m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
-    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1.16)
-    m.fs.pond.number_evaporation_ponds.fix(300)
 
 def define_flow_and_evaporation(m):
     m.fs.fraction_outflow = Var(
@@ -197,11 +193,15 @@ def define_target_li_concentration_constraint(m):
         prop_in = b.feed.properties[0]
         inlet_li_mass_flow = prop_in.flow_mass_phase_comp["Liq", "Li+"]
 
-        return inlet_li_mass_flow * smooth_min(1.0, 88.1606 * b.fraction_evaporated**2 + -169.2358 * b.fraction_evaporated + 81.4783, eps=1e-3) / (b.water_outflow) * 1000 == b.target_li_concentration * (1 + b.tds_outflow / b.water_outflow)
+        return inlet_li_mass_flow * smooth_min(1.0, 88.1606 * b.fraction_evaporated**2 + -169.2358 * b.fraction_evaporated + 81.4783, eps=1e-1) / (b.water_outflow) * 1000 == b.target_li_concentration * (1 + b.tds_outflow / b.water_outflow)
 
-def define_additional_constraints(m):
+def fix_evaporation_fraction_for_target_li(m):
+    target_li_conc = value(m.fs.target_li_concentration)
+    evap_frac = compute_evaporation_fraction_for_target_li_conc(m, target_li_conc)
+    m.fs.fraction_evaporated.fix(evap_frac)
+
+def modify_process(m):
     define_general_parameters(m)
-    define_pond_parameters(m)
     define_flow_and_evaporation(m)
     define_precipitate_section(m)
     define_tds_section(m)
@@ -209,3 +209,4 @@ def define_additional_constraints(m):
     define_brine_outflow_section(m)
     define_evaporative_area_section(m)
     define_target_li_concentration_constraint(m) 
+    #fix_evaporation_fraction_for_target_li(m)

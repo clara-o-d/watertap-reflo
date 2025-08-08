@@ -1,5 +1,6 @@
 from idaes.core import UnitModelCostingBlock
 from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
+from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.process_costing import process_costing
 from pyomo.environ import Param, Var, Constraint, Expression
 from pyomo.environ import units as pyunits
 import idaes.core.util.scaling as iscale
@@ -134,3 +135,5 @@ def add_costing(m):
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
     m.fs.costing.maintenance_labor_chemical_factor.fix(0.01) 
+
+    process_costing(m)

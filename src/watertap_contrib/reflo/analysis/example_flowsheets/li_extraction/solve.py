@@ -5,18 +5,18 @@ def solve(m, solver=None):
     if solver is None:
         solver = get_solver()
 
-    # Try with default settings first
-    print("Attempting solve with default solver settings...")
-    try:
-        results = solver.solve(m, tee=True)
-        tc = results.solver.termination_condition
-    except Exception as e:
-        print(f"Default solve failed with exception: {e}")
-        results = None
-        tc = None
+    # # Try with default settings first
+    # print("Attempting solve with default solver settings...")
+    # try:
+    #     results = solver.solve(m, tee=True)
+    #     tc = results.solver.termination_condition
+    # except Exception as e:
+    #     print(f"Default solve failed with exception: {e}")
+    #     results = None
+    #     tc = None
 
     # If first attempt fails, try with improved settings
-    if (results is None or tc != TerminationCondition.optimal):
+    if (True):#results is None or tc != TerminationCondition.optimal):
         #input("Default solve failed. Press Enter to try with improved settings...")
         solver.options = {
             "tol": 1e-5,
