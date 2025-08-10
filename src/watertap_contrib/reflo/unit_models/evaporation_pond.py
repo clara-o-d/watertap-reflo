@@ -463,7 +463,7 @@ class EvaporationPondData(InitializationMixin, UnitModelBlockData):
         )
 
         self.evaporation_pond_depth = Param(
-            initialize=18,
+            initialize=15,
             mutable=True,
             units=pyunits.inches,
             doc="Depth of evaporation pond",

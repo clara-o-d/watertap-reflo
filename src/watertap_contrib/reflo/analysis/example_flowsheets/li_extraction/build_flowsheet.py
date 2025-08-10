@@ -104,9 +104,9 @@ def build_flowsheet():
     TransformationFactory("network.expand_arcs").apply_to(m)
 
     # Set feed conditions
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(477)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.0)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1290)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(453)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.51)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1120)
     m.fs.feed.properties[0].temperature.fix(300)  # K
     m.fs.feed.properties[0].pressure.fix(101325)  # Pa
     m.fs.feed.properties[0].flow_mass_phase_comp["Vap", "Air"].fix(1)

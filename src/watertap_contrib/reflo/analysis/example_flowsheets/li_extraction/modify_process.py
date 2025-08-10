@@ -23,7 +23,7 @@ def define_general_parameters(m):
         units=pyunits.kg/pyunits.m**3
     )
     m.fs.shipping_distance = Param(
-        initialize=200,
+        initialize=250,
         mutable=True,
         units=pyunits.km,
         doc="Shipping distance to next facility (km)"
@@ -39,13 +39,13 @@ def define_general_parameters(m):
     
     # Parameters needed for costing constraints
     m.fs.number_of_wells = Param(
-        initialize=320,
+        initialize=379,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Number of extraction wells"
     )
     m.fs.piping_length = Param(
-        initialize=1,
+        initialize=5.0,
         mutable=True,
         units=pyunits.km,
         doc="Piping length from wells to pond (km)"
@@ -59,13 +59,13 @@ def define_general_parameters(m):
     
     # Pumping head parameters
     m.fs.static_head = Param(
-        initialize=5.0,
+        initialize=39.5,
         mutable=True,
         units=pyunits.m,
         doc="Static head (elevation difference)"
     )
     m.fs.friction_head = Param(
-        initialize=318,
+        initialize=354,
         mutable=True,
         units=pyunits.m/pyunits.km,
         doc="Friction head loss per km"
@@ -73,7 +73,7 @@ def define_general_parameters(m):
     
     # Pumping head as a variable
     m.fs.pumping_head = Var(
-        initialize=50,
+        initialize=2000,
         bounds=(0, None),
         units=pyunits.m,
         doc="Pumping head (m)"
@@ -92,7 +92,7 @@ def define_flow_and_evaporation(m):
         doc="Fraction of water that flows out (not evaporated)"
     )
     m.fs.water_outflow = pyo.Var(
-        initialize=20,
+        initialize=150,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
         doc="Water flow rate in the outflow stream"
@@ -117,7 +117,7 @@ def define_precipitate_section(m):
     if hasattr(m.fs.pond, 'mass_flow_precipitate'):
         m.fs.pond.del_component('mass_flow_precipitate')
     m.fs.pond.mass_flow_precipitate = Var(
-        initialize=1e10,
+        initialize=1.5e10,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
         doc="Annual mass flow of precipitate"
@@ -132,7 +132,7 @@ def define_precipitate_section(m):
 
 def define_tds_section(m):
     m.fs.tds_outflow = Var(
-        initialize=20,
+        initialize=100,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
         doc="TDS flow rate in the outflow stream"
@@ -153,13 +153,13 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=20,#1.736842e+00,
+        initialize=15,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
     )
     m.fs.li_outflow = Var(
-        initialize=1,
+        initialize=3,
         bounds=(0, None),
         units=pyunits.kg / pyunits.second,
         doc="Li+ outflow"
@@ -170,7 +170,7 @@ def define_lithium_section(m):
 
 def define_brine_outflow_section(m):
     m.fs.concentrated_brine_outflow = Var(
-        initialize=50,
+        initialize=70,
         bounds=(0, None),
         units=pyunits.kg / pyunits.second,
         doc="Total concentrated brine outflow for shipping (post-evaporation)"
@@ -208,5 +208,5 @@ def modify_process(m):
     define_lithium_section(m)
     define_brine_outflow_section(m)
     define_evaporative_area_section(m)
-    define_target_li_concentration_constraint(m) 
-    #fix_evaporation_fraction_for_target_li(m)
+    #define_target_li_concentration_constraint(m) 
+    fix_evaporation_fraction_for_target_li(m)

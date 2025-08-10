@@ -12,25 +12,24 @@ def add_costing(m):
 
     # Wellfield capital cost
     m.fs.well_capital_cost = Param(
-        initialize=104.65e6 / 320,  # 104.65M total / 320 wells
+        initialize=104.65e6 / 379,  # 104.65M total / 320 wells
         mutable=True, units=m.fs.costing.base_currency,
         doc="Capital cost per extraction well ($/well)"
     )
-    m.fs.piping_length = Param(
-        initialize=10.0,  # Updated to 10 km average distance
-        mutable=True,
-        units=pyunits.km,
-        doc="Piping length from wells to pond (km)"
-    )
     m.fs.piping_unit_cost = Param(
-        initialize=104.65e6 / 10.0,  # 104.65M total / 10 km = cost per km
+        initialize=104.65e6 / 5.0,  # 104.65M total / 5 km = cost per km
         mutable=True, units=m.fs.costing.base_currency/pyunits.km,
         doc="Piping and pump cost per km ($/km)"
     )
     m.fs.facilities_electrical_unit_cost = Param(
-        initialize=86.72e6 / 320,  # 86.72M total / 320 wells = cost per well
+        initialize=86.72e6 / 379,  # 86.72M total / 320 wells = cost per well
         mutable=True, units=m.fs.costing.base_currency,
         doc="Facilities/electrical cost per well ($/well)"
+    )
+    m.fs.other_fixed_assets_factor = Param(
+        initialize=1.20,
+        mutable=True,
+        doc="Other fixed assets factor"
     )
 
     m.fs.total_well_capital_cost = Var(initialize=104.65e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total wellfield capital cost")
@@ -57,9 +56,10 @@ def add_costing(m):
         m.fs.pond.costing.liner_capital_cost + 
         m.fs.pond.costing.fence_capital_cost + 
         m.fs.pond.costing.road_capital_cost + 
+        m.fs.other_fixed_assets_factor * (
         m.fs.total_well_capital_cost + 
         m.fs.total_piping_pump_capital_cost + 
-        m.fs.total_facilities_electrical_capital_cost,
+        m.fs.total_facilities_electrical_capital_cost),
         doc="Total capital cost (pond + extraction + piping/pumps + facilities)"
     )
 
@@ -103,7 +103,7 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=3e-5, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
+        initialize=2.4e-5, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
     )
 
@@ -127,7 +127,7 @@ def add_costing(m):
 
     iscale.calculate_scaling_factors(m)
     
-    # Fix global costing parameters
+    # Fix costing parameters
     # m.fs.costing.base_currency = pyunits.USD_2022
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.07)
@@ -135,5 +135,6 @@ def add_costing(m):
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
     m.fs.costing.maintenance_labor_chemical_factor.fix(0.01) 
+    m.fs.costing.evaporation_pond.liner_thickness.fix(30)
 
     process_costing(m)
