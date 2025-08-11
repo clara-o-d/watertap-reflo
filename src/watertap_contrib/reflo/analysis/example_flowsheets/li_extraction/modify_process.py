@@ -31,7 +31,7 @@ def define_general_parameters(m):
     
     # Overdesign factor for pond area
     m.fs.pond_overdesign_factor = Param(
-        initialize=1.1,
+        initialize=1.0,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Overdesign factor for pond area (multiplier for calculated area)"

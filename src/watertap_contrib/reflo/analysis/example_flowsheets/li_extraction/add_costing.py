@@ -103,7 +103,7 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=2.4e-5, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
+        initialize=1.28e-4, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
     )
 
@@ -130,11 +130,14 @@ def add_costing(m):
     # Fix costing parameters
     # m.fs.costing.base_currency = pyunits.USD_2022
     m.fs.costing.plant_lifetime.fix(35)
-    m.fs.costing.wacc.fix(0.07)
-    m.fs.costing.electricity_cost.fix(0.16)
+    m.fs.costing.wacc.fix(0.10)
+    m.fs.costing.electricity_cost.fix(0.15)
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
-    m.fs.costing.maintenance_labor_chemical_factor.fix(0.01) 
+    #m.fs.costing.maintenance_labor_chemical_factor.fix(0.01) 
     m.fs.costing.evaporation_pond.liner_thickness.fix(30)
+    m.fs.costing.recovered_solids.cost.set_value(-0.032)
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(0.032)
+    m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
 
     process_costing(m)

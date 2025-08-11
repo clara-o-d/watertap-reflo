@@ -15,7 +15,7 @@ from pyomo.environ import Constraint, Var
 
 def define_pond_parameters(m):
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
-    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1.16)
+    m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1.0)
     m.fs.pond.number_evaporation_ponds.fix(300)
 
 def add_scaling(m):
