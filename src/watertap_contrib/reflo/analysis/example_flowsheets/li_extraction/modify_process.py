@@ -22,6 +22,14 @@ def define_general_parameters(m):
         initialize=3.5704e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
         units=pyunits.kg/pyunits.m**3
     )
+
+    # Parameters for shipping costs
+    m.fs.number_of_trucks = Param(
+        initialize=230,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Number of trucks"
+    )
     m.fs.shipping_distance = Param(
         initialize=250,
         mutable=True,
@@ -84,25 +92,26 @@ def define_general_parameters(m):
     def eq_pumping_head(b):
         return b.pumping_head == b.static_head + b.friction_head * b.piping_length
 
-def define_flow_and_evaporation(m):
+def define_flow_and_evaporation_section(m):
     m.fs.fraction_outflow = Var(
-        initialize=0.02,
+        initialize=0.01,
         bounds=(0.01, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that flows out (not evaporated)"
     )
     m.fs.water_outflow = pyo.Var(
-        initialize=150,
+        initialize=11.2,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
         doc="Water flow rate in the outflow stream"
     )
     m.fs.fraction_evaporated = Var(
-        initialize=0.98,
+        initialize=0.99,
         bounds=(0.01, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that is evaporated"
     )
+
     prop_in = m.fs.feed.properties[0]
     def eq_fraction_outflow(b):
         return b.fraction_outflow + b.fraction_evaporated == 1
@@ -117,7 +126,7 @@ def define_precipitate_section(m):
     if hasattr(m.fs.pond, 'mass_flow_precipitate'):
         m.fs.pond.del_component('mass_flow_precipitate')
     m.fs.pond.mass_flow_precipitate = Var(
-        initialize=1.5e10,
+        initialize=12508164782,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
         doc="Annual mass flow of precipitate"
@@ -132,13 +141,13 @@ def define_precipitate_section(m):
 
 def define_tds_section(m):
     m.fs.tds_outflow = Var(
-        initialize=100,
+        initialize=56.64,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
         doc="TDS flow rate in the outflow stream"
     )
     m.fs.tds_concentration_outflow = Var(
-        initialize=1000,
+        initialize=6205.13,
         bounds=(0, None),
         units=pyunits.kg / pyunits.m**3,
         doc="TDS concentration in the outflow stream"
@@ -153,13 +162,13 @@ def define_tds_section(m):
 
 def define_lithium_section(m):
     m.fs.target_li_concentration = Param(
-        initialize=15,
+        initialize=12.6,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
     )
     m.fs.li_outflow = Var(
-        initialize=3,
+        initialize=0.86,
         bounds=(0, None),
         units=pyunits.kg / pyunits.second,
         doc="Li+ outflow"
@@ -168,9 +177,9 @@ def define_lithium_section(m):
         return b.li_outflow == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"] * smooth_min(1.0, 88.1606 * b.fraction_evaporated**2 + -169.2358 * b.fraction_evaporated + 81.4783, eps=1e-3)
     m.fs.eq_li_outflow = Constraint(rule=eq_li_outflow, doc="Li+ outflow mass balance")
 
-def define_brine_outflow_section(m):
+def define_concentrated_brine_outflow_section(m):
     m.fs.concentrated_brine_outflow = Var(
-        initialize=70,
+        initialize=67.84,
         bounds=(0, None),
         units=pyunits.kg / pyunits.second,
         doc="Total concentrated brine outflow for shipping (post-evaporation)"
@@ -202,11 +211,11 @@ def fix_evaporation_fraction_for_target_li(m):
 
 def modify_process(m):
     define_general_parameters(m)
-    define_flow_and_evaporation(m)
+    define_flow_and_evaporation_section(m)
     define_precipitate_section(m)
     define_tds_section(m)
     define_lithium_section(m)
-    define_brine_outflow_section(m)
+    define_concentrated_brine_outflow_section(m)
     define_evaporative_area_section(m)
-    #define_target_li_concentration_constraint(m) 
-    fix_evaporation_fraction_for_target_li(m)
+    define_target_li_concentration_constraint(m) 
+    #fix_evaporation_fraction_for_target_li(m)

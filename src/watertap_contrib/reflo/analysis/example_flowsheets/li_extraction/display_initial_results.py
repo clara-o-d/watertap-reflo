@@ -26,16 +26,39 @@ def display_initial_results(m, weather_name="Station 34"):
     print(f"  Area correction factor: {value(m.fs.pond.area_correction_factor):.4f}")
     print(f"  Average mass flux of water vapor: {value(m.fs.pond.mass_flux_water_vapor_average):.2e} kg/(m²·s)")
     
-    # Partial evaporation results
-    print(f"\nPARTIAL EVAPORATION RESULTS:")
-    print(f"  Fraction of water evaporated: {value(m.fs.fraction_evaporated):.2f}")
+    # Process parameters
+    print(f"\nPROCESS PARAMETERS:")
+    print(f"  Solution density: {value(m.fs.rho):.0f} kg/m³")
+    print(f"  Pond overdesign factor: {value(m.fs.pond_overdesign_factor):.2f}")
+    print(f"  Target Li+ concentration: {value(m.fs.target_li_concentration):.1f} g/kg")
+    
+    # Evaporation and flow results
+    print(f"\nEVAPORATION AND FLOW RESULTS:")
+    print(f"  Fraction of water evaporated: {value(m.fs.fraction_evaporated):.3f}")
+    print(f"  Fraction of water outflow: {value(m.fs.fraction_outflow):.3f}")
     print(f"  Water evaporated: {value(m.fs.water_evaporated):.2f} kg/s")
     print(f"  Water outflow: {value(m.fs.water_outflow):.2f} kg/s")
     print(f"  TDS outflow: {value(m.fs.tds_outflow):.2f} kg/s")
     print(f"  Li+ outflow: {value(m.fs.li_outflow):.2f} kg/s")
+    print(f"  Actual Li+ concentration: {value(m.fs.li_outflow / (m.fs.concentrated_brine_outflow) * 1000):.2f} g/kg")
     print(f"  TDS concentration in outflow: {value(m.fs.tds_concentration_outflow):.2f} kg/m³")
-    if hasattr(m.fs, 'li_concentration_outflow'):
-        print(f"  Li+ concentration in outflow: {value(m.fs.li_concentration_outflow):.2f} kg/m³")
-    else:
-        print(f"  Li+ concentration in outflow: {value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 1000):.5f} g/kg ({value(m.fs.li_outflow / (m.fs.water_outflow + m.fs.tds_outflow) * 100):.2f}%)")
     print(f"  Concentrated brine outflow: {value(m.fs.concentrated_brine_outflow):.2f} kg/s")
+    
+    # Infrastructure parameters
+    print(f"\nINFRASTRUCTURE PARAMETERS:")
+    print(f"  Number of wells: {value(m.fs.number_of_wells):.0f}")
+    print(f"  Piping length: {value(m.fs.piping_length):.1f} km")
+    print(f"  Pumping efficiency: {value(m.fs.pumping_efficiency):.1%}")
+    print(f"  Static head: {value(m.fs.static_head):.1f} m")
+    print(f"  Friction head: {value(m.fs.friction_head):.1f} m/km")
+    print(f"  Calculated pumping head: {value(m.fs.pumping_head):.1f} m")
+    
+    # Shipping parameters
+    print(f"\nSHIPPING PARAMETERS:")
+    print(f"  Number of trucks: {value(m.fs.number_of_trucks):.0f}")
+    print(f"  Shipping distance: {value(m.fs.shipping_distance):.1f} km")
+    
+    # Precipitate parameters
+    print(f"\nPRECIPITATE PARAMETERS:")
+    print(f"  Annual solid precipitate coefficient a: {value(m.fs.pond.annual_solid_precipitate_a):.1f} kg/m³")
+    print(f"  Annual solid precipitate coefficient b: {value(m.fs.pond.annual_solid_precipitate_b):.1f} kg/m³")

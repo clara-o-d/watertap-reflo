@@ -13,17 +13,17 @@ def add_costing(m):
     # Wellfield capital cost
     m.fs.well_capital_cost = Param(
         initialize=104.65e6 / 379,  # 104.65M total / 320 wells
-        mutable=True, units=m.fs.costing.base_currency,
+        mutable=True, units=pyunits.USD_2020,
         doc="Capital cost per extraction well ($/well)"
     )
     m.fs.piping_unit_cost = Param(
         initialize=104.65e6 / 5.0,  # 104.65M total / 5 km = cost per km
-        mutable=True, units=m.fs.costing.base_currency/pyunits.km,
+        mutable=True, units=pyunits.USD_2020/pyunits.km,
         doc="Piping and pump cost per km ($/km)"
     )
     m.fs.facilities_electrical_unit_cost = Param(
         initialize=86.72e6 / 379,  # 86.72M total / 320 wells = cost per well
-        mutable=True, units=m.fs.costing.base_currency,
+        mutable=True, units=pyunits.USD_2020,
         doc="Facilities/electrical cost per well ($/well)"
     )
     m.fs.other_fixed_assets_factor = Param(
@@ -48,6 +48,19 @@ def add_costing(m):
     def total_facilities_electrical_capital_cost_constraint(b):
         return b.total_facilities_electrical_capital_cost == b.number_of_wells * b.facilities_electrical_unit_cost
 
+    # Shipping capital cost
+    m.fs.truck_capital_cost = Param(
+        initialize=158000,
+        mutable=True,
+        units=pyunits.USD_2023,
+        doc="Truck capital cost"
+    )
+    m.fs.total_truck_capital_cost = Var(initialize=158000*230, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total truck capital cost")
+
+    @m.fs.Constraint(doc="Total truck capital cost")
+    def total_truck_capital_cost_constraint(b):
+        return b.total_truck_capital_cost == b.number_of_trucks * b.truck_capital_cost * 1.36 # Indirect cost multiplier
+
     # Capital cost replacement
     m.fs.pond.costing.total_capital_cost = Expression(
         expr=m.fs.pond.costing.land_capital_cost + 
@@ -59,7 +72,8 @@ def add_costing(m):
         m.fs.other_fixed_assets_factor * (
         m.fs.total_well_capital_cost + 
         m.fs.total_piping_pump_capital_cost + 
-        m.fs.total_facilities_electrical_capital_cost),
+        m.fs.total_facilities_electrical_capital_cost) +
+        m.fs.total_truck_capital_cost,
         doc="Total capital cost (pond + extraction + piping/pumps + facilities)"
     )
 
@@ -103,7 +117,7 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=1.28e-4, mutable=True, units=m.fs.costing.base_currency/pyunits.kg/pyunits.km,
+        initialize=1.28e-4, mutable=True, units=pyunits.USD_2022/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
     )
 
@@ -128,16 +142,17 @@ def add_costing(m):
     iscale.calculate_scaling_factors(m)
     
     # Fix costing parameters
-    # m.fs.costing.base_currency = pyunits.USD_2022
     m.fs.costing.plant_lifetime.fix(35)
-    m.fs.costing.wacc.fix(0.10)
-    m.fs.costing.electricity_cost.fix(0.15)
+    m.fs.costing.wacc.fix(0.10) # capital_recovery_factor = 0.10368970512
+    m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
-    #m.fs.costing.maintenance_labor_chemical_factor.fix(0.01) 
+
     m.fs.costing.evaporation_pond.liner_thickness.fix(30)
-    m.fs.costing.recovered_solids.cost.set_value(-0.032)
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(0.032)
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.032 * pyunits.USD_2020 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.032 * pyunits.USD_2020 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
+    m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
+    m.fs.costing.evaporation_pond.fence_capital_cost_base.fix(0)
 
     process_costing(m)
