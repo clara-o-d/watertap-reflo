@@ -21,7 +21,7 @@ from watertap.core.solvers import get_solver
 import os
 
 def build_model(**kwargs): 
-    """Build the lithium extraction flowsheet model with parameter sweep capability"""
+    """Build the lithium extraction flowsheet model with parameter sweep capability."""
     
     m = build_flowsheet()
 
@@ -35,7 +35,7 @@ def build_model(**kwargs):
     return m
 
 def build_sweep_params(m, **kwargs):
-    """Define the parameters to sweep"""
+    """Define the parameters to sweep."""
     sweep_params = dict()
  
     # sweep_params['Land cost'] = LinearSample(
@@ -68,7 +68,7 @@ def build_sweep_params(m, **kwargs):
     return sweep_params
 
 def build_outputs(m, **kwargs):
-    """Define the outputs to track"""
+    """Define the outputs to track."""
     if m is None:
         # Return dictionary with None values if model failed
         return {
@@ -105,7 +105,7 @@ def build_outputs(m, **kwargs):
     return outputs
 
 def optimize_function(m, **kwargs):
-    """Optimize the flowsheet"""
+    """Optimize the flowsheet with fallback solver options."""
     solver = get_solver()
 
     # Try with default settings first

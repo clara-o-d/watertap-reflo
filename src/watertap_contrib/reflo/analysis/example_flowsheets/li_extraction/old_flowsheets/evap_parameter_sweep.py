@@ -1,8 +1,21 @@
+"""Parameter sweep module for evaporation pond flowsheet.
+
+Performs parameter sweeps on well capital cost and pumping head parameters.
+"""
+
 from parameter_sweep import parameter_sweep, LinearSample
 import evap_fs_constraints as evap_fs
 import os
 # Build model
 def build_model(**kwargs): 
+    """Build the evaporation pond flowsheet model with parameter sweep capability.
+    
+    Args:
+        **kwargs: Optional parameters to set on the model
+        
+    Returns:
+        Pyomo model: Configured flowsheet model
+    """
     this_dir = os.path.dirname(os.path.abspath(__file__))
     
     weather_data_path = os.path.join(this_dir, "station34_processed_weather.csv")
@@ -30,6 +43,15 @@ def build_model(**kwargs):
     return m
 
 def build_sweep_params(m, **kwargs):
+    """Define the parameters to sweep.
+    
+    Args:
+        m: Pyomo model
+        **kwargs: Additional arguments
+        
+    Returns:
+        dict: Dictionary of sweep parameters
+    """
     sweep_params = dict()
     sweep_params['well_capital_cost'] = LinearSample(
         m.fs.extraction.costing.well_capital_cost, 8.5e5, 1e6, 8
@@ -41,6 +63,15 @@ def build_sweep_params(m, **kwargs):
 
 # Outputs - expanded to include more relevant outputs
 def build_outputs(m, **kwargs):
+    """Define the outputs to track.
+    
+    Args:
+        m: Pyomo model
+        **kwargs: Additional arguments
+        
+    Returns:
+        dict: Dictionary of output variables
+    """
     outputs = dict()
     outputs['levelized cost of lithium (USD_2023/m^3)'] = m.fs.costing.LCOLi
     outputs['well_capital_cost'] = m.fs.extraction.costing.well_capital_cost

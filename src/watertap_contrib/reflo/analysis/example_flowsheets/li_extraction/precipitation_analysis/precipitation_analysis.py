@@ -1,3 +1,9 @@
+"""Precipitation analysis module for lithium extraction flowsheet.
+
+Analyzes solid phase precipitation data and fits mathematical models to predict
+precipitation behavior as a function of water volume and TDS concentration.
+"""
+
 import os
 import numpy as np
 import csv
@@ -23,6 +29,14 @@ MOLAR_MASS_LOOKUP = {
 }
 
 def get_precipitation_vs_volume(solid_phase_dir):
+    """Extract precipitation data from solid phase CSV files.
+    
+    Args:
+        solid_phase_dir: Directory containing solid phase CSV files
+        
+    Returns:
+        tuple: (master_vols, cumulative_dry_salt_mass, incremental_dry_salt_mass)
+    """
     solid_files = [f for f in os.listdir(solid_phase_dir) if f.endswith('.csv') and f != 'Solid Phase Formed.csv']
     # Find the file with the most steps to use as the master grid
     max_steps = 0
@@ -62,6 +76,15 @@ def get_precipitation_vs_volume(solid_phase_dir):
     return master_vols, cumulative_dry_salt_mass, incremental_dry_salt_mass
 
 def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
+    """Calculate TDS concentration as a function of water volume.
+    
+    Args:
+        master_vols: Array of water volumes
+        cumulative_dry_salt_mass: Array of cumulative precipitated salt mass
+        
+    Returns:
+        tuple: (master_vols, TDS)
+    """
     initial_concentrations_g_per_kg = {
         'Li_+1_': 0.65,
         'Na_+1_': 82.1,

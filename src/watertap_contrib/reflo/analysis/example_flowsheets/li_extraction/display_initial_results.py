@@ -1,6 +1,17 @@
+"""Display module for initial flowsheet results.
+
+Prints comprehensive results from the lithium extraction flowsheet simulation.
+"""
+
 from pyomo.environ import value
 
 def display_initial_results(m, weather_name="Station 34"):
+    """Display comprehensive results from the lithium extraction flowsheet.
+    
+    Args:
+        m: Pyomo model with solved flowsheet
+        weather_name: Name of weather station used
+    """
     print("\n" + "="*50)
     print(f"EVAPORATION POND RESULTS ({weather_name} Weather Data)")
     print("="*50)

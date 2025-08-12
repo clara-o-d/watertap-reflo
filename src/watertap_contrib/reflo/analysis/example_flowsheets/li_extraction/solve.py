@@ -1,7 +1,18 @@
+"""Flowsheet solving module with fallback solver options."""
+
 from watertap.core.solvers import get_solver
 from pyomo.environ import TerminationCondition
 
 def solve(m, solver=None):
+    """Solve the flowsheet model with fallback solver options.
+    
+    Args:
+        m: Pyomo model to solve
+        solver: Optional solver instance
+        
+    Returns:
+        Solver results object
+    """
     if solver is None:
         solver = get_solver()
 

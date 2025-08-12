@@ -1,6 +1,17 @@
+"""Display module for costing results.
+
+Prints comprehensive costing analysis results from the lithium extraction flowsheet.
+"""
+
 from pyomo.environ import value
 
 def display_costing_results(m, detailed=False):
+    """Display comprehensive costing results from the lithium extraction flowsheet.
+    
+    Args:
+        m: Pyomo model with solved flowsheet and costing
+        detailed: Whether to show detailed breakdown
+    """
     print("\n" + "="*50)
     print("COSTING RESULTS")
     print("="*50)

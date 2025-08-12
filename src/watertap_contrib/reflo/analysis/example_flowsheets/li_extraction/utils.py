@@ -1,7 +1,18 @@
+"""Utility functions for lithium extraction flowsheet."""
+
 from pyomo.environ import value
 import numpy as np
 
 def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
+    """Compute evaporation fraction needed to achieve target lithium concentration.
+    
+    Args:
+        m: Pyomo model
+        target_li_conc: Target lithium concentration in g/kg
+        
+    Returns:
+        float: Optimal evaporation fraction
+    """
     prop_in = m.fs.feed.properties[0]
     li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])

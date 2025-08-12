@@ -1,3 +1,9 @@
+"""Mass fraction analysis module for lithium extraction flowsheet.
+
+Analyzes ion mass fraction data as a function of evaporation and fits various
+mathematical models to predict ion behavior during evaporation.
+"""
+
 # Computes fraction of mass remaining of each ion as a function of water evaporated
 import pandas as pd
 import numpy as np
@@ -7,6 +13,14 @@ import os
 import glob
 
 def load_ion_data(data_dir):
+    """Load ion mass fraction data from CSV files.
+    
+    Args:
+        data_dir: Directory containing ion CSV files
+        
+    Returns:
+        dict: Dictionary mapping ion names to their data
+    """
     ion_data = {}
     
     # Get all CSV files in the data directory
@@ -27,6 +41,15 @@ def load_ion_data(data_dir):
     return ion_data
 
 def calculate_evaporation_ratio(volume_data, initial_volume=None):
+    """Calculate evaporation ratio from volume data.
+    
+    Args:
+        volume_data: Array of volume values
+        initial_volume: Initial volume (defaults to max volume)
+        
+    Returns:
+        array: Evaporation ratios
+    """
     if initial_volume is None:
         initial_volume = np.max(volume_data)
     
@@ -39,14 +62,42 @@ def calculate_evaporation_ratio(volume_data, initial_volume=None):
     return evaporation_ratio
 
 def fit_linear_model(x, y):
+    """Fit linear model to data.
+    
+    Args:
+        x: Independent variable
+        y: Dependent variable
+        
+    Returns:
+        tuple: (slope, intercept)
+    """
     coeffs = np.polyfit(x, y, 1)
     return coeffs[0], coeffs[1]
 
 def fit_polynomial_model(x, y, degree=2):
+    """Fit polynomial model to data.
+    
+    Args:
+        x: Independent variable
+        y: Dependent variable
+        degree: Polynomial degree
+        
+    Returns:
+        array: Polynomial coefficients
+    """
     coeffs = np.polyfit(x, y, degree)
     return coeffs
 
 def fit_exponential_model(x, y):
+    """Fit exponential model to data.
+    
+    Args:
+        x: Independent variable
+        y: Dependent variable
+        
+    Returns:
+        array: Exponential model parameters or None if fit fails
+    """
     # Initial guess for parameters
     p0 = [1.0, -1.0, 0.0]
     
@@ -61,6 +112,15 @@ def fit_exponential_model(x, y):
         return None
 
 def fit_sigmoid_model(x, y):
+    """Fit sigmoid model to data.
+    
+    Args:
+        x: Independent variable
+        y: Dependent variable
+        
+    Returns:
+        array: Sigmoid model parameters or None if fit fails
+    """
     """
     Fit a sigmoid model: y = 1.0 / (1 + exp(k * (x - x0)))
     This can capture the sharp transition behavior
@@ -78,25 +138,82 @@ def fit_sigmoid_model(x, y):
         return None
 
 def calculate_r2_score(y_true, y_pred):
+    """Calculate R-squared score for model fit.
+    
+    Args:
+        y_true: True values
+        y_pred: Predicted values
+        
+    Returns:
+        float: R-squared score
+    """
     ss_res = np.sum((y_true - y_pred) ** 2)
     ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
     r2 = 1 - (ss_res / ss_tot)
     return r2
 
 def evaluate_model_fit(x, y, model_func, params):
+    """Evaluate model fit quality.
+    
+    Args:
+        x: Independent variable
+        y: Dependent variable
+        model_func: Model function
+        params: Model parameters
+        
+    Returns:
+        float: R-squared score
+    """
     y_pred = model_func(x, *params)
     return calculate_r2_score(y, y_pred)
 
 def mean_absolute_error(y_true, y_pred):
+    """Calculate mean absolute error.
+    
+    Args:
+        y_true: True values
+        y_pred: Predicted values
+        
+    Returns:
+        float: Mean absolute error
+    """
     return np.mean(np.abs(y_true - y_pred))
 
 def mean_squared_error(y_true, y_pred):
+    """Calculate mean squared error.
+    
+    Args:
+        y_true: True values
+        y_pred: Predicted values
+        
+    Returns:
+        float: Mean squared error
+    """
     return np.mean((y_true - y_pred) ** 2)
 
 def max_absolute_error(y_true, y_pred):
+    """Calculate maximum absolute error.
+    
+    Args:
+        y_true: True values
+        y_pred: Predicted values
+        
+    Returns:
+        float: Maximum absolute error
+    """
     return np.max(np.abs(y_true - y_pred))
 
 def find_dropoff_region(evaporation_ratio, mass_fraction, threshold=-0.01):
+    """Find region where mass fraction drops off significantly.
+    
+    Args:
+        evaporation_ratio: Evaporation ratio values
+        mass_fraction: Mass fraction values
+        threshold: Threshold for dropoff detection
+        
+    Returns:
+        tuple: (dropoff_start, dropoff_end)
+    """
     # Compute the discrete derivative
     dmf = np.diff(mass_fraction) / np.diff(evaporation_ratio)
     # Find the first index where the derivative drops below the threshold

@@ -1,3 +1,8 @@
+"""Main lithium extraction flowsheet execution module.
+
+Executes the complete lithium extraction process including building, solving, and displaying results.
+"""
+
 from pyomo.core import value
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.build_flowsheet import build_flowsheet
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve import solve
@@ -28,6 +33,7 @@ WSP, 2022. Technical report summary: Operation report, Salar de Atacama. WSP-SQM
 """
 
 def main():
+    """Execute the complete lithium extraction flowsheet analysis."""
     m = build_flowsheet()
     # dt = DiagnosticsToolbox(m)
     results = solve(m)

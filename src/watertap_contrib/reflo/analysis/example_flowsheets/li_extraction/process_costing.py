@@ -1,8 +1,18 @@
+"""Process costing calculations for lithium extraction flowsheet.
+
+Calculates LCOLi and specific energy consumption metrics.
+"""
+
 from pyomo.environ import Param, Var, Constraint
 from pyomo.environ import units as pyunits
 from pyomo.environ import value
 
 def process_costing(m):
+    """Initialize costing and add LCOLi calculations.
+    
+    Args:
+        m: Pyomo model with costing block
+    """
     m.fs.pond.costing.initialize()
     m.fs.costing.cost_process()
     m.fs.costing.initialize()

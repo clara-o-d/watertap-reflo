@@ -1,3 +1,9 @@
+"""Tornado analysis module for evaporation pond parameter sensitivity.
+
+Performs one-at-a-time (OAT) sensitivity analysis and creates tornado plots
+to visualize parameter impacts on key outputs.
+"""
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,7 +11,14 @@ import os
 
 
 def load_and_process_data(filename):
-    """Load and process the parameter sweep results"""
+    """Load and process the parameter sweep results.
+    
+    Args:
+        filename: Path to CSV file with parameter sweep results
+        
+    Returns:
+        DataFrame: Processed parameter sweep data
+    """
     df = pd.read_csv(filename)
     df.columns = df.columns.str.strip()
     
@@ -24,6 +37,16 @@ def load_and_process_data(filename):
     return df
 
 def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
+    """Perform one-at-a-time sensitivity analysis.
+    
+    Args:
+        df: DataFrame with parameter sweep results
+        target_col: Target column for sensitivity analysis
+        input_params: List of input parameters to analyze
+        
+    Returns:
+        list: Sensitivity analysis results
+    """
     if input_params is None:
         input_params = [
             'land_cost',

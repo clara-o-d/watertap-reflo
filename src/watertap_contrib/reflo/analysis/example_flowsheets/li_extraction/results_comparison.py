@@ -1,3 +1,8 @@
+"""Results comparison visualization for lithium extraction flowsheet.
+
+Creates cost comparison plots between industry reports and WaterTAP model results.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 

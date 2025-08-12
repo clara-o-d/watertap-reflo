@@ -1,3 +1,8 @@
+"""Lithium extraction flowsheet construction module.
+
+Builds and configures a lithium extraction flowsheet using evaporation ponds.
+"""
+
 from pyomo.core import ConcreteModel, TransformationFactory
 from idaes.core import FlowsheetBlock
 from pyomo.network import Arc
@@ -14,12 +19,15 @@ from pyomo.environ import value
 from pyomo.environ import Constraint, Var
 
 def define_pond_parameters(m):
+    """Set evaporation pond parameters."""
     m.fs.pond.evaporation_rate_salinity_adjustment_factor.set_value(0.75)
     m.fs.pond.evaporation_rate_enhancement_adjustment_factor.fix(1.0)
     m.fs.pond.number_evaporation_ponds.fix(300)
+    m.fs.pond.evaporation_pond_depth.set_value(15)
 
 def add_scaling(m):
-    # Air property package scaling
+    """Apply scaling factors to improve numerical stability."""
+    # Air property package scaling - set scaling factors for different components and phases
     m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-3, index=("Liq", "H2O"))
     m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e-2, index=("Liq", "TDS"))
     m.fs.prop_air.set_default_scaling("flow_mass_phase_comp", 1e0, index=("Liq", "Li+"))
@@ -33,15 +41,17 @@ def add_scaling(m):
     m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0, index=("Vap", "H2O"))
     m.fs.prop_air.set_default_scaling("mass_frac_phase_comp", 1e0, index=("Vap", "Air"))
     
-    # Unit model scaling
+    # Unit model scaling - apply scaling to control volume work terms
     for unit in [m.fs.feed, m.fs.pond]:
         if hasattr(unit, 'control_volume'):
             iscale.set_scaling_factor(unit.control_volume.work, 1e-6)
     
+    # Weather-dependent scaling - scale radiation and pressure terms for each day
     if hasattr(m.fs.pond, 'net_radiation'):
         for d in m.fs.pond.days_of_year:
             iscale.set_scaling_factor(m.fs.pond.net_radiation[d], 1e-1)
 
+    # Pond area and capacity scaling - scale large area and capacity variables
     if hasattr(m.fs.pond, 'total_evaporative_area_required'):
         iscale.set_scaling_factor(m.fs.pond.total_evaporative_area_required, 1e-7)
     
@@ -57,11 +67,13 @@ def add_scaling(m):
     if hasattr(m.fs.pond, 'solids_precipitation_rate'):
         iscale.set_scaling_factor(m.fs.pond.solids_precipitation_rate, 1e1)
 
+    # Concentration scaling - scale mass concentration terms for numerical stability
     if hasattr(m.fs.pond.properties_in[0.0], 'conc_mass_phase_comp'):
         iscale.set_scaling_factor(m.fs.pond.properties_in[0.0].conc_mass_phase_comp['Liq', 'TDS'], 1e-2)
         iscale.set_scaling_factor(m.fs.pond.properties_in[0.0].conc_mass_phase_comp['Liq', 'Li+'], 1e0)
         iscale.set_scaling_factor(m.fs.pond.properties_in[0.0].conc_mass_phase_comp['Liq', 'H2O'], 1e-2)
 
+    # Weather pressure scaling - scale pressure terms for each day of the year
     if hasattr(m.fs.pond.weather[0], 'pressure'):
         for d in m.fs.pond.days_of_year:
             iscale.set_scaling_factor(m.fs.pond.weather[d].pressure, 1e-3)
@@ -70,13 +82,19 @@ def add_scaling(m):
         for d in m.fs.pond.days_of_year:
             iscale.set_scaling_factor(m.fs.pond.weather[d].pressure_vap_sat['H2O'], 1e-3)
 
+    # Calculate all scaling factors
     iscale.calculate_scaling_factors(m)
     
 def build_flowsheet():
+    """Build and configure the lithium extraction flowsheet.
+    
+    Returns:
+        ConcreteModel: Configured flowsheet model
+    """
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
-    # AirWaterEq property package uses uppercase 'TDS' for compatibility with EvaporationPond
+    # Define property package with TDS and Li+ as non-volatile solutes
     props = {
         "non_volatile_solute_list": ["TDS", "Li+"],
         "mw_data": {"TDS": 31.4038218e-3, "Li+": 6.94e-3},
@@ -85,6 +103,7 @@ def build_flowsheet():
     m.fs.prop_air = AirWaterEq(**props)
     m.fs.feed = Feed(property_package=m.fs.prop_air)
 
+    # Map weather data columns to expected names for EvaporationPond model
     weather_data_column_dict = {
         "pressure": "Pressure",
         "temperature": "Temperature",
@@ -92,6 +111,7 @@ def build_flowsheet():
         "relative_humidity": "Relative Humidity",
     }
 
+    # Create evaporation pond with weather data and enhancement
     m.fs.pond = EvaporationPond(
         property_package=m.fs.prop_air,
         weather_data_path="watertap_contrib/reflo/analysis/example_flowsheets/li_extraction/weather/station34_processed_weather.csv",
@@ -100,10 +120,11 @@ def build_flowsheet():
         add_enhancement=True,
     )
 
+    # Connect feed to pond and expand network arcs
     m.fs.feed_to_pond = Arc(source=m.fs.feed.outlet, destination=m.fs.pond.inlet)
     TransformationFactory("network.expand_arcs").apply_to(m)
 
-    # Set feed conditions
+    # Set feed conditions - brine composition and operating parameters
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(453)
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.51)
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1120)
@@ -113,15 +134,19 @@ def build_flowsheet():
     m.fs.feed.properties[0].flow_mass_phase_comp["Vap", "H2O"].fix(0)
     print(f"DOF after setting feed: {degrees_of_freedom(m)}")
 
+    # Apply process modifications and set pond parameters
     modify_process(m)
     define_pond_parameters(m)
     print(f"DOF after define_pond_parameters: {degrees_of_freedom(m)}")
     
+    # Apply scaling for numerical stability
     add_scaling(m)
 
+    # Initialize and report feed unit
     m.fs.feed.initialize()
     m.fs.feed.report()
 
+    # Propagate state to pond and initialize
     propagate_state(m.fs.feed_to_pond)
     m.fs.pond.initialize()
     m.fs.pond.report()

@@ -1,3 +1,8 @@
+"""Costing module for lithium extraction flowsheet.
+
+Adds capital and operating costs for wells, piping, pumping, and shipping.
+"""
+
 from idaes.core import UnitModelCostingBlock
 from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.process_costing import process_costing
@@ -7,6 +12,11 @@ import idaes.core.util.scaling as iscale
 from pyomo.environ import value
 
 def add_costing(m):
+    """Add costing components to the lithium extraction flowsheet.
+    
+    Args:
+        m: Pyomo model to add costing to
+    """
     m.fs.costing = REFLOCosting()
     m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
 

@@ -17,7 +17,15 @@ from datetime import datetime, timedelta
 
 
 def preprocess_station34_weather_data(input_file, output_file):
-    """Preprocess Station 34 weather data for evaporation pond model"""
+    """Preprocess Station 34 weather data for evaporation pond model.
+    
+    Args:
+        input_file: Path to raw Station 34 weather data
+        output_file: Path to save processed data
+        
+    Returns:
+        str: Path to processed output file
+    """
     print(f"Preprocessing Station 34 weather data from {input_file}...")
     
     # Read the raw data
@@ -89,7 +97,15 @@ def preprocess_station34_weather_data(input_file, output_file):
 
 
 def preprocess_openmeteo_weather_data(input_file, output_file):
-    """Preprocess Open-Meteo weather data for evaporation pond model"""
+    """Preprocess Open-Meteo weather data for evaporation pond model.
+    
+    Args:
+        input_file: Path to raw Open-Meteo weather data
+        output_file: Path to save processed data
+        
+    Returns:
+        str: Path to processed output file
+    """
     print(f"Preprocessing Open-Meteo weather data from {input_file}...")
     
     # Read the raw data - skip the first 3 lines (location info and blank line)
@@ -161,7 +177,16 @@ def preprocess_openmeteo_weather_data(input_file, output_file):
 
 
 def preprocess_weather_data(input_file, output_file, data_type="auto"):
-    """Generic weather data preprocessing function"""
+    """Generic weather data preprocessing function.
+    
+    Args:
+        input_file: Path to raw weather data file
+        output_file: Path to save processed data
+        data_type: Type of weather data ("auto", "station34", "openmeteo")
+        
+    Returns:
+        str: Path to processed output file
+    """
     if data_type == "auto":
         filename = os.path.basename(input_file).lower()
         if "station" in filename and "34" in filename:
@@ -180,7 +205,13 @@ def preprocess_weather_data(input_file, output_file, data_type="auto"):
 
 
 def plot_evaporation_and_weather_data(m, weather_name="Unknown", save_plots=True):
-    """Plot evaporation rates and weather data throughout the year"""
+    """Plot evaporation rates and weather data throughout the year.
+    
+    Args:
+        m: Pyomo model with evaporation pond
+        weather_name: Name of weather dataset
+        save_plots: Whether to save plots to files
+    """
     print(f"\nGenerating plots for {weather_name} weather data...")
     
     # Get timeseries data from the pond model
@@ -265,7 +296,12 @@ def plot_evaporation_and_weather_data(m, weather_name="Unknown", save_plots=True
 
 
 def print_weather_statistics(m, weather_name="Unknown"):
-    """Print comprehensive weather and evaporation statistics"""
+    """Print comprehensive weather and evaporation statistics.
+    
+    Args:
+        m: Pyomo model with evaporation pond
+        weather_name: Name of weather dataset
+    """
     print(f"\n" + "="*60)
     print(f"WEATHER AND EVAPORATION STATISTICS - {weather_name}")
     print("="*60)
@@ -412,7 +448,11 @@ def compare_weather_datasets(dataset_results):
 
 
 def create_comparison_plots(dataset_results):
-    """Create comparison plots for multiple weather datasets (weekly averages)"""
+    """Create comparison plots for multiple weather datasets (weekly averages).
+    
+    Args:
+        dataset_results: List of tuples containing (weather_name, timeseries_data, stats)
+    """
     print(f"\nCreating comparison plots for {len(dataset_results)} datasets...")
     
     # Create figure with subplots
@@ -427,6 +467,14 @@ def create_comparison_plots(dataset_results):
     
     # Helper to downsample to weekly means
     def weekly_avg(arr):
+        """Calculate weekly averages from daily data.
+        
+        Args:
+            arr: Array of daily values
+            
+        Returns:
+            array: Weekly averaged values
+        """
         arr = np.array(arr)
         n = 52
         # Truncate or pad to 364 days (52*7)
