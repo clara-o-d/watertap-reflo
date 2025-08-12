@@ -1,8 +1,0 @@
-{'outputs': ['LCOLi_mass (USD/mt)',
-             'aggregate_capital_cost (USD)',
-             'aggregate_operating_cost (USD/year)',
-             'fraction_evaporated',
-             'target_li_concentration',
-             'h2o_mass_flow',
-             'li_mass_flow'],
- 'sweep_params': ['target_li_concentration', 'h2o_mass_flow', 'li_mass_flow']}

@@ -92,6 +92,8 @@ def define_general_parameters(m):
     def eq_pumping_head(b):
         return b.pumping_head == b.static_head + b.friction_head * b.piping_length
 
+    m.fs.pond.evaporation_pond_depth.set_value(15)
+
 def define_flow_and_evaporation_section(m):
     m.fs.fraction_outflow = Var(
         initialize=0.01,
@@ -192,7 +194,7 @@ def define_evaporative_area_section(m):
     if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
         m.fs.pond.eq_total_evaporative_area_required.deactivate()
     def eq_total_evaporative_area_required_partial(b):
-        return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.water_evaporated * m.fs.pond_overdesign_factor
+        return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] * m.fs.fraction_evaporated * m.fs.pond_overdesign_factor
     m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
 
 def define_target_li_concentration_constraint(m):
@@ -217,5 +219,5 @@ def modify_process(m):
     define_lithium_section(m)
     define_concentrated_brine_outflow_section(m)
     define_evaporative_area_section(m)
-    define_target_li_concentration_constraint(m) 
-    #fix_evaporation_fraction_for_target_li(m)
+    #define_target_li_concentration_constraint(m) 
+    fix_evaporation_fraction_for_target_li(m)
