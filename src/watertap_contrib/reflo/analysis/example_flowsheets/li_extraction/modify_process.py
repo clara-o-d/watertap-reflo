@@ -53,7 +53,7 @@ def define_general_parameters(m):
         doc="Number of extraction wells"
     )
     m.fs.piping_length = Param(
-        initialize=5.0,
+        initialize=7.0,
         mutable=True,
         units=pyunits.km,
         doc="Piping length from wells to pond (km)"

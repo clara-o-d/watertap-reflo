@@ -29,7 +29,7 @@ def build_model(**kwargs):
     results = solve(m)
     
     # Add costing
-    # add_costing(m)
+    add_costing(m)
     # solve(m)
     
     return m
@@ -38,8 +38,31 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep"""
     sweep_params = dict()
  
-    sweep_params['Number of wells'] = LinearSample(
-        m.fs.number_of_wells, 320, 330, 2
+    # sweep_params['Land cost'] = LinearSample(
+    #     m.fs.costing.evaporation_pond.land_cost, 4000, 6000, 3
+    # )
+
+    # sweep_params['Pond liner cost'] = LinearSample(
+    #     m.fs.costing.evaporation_pond.nominal_liner_capital_cost_base, 14500, 15500, 3
+    # )
+
+    # sweep_params['Recovered solids cost'] = LinearSample(
+    #     m.fs.costing.recovered_solids.cost, 0.01, 0.02, 3
+    # )
+
+    # sweep_params['Shipping cost'] = LinearSample(
+    #     m.fs.shipping_unit_cost, 6.4e-5, 8.4e-5, 3
+    # )
+    sweep_params['Inlet Li+ concentration'] = LinearSample(
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2, 3, 3
+    )
+
+    sweep_params['Inlet vapor temperature'] = LinearSample(
+        m.fs.feed.properties[0].temperature["Vap"], 290, 310, 3
+    )
+
+    sweep_params['Evaporation rate adjustment factor'] = LinearSample(
+        m.fs.pond.evaporation_rate_salinity_adjustment_factor, 0.70, 0.80, 3
     )
 
     return sweep_params
@@ -57,20 +80,27 @@ def build_outputs(m, **kwargs):
     
     outputs = dict()
     
-    # User-specified output metrics
-    # outputs['LCOLi_mass (USD/mt)'] = m.fs.costing.LCOLi_mass
-    # outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
-    # outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
-    # outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
-    # outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
-    # outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
-    # outputs['fraction_evaporated'] = m.fs.fraction_evaporated
+    outputs['LCOLi_mass (USD/mt)'] = m.fs.costing.LCOLi_mass
+    outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
+    outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
+    outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
+    outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
+    outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
+    outputs['fraction_evaporated'] = m.fs.fraction_evaporated
     
     # Input parameter (for verification that it matches)
-    outputs['Number of wells'] = m.fs.number_of_wells
+    # outputs['Resultant land cost'] = m.fs.costing.evaporation_pond.land_cost
+    # outputs['Resultant pond liner cost'] = m.fs.costing.evaporation_pond.nominal_liner_capital_cost_base
+    # outputs['Resultant recovered solids cost'] = m.fs.costing.recovered_solids.cost
+    # outputs['Resultant shipping cost'] = m.fs.shipping_unit_cost
+
+    outputs['Resultant inlet Li+ concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
+    outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
+    outputs['Resultant evaporation rate adjustment factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
+
     # Additional useful outputs
-    # outputs['Li outflow (kg/s)'] = m.fs.li_outflow
-    # outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
+    outputs['Li outflow (kg/s)'] = m.fs.li_outflow
+    outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
     
     return outputs
 
@@ -127,8 +157,8 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='extraction_sensitivity.csv', 
-        h5_results_file_name='extraction_sensitivity.h5',
+        csv_results_file_name='exo_extraction_sensitivity.csv', 
+        h5_results_file_name='exo_extraction_sensitivity.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")

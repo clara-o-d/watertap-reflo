@@ -23,7 +23,7 @@ def load_and_process_data(filename):
     
     return df
 
-def oat_sensitivity(df, target_col='levelized cost of lithium (USD_2023/m^3)', input_params=None):
+def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
     if input_params is None:
         input_params = [
             'land_cost',
@@ -172,7 +172,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         return None, None
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
     sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=True)
-    fig, ax = plt.subplots(figsize=(4, 4))
+    fig, ax = plt.subplots(figsize=(5, 4))
     y_pos = np.arange(len(sensitivity_df))
     
     # Apply custom parameter name mapping if provided
@@ -208,7 +208,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         y_pos,
         sensitivity_df['avg_increase_sensitivity'],
         height=bar_width,
-        color='#4198b5',
+        color='#07433C',
         alpha=0.7,
         hatch=increase_hatch,
         label='Parameter increase effect'
@@ -219,7 +219,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         y_pos,
         -sensitivity_df['avg_decrease_sensitivity'],  # Make negative to show on left side
         height=bar_width,
-        color='#4198b5',
+        color='#07433C',
         alpha=0.7,
         hatch=decrease_hatch,
         label='Parameter decrease effect'
@@ -227,7 +227,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['display_name'], fontsize=8)
-    ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
+    # ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
@@ -235,8 +235,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     # Create custom legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#4198b5', alpha=0.7, label='Positive'),
-        Patch(facecolor='#4198b5', alpha=0.7, hatch='///', label='Negative')
+        Patch(facecolor='#07433C', alpha=0.7, label='Positive'),
+        Patch(facecolor='#07433C', alpha=0.7, hatch='///', label='Negative')
     ]
     
     ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
@@ -304,19 +304,17 @@ def main():
     
     if df is None:
         print("Error: No parameter sweep results found. Please run the parameter sweep first.")
-        print("Expected files: pond_sensitivity.csv or test_pond_sensitivity.csv")
         return
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        # 'Inlet lithium concentration',
+        'Inlet Li+ concentration',
         # 'Fraction of water evaporated',
-        # 'Inlet vapor temperature',
-        # 'Evaporation rate adjustment factor',
+        'Inlet vapor temperature',
+        'Evaporation rate adjustment factor',
         'Land cost',
         'Pond liner cost',
         'Recovered solids cost',
-        'Dye cost',
         'Shipping cost',
         # 'Dike height',
         # 'Pipeline length',
@@ -367,13 +365,12 @@ def main():
         # Optional: Define custom parameter name mapping for display
         # Uncomment and modify the mapping below to use custom parameter names in the plot
         param_name_mapping = {
-            # 'Inlet lithium concentration': f'Inlet Li\nconcentration',
+            # 'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
             # 'Inlet vapor temperature': f'Vapor\ntemperature',
             # 'Evaporation rate adjustment factor': f'Evaporation\nrate',
             'Land cost': f'Land\ncost',
             'Pond liner cost': f'Pond\nliner\ncost',
             'Recovered solids cost': f'Recovered\nsolids\ncost',
-            'Dye cost': f'Dye\ncost',
             'Shipping cost': f'Shipping\ncost',
         }
         

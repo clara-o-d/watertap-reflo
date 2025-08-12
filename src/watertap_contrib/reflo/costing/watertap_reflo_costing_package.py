@@ -48,7 +48,7 @@ class REFLOCostingData(WaterTAPCostingData):
         super().build_global_params()
 
         # Override WaterTAP default value of USD_2018
-        self.base_currency = pyo.units.USD_2023
+        self.base_currency = pyo.units.USD_2020
 
         self.sales_tax_frac = pyo.Param(
             initialize=0.05,

@@ -117,7 +117,9 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=1.28e-4, mutable=True, units=pyunits.USD_2022/pyunits.kg/pyunits.km,
+        initialize=6.4e-5, # 1.28e-4 USD_2022/kg/km
+        mutable=True,
+        units=pyunits.USD_2022/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
     )
 
@@ -148,11 +150,11 @@ def add_costing(m):
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
 
-    m.fs.costing.evaporation_pond.liner_thickness.fix(30)
-    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.032 * pyunits.USD_2020 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.032 * pyunits.USD_2020 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
+    m.fs.costing.evaporation_pond.liner_thickness.fix(40)
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg)))
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2020 / pyunits.kg)))
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
-    m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
+    m.fs.costing.evaporation_pond.land_clearing_cost.fix(2000)
     m.fs.costing.evaporation_pond.fence_capital_cost_base.fix(0)
 
     process_costing(m)

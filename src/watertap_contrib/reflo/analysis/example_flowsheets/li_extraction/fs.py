@@ -8,6 +8,25 @@ from idaes.core.util import DiagnosticsToolbox
 from pyomo.environ import assert_optimal_termination
 from pyomo.environ import Var
 
+__author__ = "Clara Drysdale"
+
+
+"""
+References
+
+Garrett, D.E., 2004. Handbook of lithium and natural calcium chloride. Elsevier Ltd.
+
+Hoffmeister, Dirk (2018): Meteorological and soil measurements of the permanent weather stations in 
+the Atacama desert, Chile. CRC1211 Database (CRC1211DB). DOI: 10.5880/CRC1211DB.1 
+
+U.S. Dept. of Interior & Michael C. Mickley (2006)
+"Membrane Concentrate Disposal: Practices and Regulation"
+Desalination and Water Purification Research and Development Program Report No. 123 (Second Edition)
+Chapter 10: Evaporation Pond Disposal
+
+WSP, 2022. Technical report summary: Operation report, Salar de Atacama. WSP-SQM0011-TRS-Salar-Rev1.
+"""
+
 def main():
     m = build_flowsheet()
     # dt = DiagnosticsToolbox(m)
