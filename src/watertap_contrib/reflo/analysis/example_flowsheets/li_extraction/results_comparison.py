@@ -10,9 +10,9 @@ import numpy as np
 categories = ['Industry report', 'WaterTAP model']
 
 # Cost breakdown ($/kg Li or whatever units you're using)
-capital_costs = [758.322067781, 634.898952789] 
-operating_costs = [1438.82774121, 1471.85739134] 
-levelized_costs = [2197.14980899, 2106.75634413] 
+capital_costs = [590.6619, 1.2603e+03] 
+operating_costs = [3.1585e+03, 2.5555e+03] 
+levelized_costs = [3.7492e+03, 3.8158e+03] 
 
 # Colors as specified
 capex_color = '#4198b5'
@@ -40,7 +40,7 @@ ax.set_ylabel('Cost ($/Mt Li)', fontsize=10)
 ax.set_title('Levelized cost of lithium: Model comparison', fontsize=11, fontweight='bold')
 ax.set_xticks(x)
 ax.set_xticklabels(categories, fontsize=10)
-ax.set_ylim(0, 3000)
+ax.set_ylim(0, 5000)
 
 # Add legend
 ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)

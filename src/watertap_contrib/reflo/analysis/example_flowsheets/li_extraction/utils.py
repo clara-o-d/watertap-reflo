@@ -17,13 +17,13 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
     li_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "Li+"])
     water_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "H2O"])
     tds_inlet_flow = value(prop_in.flow_mass_phase_comp["Liq", "TDS"])
-    # Quadratic approximation: mass_fraction = 88.1606 * x² + -169.2358 * x + 81.4783
-    a = 88.1606
-    b_ = -169.2358
-    c = 81.4783
+    # # Quadratic approximation: mass_fraction = 88.1606 * x² + -169.2358 * x + 81.4783
+    # a = 88.1606
+    # b_ = -169.2358
+    # c = 81.4783
 
     def li_conc_at_evap(evap_frac):
-        li_mass_frac = max(0, min(a * evap_frac**2 + b_ * evap_frac + c, 1))
+        li_mass_frac = -25 * evap_frac + 25
         li_outflow = li_inlet_flow * li_mass_frac
         water_outflow = water_inlet_flow * (1 - evap_frac)
         

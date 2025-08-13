@@ -35,7 +35,7 @@ def define_flow_and_evaporation_section(m):
     # Evaporation and outflow fraction variables
     m.fs.fraction_outflow = Var(
         initialize=0.05,
-        bounds=(0.01, 0.13),
+        bounds=(0.01, 0.08),
         units=pyunits.dimensionless,
         doc="Fraction of water that flows out (not evaporated)"
     )
@@ -47,7 +47,7 @@ def define_flow_and_evaporation_section(m):
     )
     m.fs.fraction_evaporated = Var(
         initialize=0.95,
-        bounds=(0.87, 0.99),
+        bounds=(0.92, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that is evaporated"
     )
@@ -151,8 +151,7 @@ def define_lithium_section(m):
     )
     # Lithium outflow using empirical correlation with smooth minimum
     def eq_li_outflow(b):
-        # Quadratic fit: mass_fraction = 88.1606*evap_frac² - 169.2358*evap_frac + 81.4783
-        return b.li_outflow == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"] * smooth_min(1.0, 88.1606 * b.fraction_evaporated**2 + -169.2358 * b.fraction_evaporated + 81.4783, eps=1e-3)
+        return b.li_outflow == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"] * (-25 * b.fraction_evaporated + 25)
     m.fs.eq_li_outflow = Constraint(rule=eq_li_outflow, doc="Li+ outflow mass balance")
 
 def define_concentrated_brine_outflow_section(m):
@@ -252,7 +251,7 @@ def define_target_li_concentration_constraint(m):
         inlet_li_mass_flow = prop_in.flow_mass_phase_comp["Liq", "Li+"]
 
         # Complex constraint: Li concentration = target * (1 + TDS/water ratio)
-        return inlet_li_mass_flow * smooth_min(1.0, 88.1606 * b.fraction_evaporated**2 + -169.2358 * b.fraction_evaporated + 81.4783, eps=1e-1) / (b.water_outflow) * 1000 == b.target_li_concentration * (1 + b.tds_outflow / b.water_outflow)
+        return inlet_li_mass_flow * (-12 * b.fraction_evaporated + 12) / (b.water_outflow) * 1000 == b.target_li_concentration * (1 + b.tds_outflow / b.water_outflow)
 
 def fix_evaporation_fraction_for_target_li(m):
     """Fix evaporation fraction to achieve target lithium concentration."""
