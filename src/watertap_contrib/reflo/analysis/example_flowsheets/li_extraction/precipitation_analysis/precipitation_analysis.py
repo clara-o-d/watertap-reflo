@@ -156,8 +156,8 @@ if __name__ == "__main__":
     incremental_desc_kg = incremental_per_bin_kg[::-1]
     cum_kg_plot = np.cumsum(incremental_desc_kg)
 
-    # Fit quadratic model only for portion past 130 m^3 remaining (i.e., V in [50, 130])
-    fit_mask = (V_plot <= 130.0) & (V_plot >= 50.0)
+    # Fit quadratic model only for portion past 300 m^3 remaining (i.e., V in [50, 300])
+    fit_mask = (V_plot <= 300.0) & (V_plot >= 50.0)
     V_fit_data = V_plot[fit_mask]
     cum_kg_fit_data = cum_kg_plot[fit_mask]
     coeffs_quad = np.polyfit(V_fit_data, cum_kg_fit_data, 2)
@@ -171,19 +171,19 @@ if __name__ == "__main__":
 
     r2_cum = r_squared(cum_kg_fit_data, p_quad(V_fit_data))
 
-    target_V = 130.0
+    target_V = 300.0
     cum_at_target_kg = float(p_quad(target_V))
 
     plt.figure(figsize=(8, 5))
     plt.plot(V_plot, cum_kg_plot, 'o', markersize=4, label='Cumulative precipitation (kg), binned (45 steps)')
-    V_fit_line = np.linspace(130.0, 50.0, 200)
+    V_fit_line = np.linspace(300.0, 50.0, 200)
     plt.plot(
         V_fit_line,
         p_quad(V_fit_line),
         'r-',
         linewidth=2,
         label=(
-            f'Quadratic fit on V∈[50,130]: '
+            f'Quadratic fit on V∈[50,300]: '
             f'{a_coef:.3e}*V^2 + {b_coef:.3e}*V + {c_coef:.3e}\n'
             f'R² = {r2_cum:.4f}'
         ),

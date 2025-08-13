@@ -28,10 +28,16 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
         water_outflow = water_inlet_flow * (1 - evap_frac)
         
         # Calculate TDS outflow using the same methodology as the flowsheet
-        # precipitate_concentration = annual_solid_precipitate_a * (1 - evap_frac) + annual_solid_precipitate_b
-        precipitate_a = -8.50e02  # kg/m³, from the model
-        precipitate_b = 6.18e02   # kg/m³, from the model
-        precipitate_concentration = precipitate_a * (1 - evap_frac) + precipitate_b
+        # Quadratic fit from flowsheet:
+        # precipitate_concentration = a*(1-evap_frac)^2 + b*(1-evap_frac) + c
+        precipitate_a = 1.517e03  # kg/m³
+        precipitate_b = -9.406e02 # kg/m³
+        precipitate_c = 4.294e02  # kg/m³
+        precipitate_concentration = (
+            precipitate_a * (1 - evap_frac)**2
+            + precipitate_b * (1 - evap_frac)
+            + precipitate_c
+        )
         
         # Calculate precipitate mass flow (same as flowsheet)
         original_water_volume = water_inlet_flow / 1000  # m³/s (assuming density = 1000 kg/m³)
@@ -39,6 +45,9 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
 
         # TDS outflow = TDS inlet - TDS precipitated
         tds_outflow = tds_inlet_flow - tds_precipitated
+        if tds_outflow < 0:
+            print(f"TDS outflow is negative: {tds_outflow:.2f} kg/s at evap_frac: {evap_frac:.4f}")
+            return 0, 0, 0
         # Calculate total mass outflow
         total_mass_outflow = water_outflow + tds_outflow
         

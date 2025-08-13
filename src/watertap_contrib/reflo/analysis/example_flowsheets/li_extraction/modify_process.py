@@ -34,20 +34,20 @@ def define_flow_and_evaporation_section(m):
     """Define flow and evaporation fraction constraints."""
     # Evaporation and outflow fraction variables
     m.fs.fraction_outflow = Var(
-        initialize=0.01,
-        bounds=(0.01, 0.99),
+        initialize=0.05,
+        bounds=(0.01, 0.13),
         units=pyunits.dimensionless,
         doc="Fraction of water that flows out (not evaporated)"
     )
     m.fs.water_outflow = pyo.Var(
-        initialize=11.2,
+        initialize=56,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
         doc="Water flow rate in the outflow stream"
     )
     m.fs.fraction_evaporated = Var(
-        initialize=0.99,
-        bounds=(0.01, 0.99),
+        initialize=0.95,
+        bounds=(0.87, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that is evaporated"
     )
@@ -68,12 +68,24 @@ def define_flow_and_evaporation_section(m):
 def define_precipitate_section(m):
     """Define precipitate mass flow constraints."""
     # Precipitation model coefficients from empirical fit (kg/m³)
+    # m.fs.pond.annual_solid_precipitate_a = Param(
+    #     initialize=-3.1473e02, mutable=True, doc="Linear fit coefficient a [kg/m³]",
+    #     units=pyunits.kg/pyunits.m**3
+    # )
+    # m.fs.pond.annual_solid_precipitate_b = Param(
+    #     initialize=3.5704e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
+    #     units=pyunits.kg/pyunits.m**3
+    # )
     m.fs.pond.annual_solid_precipitate_a = Param(
-        initialize=-3.1473e02, mutable=True, doc="Linear fit coefficient a [kg/m³]",
+        initialize=1.517e03, mutable=True, doc="Linear fit coefficient a [kg/m³]",
         units=pyunits.kg/pyunits.m**3
     )
     m.fs.pond.annual_solid_precipitate_b = Param(
-        initialize=3.5704e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
+        initialize=-9.406e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
+        units=pyunits.kg/pyunits.m**3
+    )
+    m.fs.pond.annual_solid_precipitate_c = Param(
+        initialize=4.294e02, mutable=True, doc="Linear fit intercept c [kg/m³]",
         units=pyunits.kg/pyunits.m**3
     )
     # Remove existing precipitate variable if it exists
@@ -81,7 +93,7 @@ def define_precipitate_section(m):
         m.fs.pond.del_component('mass_flow_precipitate')
     # Annual precipitate mass flow variable
     m.fs.pond.mass_flow_precipitate = Var(
-        initialize=12508164782,
+        initialize=12508164782*1.3,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
         doc="Annual mass flow of precipitate"
@@ -89,8 +101,8 @@ def define_precipitate_section(m):
     prop_in = m.fs.feed.properties[0]
     # Calculate precipitate mass flow using empirical correlation
     def eq_mass_flow_precipitate(b):
-        # Linear fit: precipitate_concentration = a * (1-evap_frac) + b
-        precipitate_concentration = m.fs.pond.annual_solid_precipitate_a * (1 - m.fs.fraction_evaporated) + m.fs.pond.annual_solid_precipitate_b
+        # Quadratic fit: precipitate_concentration = a * (1-evap_frac)² + b * (1-evap_frac) + c
+        precipitate_concentration = m.fs.pond.annual_solid_precipitate_a * (1 - m.fs.fraction_evaporated)**2 + m.fs.pond.annual_solid_precipitate_b * (1 - m.fs.fraction_evaporated) + m.fs.pond.annual_solid_precipitate_c
         original_water_volume = prop_in.flow_mass_phase_comp["Liq", "H2O"] / (1000 * pyunits.kg / pyunits.m**3)
         annual_mass_flow = pyunits.convert(precipitate_concentration * original_water_volume, to_units=pyunits.kg/pyunits.year)
         return b.mass_flow_precipitate == annual_mass_flow
@@ -100,13 +112,13 @@ def define_tds_section(m):
     """Define TDS outflow and concentration constraints."""
     # TDS outflow and concentration variables
     m.fs.tds_outflow = Var(
-        initialize=56.64,
+        initialize=3,#56.64/1.24,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
         doc="TDS flow rate in the outflow stream"
     )
     m.fs.tds_concentration_outflow = Var(
-        initialize=6205.13,
+        initialize=150,#6205.13/1.24,
         bounds=(0, None),
         units=pyunits.kg / pyunits.m**3,
         doc="TDS concentration in the outflow stream"
@@ -125,14 +137,14 @@ def define_lithium_section(m):
     """Define lithium outflow constraints."""
     # Target lithium concentration parameter
     m.fs.target_li_concentration = Param(
-        initialize=12.6,
+        initialize=60,
         mutable=True,
         units=pyunits.g / pyunits.kg,
         doc="Target Li+ concentration in outflow"
     )
     # Lithium outflow variable
     m.fs.li_outflow = Var(
-        initialize=0.86,
+        initialize=0.68,
         bounds=(0, None),
         units=pyunits.kg / pyunits.second,
         doc="Li+ outflow"
@@ -147,7 +159,7 @@ def define_concentrated_brine_outflow_section(m):
     """Define concentrated brine outflow constraints."""
     # Total concentrated brine outflow for shipping
     m.fs.concentrated_brine_outflow = Var(
-        initialize=67.84,
+        initialize=45.31, #67.84,
         bounds=(0, None),
         units=pyunits.kg / pyunits.second,
         doc="Total concentrated brine outflow for shipping (post-evaporation)"
