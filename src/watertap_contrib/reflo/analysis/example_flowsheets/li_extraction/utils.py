@@ -29,8 +29,8 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
         
         # Calculate TDS outflow using the same methodology as the flowsheet
         # precipitate_concentration = annual_solid_precipitate_a * (1 - evap_frac) + annual_solid_precipitate_b
-        precipitate_a = -3.1473e02  # kg/m³, from the model
-        precipitate_b = 3.5704e02   # kg/m³, from the model
+        precipitate_a = -8.50e02  # kg/m³, from the model
+        precipitate_b = 6.18e02   # kg/m³, from the model
         precipitate_concentration = precipitate_a * (1 - evap_frac) + precipitate_b
         
         # Calculate precipitate mass flow (same as flowsheet)
@@ -43,12 +43,13 @@ def compute_evaporation_fraction_for_target_li_conc(m, target_li_conc):
         total_mass_outflow = water_outflow + tds_outflow
         
         if total_mass_outflow < 1e-12:
-            return 0
-        
+            print(f"Total mass outflow is too low: {total_mass_outflow:.2f} kg/s at evap_frac: {evap_frac:.4f}")
+            return 0, 0, 0
+
         # Lithium concentration in g/kg
         return li_outflow / total_mass_outflow * 1000, li_outflow, total_mass_outflow
 
-    evap_fractions = np.linspace(0.01, 0.99, 3000)
+    evap_fractions = np.linspace(0.87, 0.99, 200)
     concentrations = []
     li_outflows = []
     total_mass_outflows = []

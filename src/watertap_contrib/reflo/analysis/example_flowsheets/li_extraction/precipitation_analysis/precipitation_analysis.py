@@ -37,7 +37,10 @@ def get_precipitation_vs_volume(solid_phase_dir):
     Returns:
         tuple: (master_vols, cumulative_dry_salt_mass, incremental_dry_salt_mass)
     """
-    solid_files = [f for f in os.listdir(solid_phase_dir) if f.endswith('.csv') and f != 'Solid Phase Formed.csv']
+    solid_files = [
+        f for f in os.listdir(solid_phase_dir)
+        if f.endswith('.csv') and f not in {'Solid Phase Formed.csv', 'solid_phase_formed.csv'}
+    ]
     # Find the file with the most steps to use as the master grid
     max_steps = 0
     master_vols = None
@@ -109,96 +112,92 @@ def get_tds_vs_volume(master_vols, cumulative_dry_salt_mass):
 if __name__ == "__main__":
     folder = os.path.dirname(__file__)
     solid_phase_dir = os.path.join(folder, 'solid_phase_data')
-    master_vols, cumulative_dry_salt_mass, incremental_dry_salt_mass = get_precipitation_vs_volume(solid_phase_dir)
-    master_vols, TDS = get_tds_vs_volume(master_vols, cumulative_dry_salt_mass)
+    # Read aggregated precipitation data: evaporated volume (m^3), instantaneous precipitation (metric tons)
+    solid_phase_file = os.path.join(solid_phase_dir, 'solid_phase_formed.csv')
+    if not os.path.exists(solid_phase_file):
+        raise FileNotFoundError(f"Missing file: {solid_phase_file}")
 
-    # Diagnostics for mass balance
-    initial_total_mass_kg = sum([
-        0.65, 82.1, 12.3, 13.1, 2.6, 171.2, 16.6, 3.5, 0.22
-    ]) * 1000 * 1200 / 1000  # sum(g/kg) * m3 * density / 1000
-    print(f"Initial total dissolved mass (kg): {initial_total_mass_kg}")
-    print(f"Total incremental dry salt mass (kg): {np.sum(np.diff(np.insert(cumulative_dry_salt_mass, 0, 0)))}")
-    print(f"Max cumulative dry salt mass (kg): {np.max(cumulative_dry_salt_mass)}")
-    print(f"Min remaining dissolved mass (kg): {np.min(initial_total_mass_kg - cumulative_dry_salt_mass)}")
-    if np.any(cumulative_dry_salt_mass > initial_total_mass_kg):
-        print("WARNING: Cumulative dry salt mass exceeds initial total dissolved mass! This will cause negative TDS.")
+    data = []
+    with open(solid_phase_file, 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 2:
+                try:
+                    evap_vol = float(row[0])
+                    inst_precip_mt = float(row[1])
+                    data.append((evap_vol, inst_precip_mt))
+                except ValueError:
+                    continue
 
-    # For TDS, use the left volume's TDS for each interval
-    TDS_mid = TDS[:-1]
-    precip_kg = incremental_dry_salt_mass[1:]
-    vols_mid = master_vols[1:]  # Corresponding volumes for precipitation data
-    cumulative_precip_kg = cumulative_dry_salt_mass[1:]  # Cumulative precipitation data
+    if len(data) == 0:
+        raise ValueError("No valid rows found in solid_phase_formed.csv")
 
-    # Fit quadratic: precip_kg = a1 * TDS^2 + a2 * TDS + intercept
-    fit_mask = (TDS_mid > 0) & (precip_kg > 0)
-    TDS_fit = TDS_mid[fit_mask]
-    precip_fit = precip_kg[fit_mask]
-    coeffs = np.polyfit(TDS_fit, precip_fit, 2)
-    a1, a2, intercept = coeffs
-    fit_curve = a1 * TDS_fit**2 + a2 * TDS_fit + intercept
+    data = np.array(sorted(data, key=lambda x: x[0]))
+    evaporated_volume_m3 = data[:, 0]
+    inst_precip_mt = data[:, 1]
 
-    # Fit cumulative precipitation vs water volume
-    # Linear fit
-    vol_fit_mask = (vols_mid > 0) & (cumulative_precip_kg > 0)
-    vol_fit = vols_mid[vol_fit_mask]
-    cumulative_precip_vol_fit = cumulative_precip_kg[vol_fit_mask]
-    
-    # Linear fit: cumulative_precip = a * volume + b
-    linear_coeffs = np.polyfit(vol_fit, cumulative_precip_vol_fit, 1)
-    slope, intercept = linear_coeffs
-    vol_linear_curve = slope * vol_fit + intercept
-    
-    # Calculate R-squared for linear fit
+    initial_volume_m3 = 1000.0
+    water_remaining_m3 = initial_volume_m3 - evaporated_volume_m3
+    inst_precip_kg = inst_precip_mt * 1000.0
+    cumulative_precip_kg = np.cumsum(inst_precip_kg)
+
+    # Merge nearby points into 45 even steps between ~1000 and ~50 m^3 (by water remaining)
+    num_steps = 45
+    edges_asc = np.linspace(50.0, 1000.0, num_steps + 1)
+    centers_asc = 0.5 * (edges_asc[:-1] + edges_asc[1:])
+    incremental_per_bin_kg = np.zeros(num_steps)
+    bin_indices = np.digitize(water_remaining_m3, edges_asc) - 1
+    bin_indices = np.clip(bin_indices, 0, num_steps - 1)
+    for idx_point, bin_idx in enumerate(bin_indices):
+        incremental_per_bin_kg[bin_idx] += inst_precip_kg[idx_point]
+
+    # Order bins from 1000 -> 50 to accumulate as water decreases
+    V_plot = centers_asc[::-1]
+    incremental_desc_kg = incremental_per_bin_kg[::-1]
+    cum_kg_plot = np.cumsum(incremental_desc_kg)
+
+    # Fit quadratic model only for portion past 130 m^3 remaining (i.e., V in [50, 130])
+    fit_mask = (V_plot <= 130.0) & (V_plot >= 50.0)
+    V_fit_data = V_plot[fit_mask]
+    cum_kg_fit_data = cum_kg_plot[fit_mask]
+    coeffs_quad = np.polyfit(V_fit_data, cum_kg_fit_data, 2)
+    p_quad = np.poly1d(coeffs_quad)
+    a_coef, b_coef, c_coef = coeffs_quad
+
     def r_squared(y_true, y_pred):
         ss_res = np.sum((y_true - y_pred) ** 2)
         ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
         return 1 - (ss_res / ss_tot)
-    
-    r2_linear = r_squared(cumulative_precip_vol_fit, vol_linear_curve)
 
-    # Plotting
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
-    
-    # (1) TDS vs water volume
-    ax1.plot(master_vols, TDS, 'm-', linewidth=2, label='TDS (from dry salts)')
-    ax1.set_xlabel('Water Volume (m³)')
-    ax1.set_ylabel('Total Dissolved Solids (g/L)')
-    ax1.set_title('TDS vs Water Volume')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
-    ax1.set_xlim(1000, 0)
-    
-    # (2) Incremental precipitation (kg) vs water volume
-    ax2.plot(master_vols[1:], precip_kg, 'b-', linewidth=2, label='Incremental Precipitation (kg)')
-    ax2.set_xlabel('Water Volume (m³)')
-    ax2.set_ylabel('Incremental Precipitation (kg)')
-    ax2.set_title('Incremental Precipitation vs Water Volume')
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    ax2.set_xlim(1000, 0)
-    
-    # (3) Incremental precipitation (kg) vs TDS (with fit)
-    ax3.plot(TDS_mid, precip_kg, 'go', markersize=3, label='Incremental Precipitation (kg)')
-    ax3.plot(TDS_fit, fit_curve, 'k-', linewidth=2, label=f'Fit: {a1:.2e}*C² + {a2:.2e}*C + {intercept:.2e}')
-    ax3.set_xlabel('TDS (g/L)')
-    ax3.set_ylabel('Incremental Precipitation (kg)')
-    ax3.set_title('Incremental Precipitation vs TDS')
-    ax3.grid(True, alpha=0.3)
-    ax3.legend()
-    
-    # (4) Cumulative precipitation (kg) vs water volume (with fits)
-    ax4.plot(vols_mid, cumulative_precip_kg, 'ro', markersize=3, label='Cumulative Precipitation (kg)')
-    ax4.plot(vol_fit, vol_linear_curve, 'b-', linewidth=2, 
-             label=f'Linear: {slope:.2e}*V + {intercept:.2e}\nR² = {r2_linear:.4f}')
-    ax4.set_xlabel('Water Volume (m³)')
-    ax4.set_ylabel('Cumulative Precipitation (kg)')
-    ax4.set_title('Cumulative Precipitation vs Water Volume (with fit)')
-    ax4.grid(True, alpha=0.3)
-    ax4.legend()
-    ax4.set_xlim(1000, 0)
-    
+    r2_cum = r_squared(cum_kg_fit_data, p_quad(V_fit_data))
+
+    target_V = 130.0
+    cum_at_target_kg = float(p_quad(target_V))
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(V_plot, cum_kg_plot, 'o', markersize=4, label='Cumulative precipitation (kg), binned (45 steps)')
+    V_fit_line = np.linspace(130.0, 50.0, 200)
+    plt.plot(
+        V_fit_line,
+        p_quad(V_fit_line),
+        'r-',
+        linewidth=2,
+        label=(
+            f'Quadratic fit on V∈[50,130]: '
+            f'{a_coef:.3e}*V^2 + {b_coef:.3e}*V + {c_coef:.3e}\n'
+            f'R² = {r2_cum:.4f}'
+        ),
+    )
+    plt.scatter([target_V], [cum_at_target_kg], color='k', zorder=3,
+                label=f'Estimate at V={target_V:.0f} m³: {cum_at_target_kg:.2f} kg')
+    plt.xlabel('Water Remaining (m³)')
+    plt.ylabel('Cumulative Precipitation (kg)')
+    plt.title('Cumulative Precipitation vs Water Remaining')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.xlim(1000, 50)
     plt.tight_layout()
     plt.show()
 
-    print(f"Quadratic fit (TDS): precipitation [kg] = {a1:.4e} * TDS^2 + {a2:.4e} * TDS + {intercept:.4e}")
-    print(f"Linear fit (Volume): cumulative precipitation [kg] = {slope:.4e} * V + {intercept:.4e} (R² = {r2_linear:.4f})")
+    print(f"Cumulative precipitation quadratic fit (kg): C(V) = {coeffs_quad[0]:.6e}*V^2 + {coeffs_quad[1]:.6e}*V + {coeffs_quad[2]:.6e} (R² = {r2_cum:.4f})")
+    print(f"Estimated cumulative precipitation at 130 m^3 remaining: {cum_at_target_kg:.3f} kg")
