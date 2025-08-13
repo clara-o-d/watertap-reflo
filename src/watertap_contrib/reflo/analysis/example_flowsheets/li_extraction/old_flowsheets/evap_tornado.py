@@ -331,14 +331,15 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        'Inlet Li+ concentration',
-        # 'Fraction of water evaporated',
-        'Inlet vapor temperature',
+        # 'Inlet Li+ concentration',
+        # # 'Fraction of water evaporated',
+        # 'Inlet vapor temperature',
         'Evaporation rate adjustment factor',
-        'Land cost',
-        'Pond liner cost',
-        'Recovered solids cost',
-        'Shipping cost',
+        'Pipeline friction head',
+        # 'Land cost',
+        # 'Pond liner cost',
+        # 'Recovered solids cost',
+        # 'Shipping cost',
         # 'Dike height',
         # 'Pipeline length',
         # 'Utilization factor',
@@ -390,11 +391,12 @@ def main():
         param_name_mapping = {
             # 'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
             # 'Inlet vapor temperature': f'Vapor\ntemperature',
-            # 'Evaporation rate adjustment factor': f'Evaporation\nrate',
-            'Land cost': f'Land\ncost',
-            'Pond liner cost': f'Pond\nliner\ncost',
-            'Recovered solids cost': f'Recovered\nsolids\ncost',
-            'Shipping cost': f'Shipping\ncost',
+            'Evaporation rate adjustment factor': f'Evaporation\nrate',
+            'Pipeline friction head': f'Pipeline\nfriction\nhead',
+            # 'Land cost': f'Land\ncost',
+            # 'Pond liner cost': f'Pond\nliner\ncost',
+            # 'Recovered solids cost': f'Recovered\nsolids\ncost',
+            # 'Shipping cost': f'Shipping\ncost',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 

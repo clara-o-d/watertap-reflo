@@ -53,16 +53,20 @@ def build_sweep_params(m, **kwargs):
     # sweep_params['Shipping cost'] = LinearSample(
     #     m.fs.shipping_unit_cost, 6.4e-5, 8.4e-5, 3
     # )
-    sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2, 3, 3
-    )
+    # sweep_params['Inlet Li+ concentration'] = LinearSample(
+    #     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2, 3, 3
+    # )
 
-    sweep_params['Inlet vapor temperature'] = LinearSample(
-        m.fs.feed.properties[0].temperature["Vap"], 290, 310, 3
-    )
+    # sweep_params['Inlet vapor temperature'] = LinearSample(
+    #     m.fs.feed.properties[0].temperature["Vap"], 290, 310, 3
+    # )
 
     sweep_params['Evaporation rate adjustment factor'] = LinearSample(
         m.fs.pond.evaporation_rate_salinity_adjustment_factor, 0.70, 0.80, 3
+    )
+
+    sweep_params['Pipeline friction head'] = LinearSample(
+        m.fs.friction_head, 800, 1000, 3
     )
 
     return sweep_params
@@ -94,9 +98,8 @@ def build_outputs(m, **kwargs):
     # outputs['Resultant recovered solids cost'] = m.fs.costing.recovered_solids.cost
     # outputs['Resultant shipping cost'] = m.fs.shipping_unit_cost
 
-    outputs['Resultant inlet Li+ concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
-    outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
     outputs['Resultant evaporation rate adjustment factor'] = m.fs.pond.evaporation_rate_enhancement_adjustment_factor
+    outputs['Resultant pipeline friction head'] = m.fs.friction_head
 
     # Additional useful outputs
     outputs['Li outflow (kg/s)'] = m.fs.li_outflow
