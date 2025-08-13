@@ -177,7 +177,7 @@ def define_brine_extraction_section(m):
         doc="Number of extraction wells"
     )
     m.fs.piping_length = Param(
-        initialize=7.0,
+        initialize=5.0,
         mutable=True,
         units=pyunits.km,
         doc="Piping length from wells to pond (km)"
@@ -197,7 +197,7 @@ def define_brine_extraction_section(m):
         doc="Static head (elevation difference)"
     )
     m.fs.friction_head = Param(
-        initialize=354,
+        initialize=975.46,
         mutable=True,
         units=pyunits.m/pyunits.km,
         doc="Friction head loss per km"
@@ -205,7 +205,7 @@ def define_brine_extraction_section(m):
     
     # Pumping head variable - calculated from static and friction components
     m.fs.pumping_head = Var(
-        initialize=2000,
+        initialize=value(m.fs.static_head + m.fs.friction_head * m.fs.piping_length),
         bounds=(0, None),
         units=pyunits.m,
         doc="Pumping head (m)"
@@ -259,5 +259,7 @@ def modify_process(m):
     define_lithium_section(m)
     define_concentrated_brine_outflow_section(m)
     define_evaporative_area_section(m)
+    define_brine_extraction_section(m)
+    define_shipping_section(m)
     #define_target_li_concentration_constraint(m) 
     fix_evaporation_fraction_for_target_li(m)

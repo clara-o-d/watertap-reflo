@@ -126,7 +126,7 @@ def build_flowsheet():
 
     # Set feed conditions - brine composition and operating parameters
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(453)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.51)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.56)
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1120)
     m.fs.feed.properties[0].temperature.fix(300)  # K
     m.fs.feed.properties[0].pressure.fix(101325)  # Pa

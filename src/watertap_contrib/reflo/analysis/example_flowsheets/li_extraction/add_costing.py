@@ -32,7 +32,7 @@ def add_costing(m):
         doc="Piping and pump cost per km ($/km)"
     )
     m.fs.facilities_electrical_unit_cost = Param(
-        initialize=86.72e6 / 379,  # 86.72M total / 320 wells = cost per well
+        initialize=38.87e6 / 379,  # 38.87M total / 320 wells = cost per well
         mutable=True, units=pyunits.USD_2020,
         doc="Facilities/electrical cost per well ($/well)"
     )
@@ -164,7 +164,7 @@ def add_costing(m):
     m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg)))
     m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2020 / pyunits.kg)))
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
-    m.fs.costing.evaporation_pond.land_clearing_cost.fix(2000)
+    m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
     m.fs.costing.evaporation_pond.fence_capital_cost_base.fix(0)
 
     process_costing(m)
