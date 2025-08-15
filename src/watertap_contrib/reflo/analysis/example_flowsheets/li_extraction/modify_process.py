@@ -9,10 +9,8 @@ from pyomo.core.base.constraint import Constraint
 from pyomo.core.base.expression import Expression
 from pyomo.core.base.var import Var
 from pyomo.core.base.param import Param
-from idaes.core.util.math import smooth_min, smooth_max
-from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.utils import compute_evaporation_fraction_for_target_li_conc
 
-def define_general_parameters(m):
+def general_parameters(m):
     """Define general process parameters including density, precipitation, and pumping."""
     # Solution density for brine calculations
     m.fs.rho = Param(
@@ -30,156 +28,8 @@ def define_general_parameters(m):
         doc="Overdesign factor for pond area (multiplier for calculated area)"
     )
 
-def define_flow_and_evaporation_section(m):
-    """Define flow and evaporation fraction constraints."""
-    # Evaporation and outflow fraction variables
-    m.fs.fraction_outflow = Var(
-        initialize=0.05,
-        bounds=(0.01, 0.08),
-        units=pyunits.dimensionless,
-        doc="Fraction of water that flows out (not evaporated)"
-    )
-    m.fs.water_outflow = pyo.Var(
-        initialize=56,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.s,
-        doc="Water flow rate in the outflow stream"
-    )
-    m.fs.fraction_evaporated = Var(
-        initialize=0.95,
-        bounds=(0.92, 0.99),
-        units=pyunits.dimensionless,
-        doc="Fraction of water that is evaporated"
-    )
-
-    prop_in = m.fs.feed.properties[0]
-    # Mass balance constraint: outflow + evaporated = 1
-    def eq_fraction_outflow(b):
-        return b.fraction_outflow + b.fraction_evaporated == 1
-    m.fs.eq_fraction_outflow = Constraint(rule=eq_fraction_outflow, doc="Fraction of outflow water")
-    # Calculate water evaporated based on fraction
-    m.fs.water_evaporated = Expression(expr=prop_in.flow_mass_phase_comp["Liq", "H2O"] * m.fs.fraction_evaporated)
-    
-    # Water outflow mass balance
-    def eq_water_outflow(b):
-        return b.water_outflow == prop_in.flow_mass_phase_comp["Liq", "H2O"] * b.fraction_outflow
-    m.fs.eq_water_outflow = Constraint(rule=eq_water_outflow, doc="Water outflow mass balance")
-
-def define_precipitate_section(m):
-    """Define precipitate mass flow constraints."""
-    # Precipitation model coefficients from empirical fit (kg/m³)
-    # m.fs.pond.annual_solid_precipitate_a = Param(
-    #     initialize=-3.1473e02, mutable=True, doc="Linear fit coefficient a [kg/m³]",
-    #     units=pyunits.kg/pyunits.m**3
-    # )
-    # m.fs.pond.annual_solid_precipitate_b = Param(
-    #     initialize=3.5704e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
-    #     units=pyunits.kg/pyunits.m**3
-    # )
-    m.fs.pond.annual_solid_precipitate_a = Param(
-        initialize=1.517e03, mutable=True, doc="Linear fit coefficient a [kg/m³]",
-        units=pyunits.kg/pyunits.m**3
-    )
-    m.fs.pond.annual_solid_precipitate_b = Param(
-        initialize=-9.406e02, mutable=True, doc="Linear fit intercept b [kg/m³]",
-        units=pyunits.kg/pyunits.m**3
-    )
-    m.fs.pond.annual_solid_precipitate_c = Param(
-        initialize=4.294e02, mutable=True, doc="Linear fit intercept c [kg/m³]",
-        units=pyunits.kg/pyunits.m**3
-    )
-    # Remove existing precipitate variable if it exists
-    if hasattr(m.fs.pond, 'mass_flow_precipitate'):
-        m.fs.pond.del_component('mass_flow_precipitate')
-    # Annual precipitate mass flow variable
-    m.fs.pond.mass_flow_precipitate = Var(
-        initialize=12508164782*1.3,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.year,
-        doc="Annual mass flow of precipitate"
-    )
-    prop_in = m.fs.feed.properties[0]
-    # Calculate precipitate mass flow using empirical correlation
-    def eq_mass_flow_precipitate(b):
-        # Quadratic fit: precipitate_concentration = a * (1-evap_frac)² + b * (1-evap_frac) + c
-        precipitate_concentration = m.fs.pond.annual_solid_precipitate_a * (1 - m.fs.fraction_evaporated)**2 + m.fs.pond.annual_solid_precipitate_b * (1 - m.fs.fraction_evaporated) + m.fs.pond.annual_solid_precipitate_c
-        original_water_volume = prop_in.flow_mass_phase_comp["Liq", "H2O"] / (1000 * pyunits.kg / pyunits.m**3)
-        annual_mass_flow = pyunits.convert(precipitate_concentration * original_water_volume, to_units=pyunits.kg/pyunits.year)
-        return b.mass_flow_precipitate == annual_mass_flow
-    m.fs.pond.eq_mass_flow_precipitate = Constraint(rule=eq_mass_flow_precipitate, doc="Annual mass flow of precipitate from concentration and water volume")
-
-def define_tds_section(m):
-    """Define TDS outflow and concentration constraints."""
-    # TDS outflow and concentration variables
-    m.fs.tds_outflow = Var(
-        initialize=3,#56.64/1.24,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.s,
-        doc="TDS flow rate in the outflow stream"
-    )
-    m.fs.tds_concentration_outflow = Var(
-        initialize=150,#6205.13/1.24,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.m**3,
-        doc="TDS concentration in the outflow stream"
-    )
-    prop_in = m.fs.feed.properties[0]
-    # TDS outflow = TDS inlet - TDS precipitated
-    def eq_tds_outflow(b):
-        return b.tds_outflow == prop_in.flow_mass_phase_comp["Liq", "TDS"] - pyunits.convert(m.fs.pond.mass_flow_precipitate, to_units=pyunits.kg/pyunits.s)
-    m.fs.eq_tds_outflow = Constraint(rule=eq_tds_outflow, doc="TDS outflow mass balance")
-    # TDS concentration = TDS outflow / water outflow * density
-    def eq_tds_concentration_outflow(b):
-        return b.tds_concentration_outflow * b.water_outflow == b.tds_outflow * b.rho
-    m.fs.eq_tds_concentration_outflow = Constraint(rule=eq_tds_concentration_outflow, doc="TDS concentration in outflow")
-
-def define_lithium_section(m):
-    """Define lithium outflow constraints."""
-    # Target lithium concentration parameter
-    m.fs.target_li_concentration = Param(
-        initialize=60,
-        mutable=True,
-        units=pyunits.g / pyunits.kg,
-        doc="Target Li+ concentration in outflow"
-    )
-    # Lithium outflow variable
-    m.fs.li_outflow = Var(
-        initialize=0.68,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.second,
-        doc="Li+ outflow"
-    )
-    # Lithium outflow using empirical correlation with smooth minimum
-    def eq_li_outflow(b):
-        return b.li_outflow == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"] * (-25 * b.fraction_evaporated + 25)
-    m.fs.eq_li_outflow = Constraint(rule=eq_li_outflow, doc="Li+ outflow mass balance")
-
-def define_concentrated_brine_outflow_section(m):
-    """Define concentrated brine outflow constraints."""
-    # Total concentrated brine outflow for shipping
-    m.fs.concentrated_brine_outflow = Var(
-        initialize=45.31, #67.84,
-        bounds=(0, None),
-        units=pyunits.kg / pyunits.second,
-        doc="Total concentrated brine outflow for shipping (post-evaporation)"
-    )
-    # Brine outflow = water outflow + TDS outflow
-    def eq_concentrated_brine_outflow(b):
-        return b.concentrated_brine_outflow == b.water_outflow + b.tds_outflow
-    m.fs.eq_concentrated_brine_outflow = Constraint(rule=eq_concentrated_brine_outflow, doc="Concentrated brine outflow for shipping")
-
-def define_evaporative_area_section(m):
-    """Define evaporative area constraints with overdesign factor."""
-    # Deactivate default evaporative area constraint
-    if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
-        m.fs.pond.eq_total_evaporative_area_required.deactivate()
-    # Custom evaporative area constraint with overdesign factor
-    def eq_total_evaporative_area_required_partial(b):
-        # Area * mass_flux = water_evaporated * overdesign_factor
-        return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] * m.fs.fraction_evaporated * m.fs.pond_overdesign_factor
-    m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
-
-def define_brine_extraction_section(m):
+def brine_extraction_section(m):
+    """Define brine extraction infrastructure parameters."""
     # Wellfield and infrastructure parameters
     m.fs.number_of_wells = Param(
         initialize=379,
@@ -227,8 +77,8 @@ def define_brine_extraction_section(m):
     def eq_pumping_head(b):
         return b.pumping_head == b.static_head + b.friction_head * b.piping_length
 
-def define_shipping_section(m):
-    # Shipping infrastructure parameters
+def shipping_section(m):
+    """Define shipping infrastructure parameters."""
     m.fs.number_of_trucks = Param(
         initialize=230,
         mutable=True,
@@ -242,35 +92,131 @@ def define_shipping_section(m):
         doc="Shipping distance to next facility (km)"
     )
 
-def define_target_li_concentration_constraint(m):
-    """Define target lithium concentration constraint."""
-    # Target lithium concentration constraint using the provided equation
-    @m.fs.Constraint(doc="Target lithium concentration constraint")
-    def eq_target_li_concentration(b):
-        prop_in = b.feed.properties[0]
-        inlet_li_mass_flow = prop_in.flow_mass_phase_comp["Liq", "Li+"]
+def flow_parameters(m):
+    """Define flow and evaporation parameters."""
+    # Fixed parameters
+    m.fs.final_li_conc = Param(
+        initialize=0.06,
+        mutable=True,
+        units=pyunits.kg / pyunits.kg,
+        doc="Final lithium concentration"
+    )
+    
+    m.fs.li_recovery = Param(
+        initialize=0.60,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Lithium recovery fraction"
+    )
+    
+    m.fs.final_tds_conc = Param(
+        initialize=0.428,
+        mutable=True,
+        units=pyunits.kg / pyunits.kg,
+        doc="Final TDS concentration"
+    )
+    
+def flow_variables(m):
+    """Define flow and evaporation variables."""
+    m.fs.li_outflow = Var(
+        initialize=1.536,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="Lithium outflow rate"
+    )
+    
+    m.fs.concentrated_brine_outflow = Var(
+        initialize=25.6,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="TDS and water outflow rate"
+    )
+    
+    m.fs.tds_outflow = Var(
+        initialize=10.96,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="TDS outflow rate"
+    )
+    
+    m.fs.water_outflow = Var(
+        initialize=14.64,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.s,
+        doc="Water outflow rate"
+    )
+    
+    m.fs.fraction_evaporated = Var(
+        initialize=0.987,
+        bounds=(0, 0.99),
+        units=pyunits.dimensionless,
+        doc="Fraction of water that is evaporated"
+    )
+    
+    m.fs.pond.mass_flow_precipitate = Var(
+        initialize=14000000000,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual mass flow of precipitate"
+    )
 
-        # Complex constraint: Li concentration = target * (1 + TDS/water ratio)
-        return inlet_li_mass_flow * (-12 * b.fraction_evaporated + 12) / (b.water_outflow) * 1000 == b.target_li_concentration * (1 + b.tds_outflow / b.water_outflow)
+def flow_constraints(m):
+    """Define flow and evaporation constraints."""
+    prop_in = m.fs.feed.properties[0]
+    
+    # Constraint: li_outflow = li_inflow * li_recovery
+    @m.fs.Constraint(doc="Lithium outflow constraint")
+    def eq_li_outflow(b):
+        return b.li_outflow == prop_in.flow_mass_phase_comp["Liq", "Li+"] * b.li_recovery
+    
+    # Constraint: tds_water_outflow = li_outflow / final_li_conc
+    @m.fs.Constraint(doc="Concentrated brine outflow constraint")
+    def eq_concentrated_brine_outflow(b):
+        return b.concentrated_brine_outflow * b.final_li_conc == b.li_outflow
+    
+    # Constraint: tds_outflow = final_tds_conc * concentrated_brine_outflow
+    @m.fs.Constraint(doc="TDS outflow constraint")
+    def eq_tds_outflow(b):
+        return b.tds_outflow == b.final_tds_conc * b.concentrated_brine_outflow
+    
+    # Constraint: water_outflow = concentrated_brine_outflow - tds_outflow
+    @m.fs.Constraint(doc="Water outflow constraint")
+    def eq_water_outflow(b):
+        return b.water_outflow == b.concentrated_brine_outflow - b.tds_outflow
+    
+    # Constraint: fraction_evaporated = 1 - water_outflow / water_inflow
+    @m.fs.Constraint(doc="Fraction evaporated constraint")
+    def eq_fraction_evaporated(b):
+        return b.fraction_evaporated * prop_in.flow_mass_phase_comp["Liq", "H2O"] == prop_in.flow_mass_phase_comp["Liq", "H2O"] - b.water_outflow
+    
+    # Constraint: mass_flow_precipitate = tds_inflow - tds_outflow * 3600 * 24 * 365
+    @m.fs.Constraint(doc="Mass flow precipitate constraint")
+    def eq_mass_flow_precipitate(b):
+        return b.pond.mass_flow_precipitate == pyunits.convert(prop_in.flow_mass_phase_comp["Liq", "TDS"] - b.tds_outflow, to_units=pyunits.kg / pyunits.year)
 
-def fix_evaporation_fraction_for_target_li(m):
-    """Fix evaporation fraction to achieve target lithium concentration."""
-    # Get target concentration and compute required evaporation fraction
-    target_li_conc = value(m.fs.target_li_concentration)
-    evap_frac = compute_evaporation_fraction_for_target_li_conc(m, target_li_conc)
-    m.fs.fraction_evaporated.fix(evap_frac)
+def evaporative_area_section(m):
+    """Define evaporative area constraints with overdesign factor."""
+    # Custom evaporative area constraint with overdesign factor
+    def eq_total_evaporative_area_required_partial(b):
+        # Area * mass_flux = water_evaporated * overdesign_factor
+        return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] * m.fs.fraction_evaporated * m.fs.pond_overdesign_factor
+    m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
 
 def modify_process(m):
-    """Apply all process modifications to the flowsheet."""
-    # Apply all process modifications in sequence
-    define_general_parameters(m)
-    define_flow_and_evaporation_section(m)
-    define_precipitate_section(m)
-    define_tds_section(m)
-    define_lithium_section(m)
-    define_concentrated_brine_outflow_section(m)
-    define_evaporative_area_section(m)
-    define_brine_extraction_section(m)
-    define_shipping_section(m)
-    #define_target_li_concentration_constraint(m) 
-    fix_evaporation_fraction_for_target_li(m)
+    """Apply process modifications to the flowsheet."""
+    # Remove original expressions and constraints
+    if hasattr(m.fs.pond, 'mass_flow_precipitate'):
+        m.fs.pond.del_component('mass_flow_precipitate')
+    if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
+        m.fs.pond.eq_total_evaporative_area_required.deactivate()
+        
+    # Add all parameters and infrastructure
+    general_parameters(m)
+    brine_extraction_section(m)
+    shipping_section(m)
+    
+    # Add flow and evaporation infrastructure
+    flow_parameters(m)
+    flow_variables(m)
+    flow_constraints(m)
+    evaporative_area_section(m)

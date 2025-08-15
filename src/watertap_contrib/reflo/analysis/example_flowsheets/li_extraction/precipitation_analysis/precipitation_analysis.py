@@ -199,5 +199,18 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
+    # Save cumulative precipitation data to CSV
+    csv_filename = os.path.join(folder, 'cumulative_precipitation_data.csv')
+    with open(csv_filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Water_Remaining_m3', 'Cumulative_Precipitation_kg', 'Incremental_Precipitation_kg', 'Percent_Water_Evaporated', 'kg_Precipitated_per_m3'])
+        for i in range(len(V_plot)):
+            water_remaining = V_plot[i]
+            water_evaporated = initial_volume_m3 - water_remaining
+            percent_evaporated = (water_evaporated / initial_volume_m3) * 100
+            kg_per_m3 = cum_kg_plot[i] / initial_volume_m3
+            writer.writerow([water_remaining, cum_kg_plot[i], incremental_desc_kg[i], percent_evaporated, kg_per_m3])
+    print(f"Cumulative precipitation data saved to: {csv_filename}")
+
     print(f"Cumulative precipitation quadratic fit (kg): C(V) = {coeffs_quad[0]:.6e}*V^2 + {coeffs_quad[1]:.6e}*V + {coeffs_quad[2]:.6e} (R² = {r2_cum:.4f})")
     print(f"Estimated cumulative precipitation at 130 m^3 remaining: {cum_at_target_kg:.3f} kg")

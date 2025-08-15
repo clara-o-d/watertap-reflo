@@ -95,6 +95,18 @@ def display_costing_results(m, detailed=False):
             total_shipping_cost = value(m.fs.shipping_cost) * value(m.fs.annual_concentrated_brine_outflow)
             print(f"  Total annual shipping cost: ${total_shipping_cost:,.0f}/year")
             
+        # Government agreements cost information
+        if hasattr(m.fs, 'government_agreements_unit_cost'):
+            print(f"\nGOVERNMENT AGREEMENTS INFORMATION:")
+            print(f"  Government agreements unit cost: ${value(m.fs.government_agreements_unit_cost):.4f} per kg Li")
+            if hasattr(m.fs, 'annual_lithium_outflow'):
+                print(f"  Annual lithium outflow: {value(m.fs.annual_lithium_outflow):,.0f} kg/year")
+                print(f"  Government agreements cost per kg: ${value(m.fs.government_agreements_cost):.4f}")
+                
+                # Calculate total annual government agreements cost
+                total_gov_agreements_cost = value(m.fs.government_agreements_cost) * value(m.fs.annual_lithium_outflow)
+                print(f"  Total annual government agreements cost: ${total_gov_agreements_cost:,.0f}/year")
+            
         # Truck information
         if hasattr(m.fs, 'number_of_trucks') and hasattr(m.fs, 'truck_capital_cost'):
             print(f"\nTRUCK INFORMATION:")
@@ -234,6 +246,19 @@ def display_costing_results(m, detailed=False):
                     if hasattr(m.fs.costing, 'aggregate_flow_costs'):
                         flow_cost = value(m.fs.costing.aggregate_flow_costs[flow])
                         print(f"    - {flow.capitalize()} Flow Cost:    ${flow_cost:,.0f}/year")
+                        
+                        # Show detailed breakdown for specific flow types
+                        if flow == "government_agreements" and hasattr(m.fs, 'annual_lithium_outflow'):
+                            li_outflow = value(m.fs.annual_lithium_outflow)
+                            unit_cost = value(m.fs.government_agreements_cost)
+                            print(f"      (Government agreements: {li_outflow:,.0f} kg/year × ${unit_cost:.4f}/kg)")
+                        elif flow == "shipping" and hasattr(m.fs, 'annual_concentrated_brine_outflow'):
+                            brine_outflow = value(m.fs.annual_concentrated_brine_outflow)
+                            shipping_cost_per_kg = value(m.fs.shipping_cost)
+                            print(f"      (Shipping: {brine_outflow:,.0f} kg/year × ${shipping_cost_per_kg:.4f}/kg)")
+                        elif flow == "electricity" and hasattr(m.fs, 'pumping_power'):
+                            power = value(m.fs.pumping_power)
+                            print(f"      (Pumping power: {power:.1f} kW)")
             
             # Energy Consumption Breakdown
             print("\nENERGY CONSUMPTION BREAKDOWN:")
@@ -291,6 +316,20 @@ def display_costing_results(m, detailed=False):
                         if hasattr(m.fs.costing, 'specific_electrical_carbon_intensity'):
                             annual_carbon = spec_carbon * annual_production
                             print(f"Total Annual Carbon Emissions:  {annual_carbon:,.0f} kg CO₂eq/year")
+            
+            # Annual Flow Costs Summary
+            print("\nANNUAL FLOW COSTS SUMMARY:")
+            print("-" * 30)
+            total_annual_flow_costs = 0
+            if hasattr(m.fs.costing, 'used_flows') and hasattr(m.fs.costing, 'aggregate_flow_costs'):
+                for flow in m.fs.costing.used_flows:
+                    try:
+                        flow_cost = value(m.fs.costing.aggregate_flow_costs[flow])
+                        total_annual_flow_costs += flow_cost
+                        print(f"  {flow.capitalize()}: ${flow_cost:,.0f}/year")
+                    except Exception:
+                        pass
+                print(f"  Total Annual Flow Costs: ${total_annual_flow_costs:,.0f}/year")
             
             print("="*50)
             

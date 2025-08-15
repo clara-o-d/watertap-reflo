@@ -39,6 +39,7 @@ def main():
     results = solve(m)
     assert_optimal_termination(results)
     display_initial_results(m)
+    
     add_costing(m)
     results = solve(m)
     assert_optimal_termination(results)

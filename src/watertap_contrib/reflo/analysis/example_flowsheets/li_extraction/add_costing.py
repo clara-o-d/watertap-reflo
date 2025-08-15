@@ -146,10 +146,43 @@ def add_costing(m):
 
     m.fs.shipping_cost = Expression(
         expr=m.fs.shipping_distance * m.fs.shipping_unit_cost,
-        doc="Shipping cost per kg (as Expression)"
+        doc="Shipping cost per kg"
     )
     m.fs.costing.register_flow_type("shipping", m.fs.shipping_cost)
     m.fs.costing.cost_flow(m.fs.annual_concentrated_brine_outflow, "shipping")
+
+    # Government agreements flow cost
+    m.fs.government_agreements_unit_cost = Param(
+        initialize=1.05,
+        mutable=True,
+        units=pyunits.USD_2020/pyunits.kg,
+        doc="Government agreements cost per kg of lithium ($/kg)"
+    )
+
+    m.fs.agreements_adjustment_factor = Param(
+        initialize=40.0/25.0,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Adjustment factor for government agreements unit cost based on lithium price"
+    )
+
+    m.fs.annual_lithium_outflow = Var(
+        initialize=1e6,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual total lithium outflow for government agreements"
+    )
+
+    @m.fs.Constraint(doc="Annual lithium outflow for government agreements")
+    def eq_annual_lithium_outflow(b):
+        return b.annual_lithium_outflow == pyunits.convert(b.li_outflow, to_units=pyunits.kg/pyunits.year)
+
+    m.fs.government_agreements_cost = Expression(
+        expr=m.fs.government_agreements_unit_cost * m.fs.agreements_adjustment_factor,
+        doc="Government agreements cost per kg of lithium"
+    )
+    m.fs.costing.register_flow_type("government_agreements", m.fs.government_agreements_cost)
+    m.fs.costing.cost_flow(m.fs.annual_lithium_outflow, "government_agreements")
 
     iscale.calculate_scaling_factors(m)
     
@@ -164,6 +197,7 @@ def add_costing(m):
     m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg)))
     m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2020 / pyunits.kg)))
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
+    m.fs.costing.evaporation_pond.land_cost.fix(0)
     m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
     m.fs.costing.evaporation_pond.fence_capital_cost_base.fix(0)
 
