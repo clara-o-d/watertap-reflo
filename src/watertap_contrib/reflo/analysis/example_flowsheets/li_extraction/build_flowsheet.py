@@ -125,9 +125,14 @@ def build_flowsheet():
     TransformationFactory("network.expand_arcs").apply_to(m)
 
     # Set feed conditions - brine composition and operating parameters
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(453)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(2.56)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(1120)
+    flow_vol = 1.461 # m^3/s
+    tds_conc = 354 # kg/m^3
+    li_conc = 2 # kg/m^3
+    water_conc = 873 # kg/m^3
+
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(tds_conc*flow_vol)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(li_conc*flow_vol)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(water_conc*flow_vol)
     m.fs.feed.properties[0].temperature.fix(300)  # K
     m.fs.feed.properties[0].pressure.fix(101325)  # Pa
     m.fs.feed.properties[0].flow_mass_phase_comp["Vap", "Air"].fix(1)

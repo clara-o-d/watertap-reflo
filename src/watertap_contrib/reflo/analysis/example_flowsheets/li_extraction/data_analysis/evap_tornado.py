@@ -196,6 +196,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
     sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=True)
     fig, ax = plt.subplots(figsize=(5, 4))
+    ax.set_frame_on(False)
+
     y_pos = np.arange(len(sensitivity_df))
     
     # Apply custom parameter name mapping if provided
@@ -249,7 +251,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     )
     
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(sensitivity_df['display_name'], fontsize=8)
+    ax.set_yticklabels(sensitivity_df['display_name'], fontsize=10)
     # ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
@@ -259,7 +261,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor='#07433C', alpha=0.7, label='Positive'),
-        Patch(facecolor='#07433C', alpha=0.7, hatch='///', label='Negative')
+        Patch(facecolor='#07433C', alpha=0.7, hatch='///', label='Negative') # #279989
     ]
     
     ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
@@ -331,11 +333,11 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        # 'Inlet Li+ concentration',
+        'Inlet Li+ concentration',
         # # 'Fraction of water evaporated',
-        # 'Inlet vapor temperature',
+        'Inlet vapor temperature',
         'Evaporation rate adjustment factor',
-        'Pipeline friction head',
+        # 'Pipeline friction head',
         # 'Land cost',
         # 'Pond liner cost',
         # 'Recovered solids cost',
@@ -389,10 +391,10 @@ def main():
         # Optional: Define custom parameter name mapping for display
         # Uncomment and modify the mapping below to use custom parameter names in the plot
         param_name_mapping = {
-            # 'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
-            # 'Inlet vapor temperature': f'Vapor\ntemperature',
+            'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
+            'Inlet vapor temperature': f'Vapor\ntemperature',
             'Evaporation rate adjustment factor': f'Evaporation\nrate',
-            'Pipeline friction head': f'Pipeline\nfriction\nhead',
+            # 'Pipeline friction head': f'Pipeline\nfriction\nhead',
             # 'Land cost': f'Land\ncost',
             # 'Pond liner cost': f'Pond\nliner\ncost',
             # 'Recovered solids cost': f'Recovered\nsolids\ncost',

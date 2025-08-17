@@ -18,6 +18,8 @@ def add_costing(m):
         m: Pyomo model to add costing to
     """
     m.fs.costing = REFLOCosting()
+    m.fs.costing.base_currency = pyunits.USD_2020
+
     m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
 
     # Wellfield capital cost
@@ -127,7 +129,7 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=6.4e-5, # 1.28e-4 USD_2022/kg/km
+        initialize=1.5e-4, # 1.28e-4 USD_2022/kg/km
         mutable=True,
         units=pyunits.USD_2022/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
@@ -160,7 +162,7 @@ def add_costing(m):
     )
 
     m.fs.agreements_adjustment_factor = Param(
-        initialize=40.0/25.0,
+        initialize=25.0/25.0,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Adjustment factor for government agreements unit cost based on lithium price"
@@ -194,11 +196,12 @@ def add_costing(m):
     m.fs.costing.utilization_factor.fix(0.98)
 
     m.fs.costing.evaporation_pond.liner_thickness.fix(40)
-    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg)))
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.01 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2020 / pyunits.kg)))
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.0132 * pyunits.USD_2021 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg)))
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.006 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2020 / pyunits.kg)))
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
     m.fs.costing.evaporation_pond.land_cost.fix(0)
     m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
     m.fs.costing.evaporation_pond.fence_capital_cost_base.fix(0)
 
+    
     process_costing(m)

@@ -58,7 +58,7 @@ def brine_extraction_section(m):
         doc="Static head (elevation difference)"
     )
     m.fs.friction_head = Param(
-        initialize=975.46,
+        initialize=354,
         mutable=True,
         units=pyunits.m/pyunits.km,
         doc="Friction head loss per km"
