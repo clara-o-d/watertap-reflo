@@ -14,7 +14,7 @@ def calculate_lithium_costs():
     # SQM's 2020 numbers
     sqm_operating_total = 500000000  # USD_2020/year
     sqm_capital_watertap_factor = (27+17+13+7+(27+17+13+7)/(28+27+17+13+7)*8)/100  # fraction of SQM's capital cost covered by WaterTAP
-    sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.25+.18+.14+.12+.04)+.14+.04  # fraction of SQM's operating cost covered by WaterTAP
+    sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12+.04)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.04  # fraction of SQM's operating cost covered by WaterTAP
     fraction = .04/(sqm_operating_watertap_factor-.18*sqm_capital_watertap_factor)
     sqm_operating_watertap_factor_capex = .18*sqm_capital_watertap_factor/sqm_operating_watertap_factor  # fraction of SQM's operating cost (covered by WaterTAP) attributed to depreciation
     sqm_operating_watertap = sqm_operating_total * sqm_operating_watertap_factor  # SQM's operating cost covered by WaterTAP
@@ -29,9 +29,9 @@ def calculate_lithium_costs():
     # Q calculation
     inlet_li_conc = 2  # g/kg
     li_recovery = 0.6  # fraction
-    inlet_flow_vol = 1.461  # m^3/s (2020)
-    inlet_dens = 1227  # kg/m^3
-    li_outflow = inlet_li_conc * li_recovery * inlet_flow_vol * inlet_dens / 1000  # kg/s
+    inlet_flow_vol = 1461  # m^3/s (2020)
+    li_outflow = inlet_li_conc * li_recovery * inlet_flow_vol / 1000  # kg/s
+    print(f"Li outflow: {li_outflow:.2f} kg/s")
     Q = li_outflow * 3600 * 24 * 365 / 1000  # mt/year
 
     # Results
@@ -45,12 +45,12 @@ def calculate_lithium_costs():
     # WaterTAP's numbers for 2022's production, translated to USD_2020. Costs should be a little higher
     crf = 0.10368970512  # capital recovery factor
     watertap_capex = 684330531
-    watertap_opex = 79228708+177035130
-    watertap_revenue = 177035130
+    watertap_opex = 48255685+208640254
+    watertap_revenue = 208640254
 
     # Q calculation
-    inlet_flow_vol = 1.461  # m^3/s
-    li_outflow = inlet_li_conc * li_recovery * inlet_flow_vol * inlet_dens / 1000  # kg/s
+    inlet_flow_vol = 1461  # m^3/s
+    li_outflow = inlet_li_conc * li_recovery * inlet_flow_vol / 1000  # kg/s
     Q = li_outflow * 3600 * 24 * 365 / 1000  # mt/year
 
     LCOLi_watertap_total = (crf * watertap_capex + watertap_opex - watertap_revenue) / (utilization_factor * Q)  # $/mt Li
@@ -263,8 +263,8 @@ capex_breakdown_watertap = {
 
 # WaterTAP model operating cost breakdown percentages (calculated dynamically)
 opex_breakdown_watertap = {
-    'Electricity': costs['watertap_opex_electricity_pct'],
     'Solids handling': costs['watertap_opex_solids_handling_pct'],
+    'Electricity': costs['watertap_opex_electricity_pct'],
     'Government agreements': costs['watertap_opex_government_agreements_pct'],
     'Shipping': costs['watertap_opex_shipping_pct'],
     'Maintenance-labor-chemical': costs['watertap_opex_maintenance_labor_chemical_pct'],
@@ -300,8 +300,8 @@ capex_values_watertap = [
 ]
 
 opex_values_watertap = [
-    costs['watertap_opex_electricity'],
     costs['watertap_opex_solids_handling'],
+    costs['watertap_opex_electricity'],
     costs['watertap_opex_government_agreements'],
     costs['watertap_opex_shipping'],
     costs['watertap_opex_maintenance_labor_chemical'],
