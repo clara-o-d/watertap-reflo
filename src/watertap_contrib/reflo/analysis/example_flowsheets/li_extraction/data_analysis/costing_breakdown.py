@@ -6,13 +6,19 @@ Creates cost breakdown visualization for industry report data with detailed cate
 import matplotlib.pyplot as plt
 import numpy as np
 
-def calculate_lithium_costs():
+def calculate_lithium_costs(inflation_factor=1.0):
     """
     Calculate lithium costs based on SQM's 2020 numbers and WaterTAP's 2022 numbers.
     Translated from MATLAB code.
+    
+    Args:
+        inflation_factor (float): Factor to adjust all costs for inflation (default: 1.0 = no adjustment)
     """
+    # Inflation factor to adjust all costs
+    # Example: inflation_factor = 1.15 means 15% increase due to inflation
+    
     # SQM's 2020 numbers
-    sqm_operating_total = 500000000  # USD_2020/year
+    sqm_operating_total = 500000000 * inflation_factor  # USD_2020/year
     sqm_capital_watertap_factor = (27+17+13+7+(27+17+13+7)/(28+27+17+13+7)*8)/100  # fraction of SQM's capital cost covered by WaterTAP
     sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12+.04)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.04  # fraction of SQM's operating cost covered by WaterTAP
     sqm_operating_watertap_factor_capex = .18*sqm_capital_watertap_factor/sqm_operating_watertap_factor  # fraction of SQM's operating cost (covered by WaterTAP) attributed to depreciation
@@ -21,7 +27,7 @@ def calculate_lithium_costs():
     sqm_capital_solids_factor = (17+7+(17+7)/(28+27+17+13+7)*8)/100  # fraction of SQM's capital cost for solids handling
     sqm_operating_solids_factor = sqm_capital_watertap_factor*(.25+.18+.14+.12+.04)  # fraction of SQM's operating costs for solids handling
     sqm_operating_solids = sqm_operating_total * sqm_operating_solids_factor  # SQM's operating cost for solids handling
-    sqm_revenue_solids = 209300000  # USD_2020/year
+    sqm_revenue_solids = 209300000 * inflation_factor  # USD_2020/year
 
     utilization_factor = 0.98  # factor
 
@@ -42,10 +48,10 @@ def calculate_lithium_costs():
     LCOLi_sqm_watertap_revenue = sqm_revenue_solids / (utilization_factor * Q)
 
     # WaterTAP's numbers for 2022's production, translated to USD_2020. Costs should be a little higher
-    crf = 0.10368970512  # capital recovery factor
-    watertap_capex = 684330531
-    watertap_opex = 56316628+208640254
-    watertap_revenue = 208640254
+    crf = 0.04  # capital recovery factor
+    watertap_capex = 1236330531 * inflation_factor
+    watertap_opex = (72876628+208640254) * inflation_factor
+    watertap_revenue = 208640254 * inflation_factor
 
     # Q calculation
     inlet_flow_vol = 1461  # m^3/s
@@ -59,10 +65,10 @@ def calculate_lithium_costs():
     
     # Raw category values for Industry report (SQM) capex (total costs in USD millions)
     # You can modify these values to change the cost breakdown
-    industry_capex_evaporation_ponds_raw = 193.8  # Million USD
-    industry_capex_solids_handling_raw = 172.5   # Million USD
-    industry_capex_extraction_wells_raw = 93.4   # Million USD
-    industry_capex_other_raw = 40.0              # Million USD
+    industry_capex_evaporation_ponds_raw = 193.8 * inflation_factor  # Million USD
+    industry_capex_solids_handling_raw = 172.5 * inflation_factor   # Million USD
+    industry_capex_extraction_wells_raw = 93.4 * inflation_factor   # Million USD
+    industry_capex_other_raw = 40.0 * inflation_factor              # Million USD
     
     # Calculate percentages for industry capex
     industry_capex_total_raw = (industry_capex_evaporation_ponds_raw + industry_capex_solids_handling_raw + 
@@ -74,12 +80,12 @@ def calculate_lithium_costs():
     
     # Raw category values for Industry report (SQM) opex (total costs in USD millions per year)
     # You can modify these values to change the cost breakdown
-    industry_opex_consumables_raw = 154.6        # Million USD/year
-    industry_opex_government_agreements_raw = 124.4  # Million USD/year
-    industry_opex_contractor_works_raw = 86.6    # Million USD/year
-    industry_opex_employee_benefits_raw = 74.2   # Million USD/year
-    industry_opex_shipping_raw = 35.6            # Million USD/year
-    industry_opex_other_raw = 24.8               # Million USD/year
+    industry_opex_consumables_raw = 154.6 * inflation_factor        # Million USD/year
+    industry_opex_government_agreements_raw = 124.4 * inflation_factor  # Million USD/year
+    industry_opex_contractor_works_raw = 86.6 * inflation_factor    # Million USD/year
+    industry_opex_employee_benefits_raw = 74.2 * inflation_factor   # Million USD/year
+    industry_opex_shipping_raw = 35.6 * inflation_factor            # Million USD/year
+    industry_opex_other_raw = 24.8 * inflation_factor               # Million USD/year
     
     # Calculate percentages for industry opex
     industry_opex_total_raw = (industry_opex_consumables_raw + industry_opex_government_agreements_raw + 
@@ -94,20 +100,22 @@ def calculate_lithium_costs():
     
     # Raw category values for WaterTAP capex (total costs in USD millions)
     # You can modify these values to change the cost breakdown
-    watertap_capex_liner_cost_raw = 233.4           # Million USD
-    watertap_capex_well_cost_raw = 104.6            # Million USD
-    watertap_capex_pipe_pump_cost_raw = 104.6       # Million USD
-    watertap_capex_dike_cost_raw = 82.4             # Million USD
-    watertap_capex_shipping_cost_raw = 49.4         # Million USD
-    watertap_capex_electrical_cost_raw = 38.9       # Million USD
-    watertap_capex_land_clearing_cost_raw = 14.2    # Million USD
-    watertap_capex_road_cost_raw = 7.1              # Million USD
+    watertap_capex_solids_handling_raw = 552.0 * inflation_factor      # Million USD
+    watertap_capex_liner_cost_raw = 233.4 * inflation_factor           # Million USD
+    watertap_capex_well_cost_raw = 104.6 * inflation_factor            # Million USD
+    watertap_capex_pipe_pump_cost_raw = 104.6 * inflation_factor       # Million USD
+    watertap_capex_dike_cost_raw = 82.4 * inflation_factor             # Million USD
+    watertap_capex_shipping_cost_raw = 49.4 * inflation_factor         # Million USD
+    watertap_capex_electrical_cost_raw = 38.9 * inflation_factor       # Million USD
+    watertap_capex_land_clearing_cost_raw = 14.2 * inflation_factor    # Million USD
+    watertap_capex_road_cost_raw = 7.1 * inflation_factor              # Million USD
     
     # Calculate percentages for WaterTAP capex
-    watertap_capex_total_raw = (watertap_capex_liner_cost_raw + watertap_capex_well_cost_raw + 
+    watertap_capex_total_raw = (watertap_capex_solids_handling_raw + watertap_capex_liner_cost_raw + watertap_capex_well_cost_raw + 
                                watertap_capex_pipe_pump_cost_raw + watertap_capex_dike_cost_raw + 
                                watertap_capex_shipping_cost_raw + watertap_capex_electrical_cost_raw + 
                                watertap_capex_land_clearing_cost_raw + watertap_capex_road_cost_raw)
+    watertap_capex_solids_handling_pct = watertap_capex_solids_handling_raw / watertap_capex_total_raw
     watertap_capex_liner_cost_pct = watertap_capex_liner_cost_raw / watertap_capex_total_raw
     watertap_capex_well_cost_pct = watertap_capex_well_cost_raw / watertap_capex_total_raw
     watertap_capex_pipe_pump_cost_pct = watertap_capex_pipe_pump_cost_raw / watertap_capex_total_raw
@@ -119,12 +127,12 @@ def calculate_lithium_costs():
     
     # Raw category values for WaterTAP opex (total costs in USD millions per year)
     # You can modify these values to change the cost breakdown
-    watertap_opex_electricity_raw = 44.2            # Million USD/year
-    watertap_opex_solids_handling_raw = 95.6        # Million USD/year
-    watertap_opex_government_agreements_raw = 71.4  # Million USD/year
-    watertap_opex_shipping_raw = 20.2               # Million USD/year
-    watertap_opex_maintenance_labor_chemical_raw = 20.5  # Million USD/year
-    watertap_opex_liner_replacement_raw = 11.7       # Million USD/year
+    watertap_opex_electricity_raw = 44.2 * inflation_factor            # Million USD/year
+    watertap_opex_solids_handling_raw = 95.6 * inflation_factor        # Million USD/year
+    watertap_opex_government_agreements_raw = 71.4 * inflation_factor  # Million USD/year
+    watertap_opex_shipping_raw = 20.2 * inflation_factor               # Million USD/year
+    watertap_opex_maintenance_labor_chemical_raw = 20.5 * inflation_factor  # Million USD/year
+    watertap_opex_liner_replacement_raw = 11.7 * inflation_factor       # Million USD/year
     
     # Calculate percentages for WaterTAP opex
     watertap_opex_total_raw = (watertap_opex_electricity_raw + watertap_opex_solids_handling_raw + 
@@ -180,6 +188,7 @@ def calculate_lithium_costs():
         'industry_opex_other_pct': industry_opex_other_pct,
         # WaterTAP capex categories (LCOLi totals and percentages)
         'watertap_capex_total': watertap_capex_total,
+        'watertap_capex_solids_handling': watertap_capex_total * watertap_capex_solids_handling_pct,
         'watertap_capex_liner_cost': watertap_capex_total * watertap_capex_liner_cost_pct,
         'watertap_capex_well_cost': watertap_capex_total * watertap_capex_well_cost_pct,
         'watertap_capex_pipe_pump_cost': watertap_capex_total * watertap_capex_pipe_pump_cost_pct,
@@ -188,6 +197,7 @@ def calculate_lithium_costs():
         'watertap_capex_electrical_cost': watertap_capex_total * watertap_capex_electrical_cost_pct,
         'watertap_capex_land_clearing_cost': watertap_capex_total * watertap_capex_land_clearing_cost_pct,
         'watertap_capex_road_cost': watertap_capex_total * watertap_capex_road_cost_pct,
+        'watertap_capex_solids_handling_pct': watertap_capex_solids_handling_pct,
         'watertap_capex_liner_cost_pct': watertap_capex_liner_cost_pct,
         'watertap_capex_well_cost_pct': watertap_capex_well_cost_pct,
         'watertap_capex_pipe_pump_cost_pct': watertap_capex_pipe_pump_cost_pct,
@@ -213,7 +223,10 @@ def calculate_lithium_costs():
     }
 
 # Calculate costs
-costs = calculate_lithium_costs()
+# Set to 1.0 for no inflation adjustment
+inflation_factor = 1.23  # Change this value to adjust for inflation
+costs = calculate_lithium_costs(inflation_factor)
+print(f"Inflation factor applied: {inflation_factor:.2f}")
 print(f"Annual lithium production (Q): {costs['Q']:.0f} mt/year")
 print(f"SQM total LCOLi: ${costs['sqm_total']:.0f}/mt Li")
 print(f"SQM WaterTAP LCOLi: ${costs['sqm_watertap']:.0f}/mt Li")
@@ -250,6 +263,7 @@ opex_breakdown_industry = {
 
 # WaterTAP model capital cost breakdown percentages (calculated dynamically)
 capex_breakdown_watertap = {
+    'Solids handling': costs['watertap_capex_solids_handling_pct'],
     'Liner cost': costs['watertap_capex_liner_cost_pct'],
     'Well cost': costs['watertap_capex_well_cost_pct'],
     'Pipe and pump cost': costs['watertap_capex_pipe_pump_cost_pct'],
@@ -288,6 +302,7 @@ opex_values_industry = [
 ]
 
 capex_values_watertap = [
+    costs['watertap_capex_solids_handling'],
     costs['watertap_capex_liner_cost'],
     costs['watertap_capex_well_cost'],
     costs['watertap_capex_pipe_pump_cost'],
@@ -308,22 +323,22 @@ opex_values_watertap = [
 ]
 
 # Colors for different categories
-capex_colors_industry = ['#3d7aa0', '#4198b5', '#5ba3c2', '#7ab8d1']
+capex_colors_industry = ['#2d5a7a', '#3d7aa0', '#4198b5', '#5ba3c2']
 opex_colors_industry = ['#610059', '#7a1a6b', '#93347d', '#ac4e8f', '#c568a1', '#de82b3']
 
-capex_colors_watertap = ['#3d7aa0', '#4198b5', '#5ba3c2', '#7ab8d1', '#9acde0', '#bce2f0', '#d6f0f9', '#e6f7fc']
+capex_colors_watertap = ['#2d5a7a', '#3d7aa0', '#4198b5', '#5ba3c2', '#7ab8d1', '#9acde0', '#bce2f0', '#d6f0f9', '#e6f7fc']
 opex_colors_watertap = ['#610059', '#7a1a6b', '#93347d', '#ac4e8f', '#c568a1', '#de82b3']
 
 revenue_color = '#165d54'
 dot_color = '#279989'
 
 # Set up the plots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 8))
 ax1.set_frame_on(False)
 ax2.set_frame_on(False)
 
 # Add a common title above both plots
-fig.suptitle('Lithium Extraction Cost Breakdown Comparison', fontsize=14, fontweight='bold', y=0.95)
+fig.suptitle('Lithium Extraction Cost Breakdown Comparison', fontsize=36, fontweight='bold', y=0.95)
 
 # Width of bar
 width = 0.20
@@ -350,7 +365,7 @@ revenue_bar_industry = ax1.bar(x_industry, -revenue_industry, width, label='Soli
 
 # Calculate and add levelized cost dot
 levelized_cost_industry = total_capex_industry + total_opex_industry - revenue_industry
-ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=100, label='Levelized cost', zorder=5)
+ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=300, label='Levelized cost', zorder=5)
 
 # Create stacked bars for WaterTAP model (right plot)
 bottom = 0
@@ -372,13 +387,13 @@ revenue_bar_watertap = ax2.bar(x_watertap, -revenue_watertap, width, label='Soli
 
 # Calculate and add levelized cost dot
 levelized_cost_watertap = total_capex_watertap + total_opex_watertap - revenue_watertap
-ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=100, label='Levelized cost', zorder=5)
+ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=300, label='Levelized cost', zorder=5)
 
 # Customize the plots
 # Left plot (Industry report)
-ax1.set_ylabel('Cost (USD_2020/Mt Li)', fontsize=11)
+ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=20)
 ax1.set_xticks([x_industry])
-ax1.set_xticklabels(['Industry report'], fontsize=12)
+ax1.set_xticklabels(['Industry report'], fontsize=24)
 ax1.set_xlim(0, 0.5)  # Set x-axis limits for industry plot
 
 # Calculate overall y-limits for both plots
@@ -393,16 +408,16 @@ ax1.set_ylim(y_min_overall, y_max_overall)
 ax1.axhline(0, color='black', linewidth=1)
 
 # Add legend for industry plot
-ax1.set_ylabel('Cost (USD_2020/Mt Li)', fontsize=11)
-ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=9)
+ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=20)
+ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=18)
 
 # Grid for better readability
 ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
 # Right plot (WaterTAP model)
-ax2.set_ylabel('Cost (USD_2020/Mt Li)', fontsize=11)
+ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=20)
 ax2.set_xticks([x_watertap])
-ax2.set_xticklabels(['WaterTAP model'], fontsize=12)
+ax2.set_xticklabels(['WaterTAP model'], fontsize=24)
 ax2.set_xlim(0, 0.5)  # Set x-axis limits for WaterTAP plot
 
 # Use same y-limits for consistency
@@ -410,7 +425,7 @@ ax2.set_ylim(y_min_overall, y_max_overall)
 ax2.axhline(0, color='black', linewidth=1)
 
 # Add legend for WaterTAP plot
-ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=9)
+ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=18)
 
 # Grid for better readability
 ax2.grid(axis='y', alpha=0.3, linestyle='--')
@@ -430,8 +445,8 @@ for category, value in zip(capex_breakdown_industry.keys(), capex_values_industr
 print(f"\nTotal Capital Costs: ${total_capex_industry:.0f}")
 
 print("\nOperating Costs Breakdown:")
-for category, value in zip(opex_breakdown.keys(), opex_values):
-    print(f"  {category}: ${value:.0f} ({list(opex_breakdown.values())[list(opex_breakdown.keys()).index(category)]*100:.1f}%)")
+for category, value in zip(opex_breakdown_industry.keys(), opex_values_industry):
+    print(f"  {category}: ${value:.0f} ({list(opex_breakdown_industry.values())[list(opex_breakdown_industry.keys()).index(category)]*100:.1f}%)")
 
 print(f"\nTotal Operating Costs: ${total_opex_industry:.0f}")
 print(f"Revenue: ${revenue_industry:.0f}")

@@ -201,7 +201,7 @@ def add_costing(m):
     
     # Fix costing parameters
     m.fs.costing.plant_lifetime.fix(35)
-    m.fs.costing.wacc.fix(0.10) # capital_recovery_factor = 0.10368970512
+    m.fs.costing.wacc.fix(0.02) # capital_recovery_factor = 0.04
     m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
