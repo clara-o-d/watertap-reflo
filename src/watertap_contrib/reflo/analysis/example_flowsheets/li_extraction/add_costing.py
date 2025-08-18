@@ -18,7 +18,7 @@ def add_costing(m):
         m: Pyomo model to add costing to
     """
     m.fs.costing = REFLOCosting()
-    m.fs.costing.base_currency = pyunits.USD_2020
+    m.fs.costing.base_currency = pyunits.USD_2023
 
     m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
 
@@ -173,7 +173,7 @@ def add_costing(m):
     )
 
     m.fs.agreements_adjustment_factor = Param(
-        initialize=25.0/25.0,
+        initialize=40.0/25.0,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Adjustment factor for government agreements unit cost based on lithium price"
@@ -201,7 +201,7 @@ def add_costing(m):
     
     # Fix costing parameters
     m.fs.costing.plant_lifetime.fix(35)
-    m.fs.costing.wacc.fix(0.02) # capital_recovery_factor = 0.04
+    m.fs.costing.wacc.fix(0.10) # capital_recovery_factor = 0.103; 0.04
     m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)

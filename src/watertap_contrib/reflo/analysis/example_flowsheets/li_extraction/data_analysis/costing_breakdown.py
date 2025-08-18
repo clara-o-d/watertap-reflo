@@ -338,7 +338,7 @@ ax1.set_frame_on(False)
 ax2.set_frame_on(False)
 
 # Add a common title above both plots
-fig.suptitle('Lithium Extraction Cost Breakdown Comparison', fontsize=36, fontweight='bold', y=0.95)
+fig.suptitle('Lithium Extraction Cost Breakdown Comparison', fontsize=24, fontweight='bold', y=0.95)
 
 # Width of bar
 width = 0.20
@@ -391,9 +391,10 @@ ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=300, label='
 
 # Customize the plots
 # Left plot (Industry report)
-ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=20)
+ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
 ax1.set_xticks([x_industry])
-ax1.set_xticklabels(['Industry report'], fontsize=24)
+ax1.set_xticklabels(['Industry report'], fontsize=16)
+ax1.tick_params(axis='both', labelsize=12)
 ax1.set_xlim(0, 0.5)  # Set x-axis limits for industry plot
 
 # Calculate overall y-limits for both plots
@@ -408,16 +409,17 @@ ax1.set_ylim(y_min_overall, y_max_overall)
 ax1.axhline(0, color='black', linewidth=1)
 
 # Add legend for industry plot
-ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=20)
-ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=18)
+ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
+ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
 
 # Grid for better readability
 ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
 # Right plot (WaterTAP model)
-ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=20)
+ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
 ax2.set_xticks([x_watertap])
-ax2.set_xticklabels(['WaterTAP model'], fontsize=24)
+ax2.set_xticklabels(['WaterTAP model'], fontsize=16)
+ax2.tick_params(axis='both', labelsize=12)
 ax2.set_xlim(0, 0.5)  # Set x-axis limits for WaterTAP plot
 
 # Use same y-limits for consistency
@@ -425,7 +427,7 @@ ax2.set_ylim(y_min_overall, y_max_overall)
 ax2.axhline(0, color='black', linewidth=1)
 
 # Add legend for WaterTAP plot
-ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=18)
+ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
 
 # Grid for better readability
 ax2.grid(axis='y', alpha=0.3, linestyle='--')

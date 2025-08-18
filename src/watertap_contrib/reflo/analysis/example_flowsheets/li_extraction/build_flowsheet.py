@@ -125,7 +125,7 @@ def build_flowsheet():
     TransformationFactory("network.expand_arcs").apply_to(m)
 
     # Set feed conditions - brine composition and operating parameters
-    flow_vol = 1.461 # m^3/s
+    flow_vol = 1.280 # m^3/s
     tds_conc = 354 # kg/m^3
     li_conc = 2 # kg/m^3
     water_conc = 873 # kg/m^3
