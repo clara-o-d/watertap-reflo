@@ -195,6 +195,13 @@ def display_costing_results(m, detailed=False):
                     num_trucks = value(m.fs.number_of_trucks)
                     cost_per_truck = value(m.fs.truck_capital_cost)
                     print(f"    ({num_trucks:.0f} trucks × ${cost_per_truck:,.0f}/truck × 1.36 indirect cost multiplier)")
+            
+            if hasattr(m.fs, 'total_solids_handling_capital_cost'):
+                solids_handling_capex = value(m.fs.total_solids_handling_capital_cost)
+                print(f"  Solids Handling Capital Cost:   ${solids_handling_capex:,.0f}")
+                if hasattr(m.fs, 'solids_handling_unit_capital_cost'):
+                    unit_cost = value(m.fs.solids_handling_unit_capital_cost)
+                    print(f"    (Solids handling: {value(m.fs.pond.mass_flow_precipitate):,.0f} kg/year × ${unit_cost:.4f}/kg)")
                     
             # Operating Cost Breakdown
             print("\nOPERATING COST BREAKDOWN:")

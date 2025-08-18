@@ -15,7 +15,6 @@ def calculate_lithium_costs():
     sqm_operating_total = 500000000  # USD_2020/year
     sqm_capital_watertap_factor = (27+17+13+7+(27+17+13+7)/(28+27+17+13+7)*8)/100  # fraction of SQM's capital cost covered by WaterTAP
     sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12+.04)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.04  # fraction of SQM's operating cost covered by WaterTAP
-    fraction = .04/(sqm_operating_watertap_factor-.18*sqm_capital_watertap_factor)
     sqm_operating_watertap_factor_capex = .18*sqm_capital_watertap_factor/sqm_operating_watertap_factor  # fraction of SQM's operating cost (covered by WaterTAP) attributed to depreciation
     sqm_operating_watertap = sqm_operating_total * sqm_operating_watertap_factor  # SQM's operating cost covered by WaterTAP
 
@@ -45,7 +44,7 @@ def calculate_lithium_costs():
     # WaterTAP's numbers for 2022's production, translated to USD_2020. Costs should be a little higher
     crf = 0.10368970512  # capital recovery factor
     watertap_capex = 684330531
-    watertap_opex = 48255685+208640254
+    watertap_opex = 56316628+208640254
     watertap_revenue = 208640254
 
     # Q calculation
@@ -122,8 +121,8 @@ def calculate_lithium_costs():
     # You can modify these values to change the cost breakdown
     watertap_opex_electricity_raw = 44.2            # Million USD/year
     watertap_opex_solids_handling_raw = 95.6        # Million USD/year
-    watertap_opex_government_agreements_raw = 58.1  # Million USD/year
-    watertap_opex_shipping_raw = 25.3               # Million USD/year
+    watertap_opex_government_agreements_raw = 71.4  # Million USD/year
+    watertap_opex_shipping_raw = 20.2               # Million USD/year
     watertap_opex_maintenance_labor_chemical_raw = 20.5  # Million USD/year
     watertap_opex_liner_replacement_raw = 11.7       # Million USD/year
     
@@ -264,10 +263,10 @@ capex_breakdown_watertap = {
 # WaterTAP model operating cost breakdown percentages (calculated dynamically)
 opex_breakdown_watertap = {
     'Solids handling': costs['watertap_opex_solids_handling_pct'],
-    'Electricity': costs['watertap_opex_electricity_pct'],
     'Government agreements': costs['watertap_opex_government_agreements_pct'],
-    'Shipping': costs['watertap_opex_shipping_pct'],
+    'Electricity': costs['watertap_opex_electricity_pct'],
     'Maintenance-labor-chemical': costs['watertap_opex_maintenance_labor_chemical_pct'],
+    'Shipping': costs['watertap_opex_shipping_pct'],
     'Liner replacement': costs['watertap_opex_liner_replacement_pct']
 }
 
@@ -301,10 +300,10 @@ capex_values_watertap = [
 
 opex_values_watertap = [
     costs['watertap_opex_solids_handling'],
-    costs['watertap_opex_electricity'],
     costs['watertap_opex_government_agreements'],
-    costs['watertap_opex_shipping'],
+    costs['watertap_opex_electricity'],
     costs['watertap_opex_maintenance_labor_chemical'],
+    costs['watertap_opex_shipping'],
     costs['watertap_opex_liner_replacement']
 ]
 
@@ -319,9 +318,12 @@ revenue_color = '#165d54'
 dot_color = '#279989'
 
 # Set up the plots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 ax1.set_frame_on(False)
 ax2.set_frame_on(False)
+
+# Add a common title above both plots
+fig.suptitle('Lithium Extraction Cost Breakdown Comparison', fontsize=14, fontweight='bold', y=0.95)
 
 # Width of bar
 width = 0.20
@@ -375,9 +377,8 @@ ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=100, label='
 # Customize the plots
 # Left plot (Industry report)
 ax1.set_ylabel('Cost (USD_2020/Mt Li)', fontsize=11)
-ax1.set_title('Industry Report', fontsize=11, fontweight='bold')
 ax1.set_xticks([x_industry])
-ax1.set_xticklabels(['Industry report'], fontsize=11)
+ax1.set_xticklabels(['Industry report'], fontsize=12)
 ax1.set_xlim(0, 0.5)  # Set x-axis limits for industry plot
 
 # Calculate overall y-limits for both plots
@@ -400,9 +401,8 @@ ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
 # Right plot (WaterTAP model)
 ax2.set_ylabel('Cost (USD_2020/Mt Li)', fontsize=11)
-ax2.set_title('WaterTAP Model', fontsize=11, fontweight='bold')
 ax2.set_xticks([x_watertap])
-ax2.set_xticklabels(['WaterTAP model'], fontsize=11)
+ax2.set_xticklabels(['WaterTAP model'], fontsize=12)
 ax2.set_xlim(0, 0.5)  # Set x-axis limits for WaterTAP plot
 
 # Use same y-limits for consistency

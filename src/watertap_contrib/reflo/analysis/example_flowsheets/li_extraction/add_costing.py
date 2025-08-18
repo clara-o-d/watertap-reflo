@@ -43,10 +43,16 @@ def add_costing(m):
         mutable=True,
         doc="Other fixed assets factor"
     )
+    m.fs.solids_handling_unit_capital_cost = Param(
+        initialize=552e6 / 15926736980,  # 552M total / 15,926,736,980 kg Li = cost per kg Li
+        mutable=True, units=pyunits.USD_2020/pyunits.kg,
+        doc="Solids handling capital cost per kg Li in 2020 ($/kg)"
+    )
 
     m.fs.total_well_capital_cost = Var(initialize=104.65e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total wellfield capital cost")
     m.fs.total_piping_pump_capital_cost = Var(initialize=104.65e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total piping and pump capital cost")
     m.fs.total_facilities_electrical_capital_cost = Var(initialize=86.72e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total facilities/electrical capital cost")
+    m.fs.total_solids_handling_capital_cost = Var(initialize=552e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total solids handling capital cost")
 
     @m.fs.Constraint(doc="Total wellfield capital cost")
     def total_well_capital_cost_constraint(b):
@@ -60,6 +66,10 @@ def add_costing(m):
     def total_facilities_electrical_capital_cost_constraint(b):
         return b.total_facilities_electrical_capital_cost == b.number_of_wells * b.facilities_electrical_unit_cost
 
+    @m.fs.Constraint(doc="Total solids handling capital cost")
+    def total_solids_handling_capital_cost_constraint(b):
+        return b.total_solids_handling_capital_cost == b.solids_handling_unit_capital_cost * b.pond.mass_flow_precipitate * (b.pond.mass_flow_precipitate/15926736980)**0.7
+    
     # Shipping capital cost
     m.fs.truck_capital_cost = Param(
         initialize=158000,
@@ -85,7 +95,8 @@ def add_costing(m):
         m.fs.total_well_capital_cost + 
         m.fs.total_piping_pump_capital_cost + 
         m.fs.total_facilities_electrical_capital_cost) +
-        m.fs.total_truck_capital_cost,
+        m.fs.total_truck_capital_cost +
+        m.fs.total_solids_handling_capital_cost,
         doc="Total capital cost (pond + extraction + piping/pumps + facilities)"
     )
 
@@ -129,7 +140,7 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=1.5e-4, # 1.28e-4 USD_2022/kg/km
+        initialize=1.2e-4, # 1.28e-4 USD_2022/kg/km
         mutable=True,
         units=pyunits.USD_2022/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
@@ -155,7 +166,7 @@ def add_costing(m):
 
     # Government agreements flow cost
     m.fs.government_agreements_unit_cost = Param(
-        initialize=1.05,
+        initialize=1.29,
         mutable=True,
         units=pyunits.USD_2020/pyunits.kg,
         doc="Government agreements cost per kg of lithium ($/kg)"
