@@ -54,7 +54,7 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.shipping_unit_cost, 6.4e-5, 8.4e-5, 3
     # )
     sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2.0, 3.0, 9
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2.304, 2.816, 5
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -62,7 +62,7 @@ def build_sweep_params(m, **kwargs):
     # )
 
     sweep_params['Evaporation rate adjustment factor'] = LinearSample(
-        m.fs.pond.evaporation_rate_salinity_adjustment_factor, 0.5, 0.85, 6
+        m.fs.pond.evaporation_rate_salinity_adjustment_factor, 0.65, 0.85, 5
     )
 
     # sweep_params['Pipeline friction head'] = LinearSample(
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='inlet_evap_sensitivity.csv', 
+        csv_results_file_name='inlet_evap_sensitivity_middle.csv', 
         h5_results_file_name='costing_sensitivity.h5',
         optimize_function=optimize_function,
     )

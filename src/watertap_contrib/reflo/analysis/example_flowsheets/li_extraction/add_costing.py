@@ -207,8 +207,8 @@ def add_costing(m):
     m.fs.costing.utilization_factor.fix(0.98)
 
     m.fs.costing.evaporation_pond.liner_thickness.fix(40)
-    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.0131 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg)))
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.006 * pyunits.USD_2020 / pyunits.kg, to_units=m.fs.costing.base_currency / pyunits.kg)))
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.0131 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.0082 * pyunits.USD_2020 / pyunits.kg, to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
     m.fs.costing.evaporation_pond.land_cost.fix(0)
     m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
