@@ -96,21 +96,21 @@ def flow_parameters(m):
     """Define flow and evaporation parameters."""
     # Fixed parameters
     m.fs.final_li_conc = Param(
-        initialize=0.06,
+        initialize=0.055,
         mutable=True,
         units=pyunits.kg / pyunits.kg,
         doc="Final lithium concentration"
     )
     
     m.fs.li_recovery = Param(
-        initialize=0.60,
+        initialize=0.6,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Lithium recovery fraction"
     )
     
     m.fs.final_tds_conc = Param(
-        initialize=0.428,
+        initialize=0.429,
         mutable=True,
         units=pyunits.kg / pyunits.kg,
         doc="Final TDS concentration"

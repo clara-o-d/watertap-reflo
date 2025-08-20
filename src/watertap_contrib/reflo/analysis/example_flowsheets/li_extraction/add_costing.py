@@ -44,7 +44,7 @@ def add_costing(m):
         doc="Other fixed assets factor"
     )
     m.fs.solids_handling_unit_capital_cost = Param(
-        initialize=552e6 / 15926736980,  # 552M total / 15,926,736,980 kg Li = cost per kg Li
+        initialize=552e6 / 15889852457,  # 552M total / 15,926,736,980 kg Li = cost per kg Li
         mutable=True, units=pyunits.USD_2020/pyunits.kg,
         doc="Solids handling capital cost per kg Li in 2020 ($/kg)"
     )
@@ -68,7 +68,7 @@ def add_costing(m):
 
     @m.fs.Constraint(doc="Total solids handling capital cost")
     def total_solids_handling_capital_cost_constraint(b):
-        return b.total_solids_handling_capital_cost == b.solids_handling_unit_capital_cost * b.pond.mass_flow_precipitate * (b.pond.mass_flow_precipitate/15926736980)**0.7
+        return b.total_solids_handling_capital_cost == b.solids_handling_unit_capital_cost * b.pond.mass_flow_precipitate * (b.pond.mass_flow_precipitate/15889852457)**0.7
     
     # Shipping capital cost
     m.fs.truck_capital_cost = Param(
@@ -140,7 +140,7 @@ def add_costing(m):
 
     # Shipping flow cost
     m.fs.shipping_unit_cost = Param(
-        initialize=1.2e-4, # 1.28e-4 USD_2022/kg/km
+        initialize=1.1e-4, # 1.28e-4 USD_2022/kg/km
         mutable=True,
         units=pyunits.USD_2022/pyunits.kg/pyunits.km,
         doc="Shipping cost per kg per km ($/kg/km)"
@@ -166,7 +166,7 @@ def add_costing(m):
 
     # Government agreements flow cost
     m.fs.government_agreements_unit_cost = Param(
-        initialize=1.29,
+        initialize=1.27,
         mutable=True,
         units=pyunits.USD_2020/pyunits.kg,
         doc="Government agreements cost per kg of lithium ($/kg)"
@@ -207,8 +207,8 @@ def add_costing(m):
     m.fs.costing.utilization_factor.fix(0.98)
 
     m.fs.costing.evaporation_pond.liner_thickness.fix(40)
-    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.0131 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.0082 * pyunits.USD_2020 / pyunits.kg, to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.0132 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.0083 * pyunits.USD_2020 / pyunits.kg, to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
     m.fs.costing.evaporation_pond.land_cost.fix(0)
     m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)

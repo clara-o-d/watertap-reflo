@@ -233,7 +233,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         y_pos,
         sensitivity_df['avg_increase_sensitivity'],
         height=bar_width,
-        color='#279989',
+        color='#55C667',
         alpha=0.7,
         hatch=increase_hatch,
         label='Parameter increase effect'
@@ -244,7 +244,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         y_pos,
         -sensitivity_df['avg_decrease_sensitivity'],  # Make negative to show on left side
         height=bar_width,
-        color='#279989',
+        color='#55C667',
         alpha=0.7,
         hatch=decrease_hatch,
         label='Parameter decrease effect'
@@ -253,15 +253,15 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['display_name'], fontsize=10)
     ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
-    # ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
+    ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
     
     # Create custom legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#279989', alpha=0.7, label='Positive'), #07433C'
-        Patch(facecolor='#279989', alpha=0.7, hatch='///', label='Negative') # #279989
+        Patch(facecolor='#55C667', alpha=0.7, label='Positive'), #07433C #55C667
+        Patch(facecolor='#55C667', alpha=0.7, hatch='///', label='Negative') # #279989 #20A387
     ]
     
     ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
@@ -334,18 +334,20 @@ def main():
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
         # 'Inlet Li+ concentration',
-        # # 'Fraction of water evaporated',
+        # 'Fraction of water evaporated',
         # 'Inlet vapor temperature',
         # 'Evaporation rate adjustment factor',
         # 'Pipeline friction head',
         # 'Land cost',
-        'Government agreements cost',
-        'Pond liner cost',
-        'Recovered solids cost',
-        'Shipping cost',
+        # 'Government agreements cost',
+        # 'Pond liner cost',
+        # 'Recovered solids cost',
+        # 'Shipping cost',
         # 'Dike height',
         # 'Pipeline length',
         # 'Utilization factor',
+        'Final Li+ concentration',
+        'Final TDS concentration',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -397,14 +399,16 @@ def main():
             # 'Evaporation rate adjustment factor': f'Evaporation\nrate',
             # 'Pipeline friction head': f'Pipeline\nfriction\nhead',
             # 'Land cost': f'Land\ncost',
-            'Government agreements cost': f'Government\nagreements\ncost',
-            'Pond liner cost': f'Pond\nliner\ncost',
-            'Recovered solids cost': f'Recovered\nsolids\ncost',
-            'Shipping cost': f'Shipping\ncost',
+            # 'Government agreements cost': f'Government\nagreements\ncost',
+            # 'Pond liner cost': f'Pond\nliner\ncost',
+            # 'Recovered solids cost': f'Recovered\nsolids\ncost',
+            # 'Shipping cost': f'Shipping\ncost',
+            'Final Li+ concentration': f'Final\nLi+\nconcentration',
+            'Final TDS concentration': f'Final\nTDS\nconcentration',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
-                                    title=f"Parameter sensitivities",
+                                    title=f"Parameter sensitivity",
                                     param_name_mapping=param_name_mapping)
         if fig is not None:
             plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')

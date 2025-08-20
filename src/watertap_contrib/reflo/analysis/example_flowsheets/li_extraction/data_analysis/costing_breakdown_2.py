@@ -1,6 +1,6 @@
 """Results comparison visualization for lithium extraction flowsheet.
 
-Creates cost breakdown visualization for industry report data with detailed categories.
+Creates cost breakdown visualization for industry report data with viridis color and matching capex categories.
 """
 
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ import numpy as np
 
 def calculate_lithium_costs(inflation_factor=1.0):
     """
-    Calculate lithium costs based on SQM's 2020 numbers and WaterTAP's 2022 numbers.
+    Calculate lithium costs based on SQM's 2020 numbers and WaterTAP's 2020 numbers.
     Translated from MATLAB code.
     
     Args:
@@ -243,16 +243,17 @@ opex_breakdown_industry = {
 }
 
 # WaterTAP model capital cost breakdown percentages (calculated dynamically)
+# Reorganized to match industry categories
 capex_breakdown_watertap = {
-    'Precipitated salts processing\n(capex)': costs['watertap_capex_solids_handling_pct'],
-    'Liner cost': costs['watertap_capex_liner_cost_pct'],
-    'Well cost': costs['watertap_capex_well_cost_pct'],
-    'Pipe and pump cost': costs['watertap_capex_pipe_pump_cost_pct'],
-    'Dike cost': costs['watertap_capex_dike_cost_pct'],
-    'Shipping cost': costs['watertap_capex_shipping_cost_pct'],
-    'Electrical cost': costs['watertap_capex_electrical_cost_pct'],
-    'Land clearing cost': costs['watertap_capex_land_clearing_cost_pct'],
-    'Road cost': costs['watertap_capex_road_cost_pct']
+    'Evaporation ponds': (costs['watertap_capex_liner_cost_pct'] + 
+                         costs['watertap_capex_dike_cost_pct'] + 
+                         costs['watertap_capex_land_clearing_cost_pct'] + 
+                         costs['watertap_capex_road_cost_pct']),
+    'Precipitated salts processing': costs['watertap_capex_solids_handling_pct'],
+    'Extraction wells': (costs['watertap_capex_well_cost_pct'] + 
+                        costs['watertap_capex_pipe_pump_cost_pct'] + 
+                        costs['watertap_capex_electrical_cost_pct']),
+    'Other (capex)': costs['watertap_capex_shipping_cost_pct']
 }
 
 # WaterTAP model operating cost breakdown percentages (calculated dynamically)
@@ -283,15 +284,15 @@ opex_values_industry = [
 ]
 
 capex_values_watertap = [
-    costs['watertap_capex_solids_handling'],
-    costs['watertap_capex_liner_cost'],
-    costs['watertap_capex_well_cost'],
-    costs['watertap_capex_pipe_pump_cost'],
-    costs['watertap_capex_dike_cost'],
-    costs['watertap_capex_shipping_cost'],
-    costs['watertap_capex_electrical_cost'],
-    costs['watertap_capex_land_clearing_cost'],
-    costs['watertap_capex_road_cost']
+    (costs['watertap_capex_liner_cost'] + 
+     costs['watertap_capex_dike_cost'] + 
+     costs['watertap_capex_land_clearing_cost'] + 
+     costs['watertap_capex_road_cost']),  # Evaporation ponds
+    costs['watertap_capex_solids_handling'],  # Precipitated salts processing
+    (costs['watertap_capex_well_cost'] + 
+     costs['watertap_capex_pipe_pump_cost'] + 
+     costs['watertap_capex_electrical_cost']),  # Extraction wells
+    costs['watertap_capex_shipping_cost']  # Other (capex)
 ]
 
 opex_values_watertap = [
@@ -303,23 +304,26 @@ opex_values_watertap = [
     costs['watertap_opex_liner_replacement']
 ]
 
-# Colors for different categories
-capex_colors_industry = ['#2d5a7a', '#3d7aa0', '#4198b5', '#5ba3c2']
-opex_colors_industry = ['#610059', '#7a1a6b', '#93347d', '#ac4e8f', '#c568a1', '#de82b3']
+# Colors for different categories using viridis color scheme
+# Capex colors: viridis blues (distinct from opex)
+capex_colors_industry = ['#453781', '#6d5cb7', '#9787da', '#cac0f1']
+capex_colors_watertap = ['#453781', '#6d5cb7', '#9787da', '#cac0f1']
 
-capex_colors_watertap = ['#2d5a7a', '#3d7aa0', '#4198b5', '#5ba3c2', '#7ab8d1', '#9acde0', '#bce2f0', '#d6f0f9', '#e6f7fc']
-opex_colors_watertap = ['#610059', '#7a1a6b', '#93347d', '#ac4e8f', '#c568a1', '#de82b3']
+# Opex colors: viridis greens/yellows (distinct from capex)
+opex_colors_industry = ['#287D8E', '#42a6bb', '#58c3da', '#77d8ec', '#a1e8f7', '#b9eef9']
+opex_colors_watertap = ['#287D8E', '#42a6bb', '#58c3da', '#77d8ec', '#a1e8f7', '#b9eef9']
 
-revenue_color = '#165d54'
-dot_color = '#279989'
+# Revenue color: viridis purple (distinct from capex and opex)
+revenue_color = '#3CBB75'
+dot_color = '#DCE319'
 
 # Set up the plots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 8))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 4))
 ax1.set_frame_on(False)
 ax2.set_frame_on(False)
 
 # Add a common title above both plots
-fig.suptitle('Lithium Brine Cost Breakdown Comparison', fontsize=24, fontweight='bold', y=0.95)
+fig.suptitle('Lithium Brine Cost Breakdown Comparison', fontsize=16, fontweight='bold', y=0.95)
 
 # Width of bar
 width = 0.20
@@ -346,7 +350,7 @@ revenue_bar_industry = ax1.bar(x_industry, -revenue_industry, width, label='Prec
 
 # Calculate and add levelized cost dot
 levelized_cost_industry = total_capex_industry + total_opex_industry - revenue_industry
-ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=300, label='Levelized cost of Li brine', zorder=5)
+ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=70, label='Levelized cost of Li brine', zorder=5)
 
 # Create stacked bars for WaterTAP model (right plot)
 bottom = 0
@@ -368,14 +372,14 @@ revenue_bar_watertap = ax2.bar(x_watertap, -revenue_watertap, width, label='Prec
 
 # Calculate and add levelized cost dot
 levelized_cost_watertap = total_capex_watertap + total_opex_watertap - revenue_watertap
-ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=300, label='Levelized cost of Li brine', zorder=5)
+ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=70, label='Levelized cost of Li brine', zorder=5)
 
 # Customize the plots
 # Left plot (Industry report)
-ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
+ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=11)
 ax1.set_xticks([x_industry])
-ax1.set_xticklabels(['Industry report'], fontsize=16)
-ax1.tick_params(axis='both', labelsize=12)
+ax1.set_xticklabels(['Industry report'], fontsize=12)
+ax1.tick_params(axis='both', labelsize=10)
 ax1.set_xlim(0, 0.5)  # Set x-axis limits for industry plot
 
 # Calculate overall y-limits for both plots
@@ -392,38 +396,35 @@ ax1.axhline(0, color='black', linewidth=1)
 # Add levelized cost as y-tick label and avoid overlap with nearest default tick
 current_yticks = list(ax1.get_yticks())
 current_yticklabels = [f'${tick:.0f}' for tick in current_yticks]
-# Compute a spacing tolerance as half the median spacing between ticks
 if len(current_yticks) >= 2:
     spacings = np.diff(sorted(current_yticks))
     median_spacing = np.median(spacings)
     tolerance = 0.5 * median_spacing
 else:
     tolerance = 0
-# Remove nearest tick if it is too close to the levelized cost
 if len(current_yticks) > 0:
     diffs = [abs(t - levelized_cost_industry) for t in current_yticks]
     nearest_idx = int(np.argmin(diffs))
     if diffs[nearest_idx] <= tolerance:
         current_yticks.pop(nearest_idx)
         current_yticklabels.pop(nearest_idx)
-# Append levelized cost tick and label
 current_yticks.append(levelized_cost_industry)
 current_yticklabels.append(f'${levelized_cost_industry:.0f}')
 ax1.set_yticks(current_yticks)
 ax1.set_yticklabels(current_yticklabels)
 
 # Add legend for industry plot
-ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
-ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
+ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=11)
+ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=8)
 
 # Grid for better readability
 ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
 # Right plot (WaterTAP model)
-ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
+ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=11)
 ax2.set_xticks([x_watertap])
-ax2.set_xticklabels(['WaterTAP model'], fontsize=16)
-ax2.tick_params(axis='both', labelsize=12)
+ax2.set_xticklabels(['WaterTAP model'], fontsize=12)
+ax2.tick_params(axis='both', labelsize=10)
 ax2.set_xlim(0, 0.5)  # Set x-axis limits for WaterTAP plot
 
 # Use same y-limits for consistency
@@ -433,28 +434,25 @@ ax2.axhline(0, color='black', linewidth=1)
 # Add levelized cost as y-tick label and avoid overlap with nearest default tick
 current_yticks = list(ax2.get_yticks())
 current_yticklabels = [f'${tick:.0f}' for tick in current_yticks]
-# Compute a spacing tolerance as half the median spacing between ticks
 if len(current_yticks) >= 2:
     spacings = np.diff(sorted(current_yticks))
     median_spacing = np.median(spacings)
     tolerance = 0.5 * median_spacing
 else:
     tolerance = 0
-# Remove nearest tick if it is too close to the levelized cost
 if len(current_yticks) > 0:
     diffs = [abs(t - levelized_cost_watertap) for t in current_yticks]
     nearest_idx = int(np.argmin(diffs))
     if diffs[nearest_idx] <= tolerance:
         current_yticks.pop(nearest_idx)
         current_yticklabels.pop(nearest_idx)
-# Append levelized cost tick and label
 current_yticks.append(levelized_cost_watertap)
 current_yticklabels.append(f'${levelized_cost_watertap:.0f}')
 ax2.set_yticks(current_yticks)
 ax2.set_yticklabels(current_yticklabels)
 
 # Add legend for WaterTAP plot
-ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
+ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=8)
 
 # Grid for better readability
 ax2.grid(axis='y', alpha=0.3, linestyle='--')

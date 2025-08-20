@@ -46,16 +46,12 @@ def create_heat_map(csv_file_path, flow_volume, evaporation_rate):
     # Create the heat map
     plt.figure(figsize=(6, 6))
     
-    # Create custom colormap from purple to blue to teal
-    colors = ['#7a1a6b', '#4198b5', '#279989']
-    custom_cmap = LinearSegmentedColormap.from_list('purple_blue_teal', colors, N=256)
-    
-    # Create heat map with annotations
+    # Create heat map with annotations using viridis colormap
     ax = sns.heatmap(
         pivot_data,
         annot=True,
         fmt='.1f',
-        cmap=custom_cmap,
+        cmap='viridis',
         cbar_kws={'label': 'Levelized Cost (thousands $/mt Li)'},
         linewidths=0.5,
         annot_kws={'fontsize': 14, 'fontweight': 'bold'}

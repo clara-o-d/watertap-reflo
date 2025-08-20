@@ -57,16 +57,22 @@ def build_sweep_params(m, **kwargs):
         m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 2.304, 2.816, 5
     )
 
-    # sweep_params['Inlet vapor temperature'] = LinearSample(
-    #     m.fs.feed.properties[0].temperature["Vap"], 290, 310, 3
-    # )
+    sweep_params['Inlet vapor temperature'] = LinearSample(
+        m.fs.feed.properties[0].temperature["Vap"], 290, 310, 3
+    )
 
     sweep_params['Evaporation rate adjustment factor'] = LinearSample(
-        m.fs.pond.evaporation_rate_salinity_adjustment_factor, 0.65, 0.85, 5
+        m.fs.pond.evaporation_rate_salinity_adjustment_factor, 0.69, 0.81, 5
     )
 
     # sweep_params['Pipeline friction head'] = LinearSample(
     #     m.fs.friction_head, 800, 1000, 3
+    # )
+    # sweep_params['Final Li+ concentration'] = LinearSample(
+    #     m.fs.final_li_conc, 0.03, 0.06, 4
+    # )
+    # sweep_params['Final TDS concentration'] = LinearSample(
+    #     m.fs.final_tds_conc, 0.3, 0.5, 5
     # )
 
     return sweep_params
@@ -100,9 +106,11 @@ def build_outputs(m, **kwargs):
 
     outputs['Resultant evaporation rate adjustment factor'] = m.fs.pond.evaporation_rate_salinity_adjustment_factor
     outputs['Resultant inlet Li+ concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
-    # outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
+    outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
     # outputs['Resultant pipeline friction head'] = m.fs.friction_head
 
+    # outputs['Resultant final Li+ concentration'] = m.fs.final_li_conc
+    # outputs['Resultant final TDS concentration'] = m.fs.final_tds_conc
     # Additional useful outputs
     outputs['Li outflow (kg/s)'] = m.fs.li_outflow
     outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
@@ -162,7 +170,7 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='inlet_evap_sensitivity_middle.csv', 
+        csv_results_file_name='exo_sensitivity.csv', 
         h5_results_file_name='costing_sensitivity.h5',
         optimize_function=optimize_function,
     )
