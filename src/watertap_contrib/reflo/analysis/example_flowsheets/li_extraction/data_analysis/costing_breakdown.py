@@ -44,7 +44,6 @@ def calculate_lithium_costs(inflation_factor=1.0):
     # Results
     LCOLi_sqm_total = (sqm_operating_total - sqm_revenue_solids) / (utilization_factor * Q)
     LCOLi_sqm_watertap = (sqm_operating_watertap - sqm_revenue_solids) / (utilization_factor * Q)  # $/mt Li
-
     LCOLi_sqm_watertap_capex = sqm_operating_watertap * sqm_operating_watertap_factor_capex / (utilization_factor * Q)
     LCOLi_sqm_watertap_opex = sqm_operating_watertap * (1 - sqm_operating_watertap_factor_capex) / (utilization_factor * Q)
     LCOLi_sqm_watertap_revenue = sqm_revenue_solids / (utilization_factor * Q)

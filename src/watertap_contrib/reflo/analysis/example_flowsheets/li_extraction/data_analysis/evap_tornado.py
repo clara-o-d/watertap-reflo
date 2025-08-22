@@ -252,10 +252,13 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['display_name'], fontsize=10)
-    ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
+    # ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
+    
+    # Set x-axis limits from -0.5 to 0.5
+    ax.set_xlim(-0.5, 0.5)
     
     # Create custom legend
     from matplotlib.patches import Patch
@@ -333,21 +336,22 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
     input_vars = [
-        # 'Inlet Li+ concentration',
+        'Inlet Li+ concentration',
         # 'Fraction of water evaporated',
-        # 'Inlet vapor temperature',
-        # 'Evaporation rate adjustment factor',
+        'Inlet vapor temperature',
+        'Evaporation rate adjustment factor',
         # 'Pipeline friction head',
         # 'Land cost',
         # 'Government agreements cost',
         # 'Pond liner cost',
         # 'Recovered solids cost',
         # 'Shipping cost',
+        # 'Electricity cost',
         # 'Dike height',
         # 'Pipeline length',
         # 'Utilization factor',
-        'Final Li+ concentration',
-        'Final TDS concentration',
+        # 'Final Li+ concentration',
+        # 'Final TDS concentration',
     ]
     # Confirm input/output match for each parameter
     for var in input_vars:
@@ -394,17 +398,18 @@ def main():
         # Optional: Define custom parameter name mapping for display
         # Uncomment and modify the mapping below to use custom parameter names in the plot
         param_name_mapping = {
-            # 'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
-            # 'Inlet vapor temperature': f'Vapor\ntemperature',
-            # 'Evaporation rate adjustment factor': f'Evaporation\nrate',
+            'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
+            'Inlet vapor temperature': f'Vapor\ntemperature',
+            'Evaporation rate adjustment factor': f'Evaporation\nrate',
             # 'Pipeline friction head': f'Pipeline\nfriction\nhead',
             # 'Land cost': f'Land\ncost',
             # 'Government agreements cost': f'Government\nagreements\ncost',
             # 'Pond liner cost': f'Pond\nliner\ncost',
             # 'Recovered solids cost': f'Recovered\nsolids\ncost',
             # 'Shipping cost': f'Shipping\ncost',
-            'Final Li+ concentration': f'Final\nLi+\nconcentration',
-            'Final TDS concentration': f'Final\nTDS\nconcentration',
+            # 'Electricity cost': f'Electricity\ncost',
+            # 'Final Li+ concentration': f'Final\nLi+\nconcentration',
+            # 'Final TDS concentration': f'Final\nTDS\nconcentration',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 

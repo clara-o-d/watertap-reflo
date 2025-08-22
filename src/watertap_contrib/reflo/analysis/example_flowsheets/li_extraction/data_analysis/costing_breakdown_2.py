@@ -21,7 +21,7 @@ def calculate_lithium_costs(inflation_factor=1.0):
     # SQM's 2020 numbers
     sqm_operating_total = 500000000 * inflation_factor  # USD_2020/year
     sqm_capital_watertap_factor = (27+17+13+7+(27+17+13+7)/(28+27+17+13+7)*8)/100  # fraction of SQM's capital cost covered by WaterTAP
-    sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12+.04)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.05+.06  # fraction of SQM's operating cost covered by WaterTAP
+    sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.05+.06  # fraction of SQM's operating cost covered by WaterTAP
     sqm_operating_watertap_factor_capex = .18*sqm_capital_watertap_factor/sqm_operating_watertap_factor  # fraction of SQM's operating cost (covered by WaterTAP) attributed to depreciation
     sqm_operating_watertap = sqm_operating_total * sqm_operating_watertap_factor  # SQM's operating cost covered by WaterTAP
 
@@ -326,9 +326,9 @@ ax2.set_frame_on(False)
 fig.suptitle('Lithium Brine Cost Breakdown Comparison', fontsize=16, fontweight='bold', y=0.95)
 
 # Width of bar
-width = 0.20
-x_industry = 0.15
-x_watertap = 0.15
+width = 0.15
+x_industry = 0.1
+x_watertap = 0.1
 
 # Create stacked bars for industry report (left plot)
 bottom = 0
@@ -350,7 +350,7 @@ revenue_bar_industry = ax1.bar(x_industry, -revenue_industry, width, label='Prec
 
 # Calculate and add levelized cost dot
 levelized_cost_industry = total_capex_industry + total_opex_industry - revenue_industry
-ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=70, label='Levelized cost of Li brine', zorder=5)
+ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=70, label='Levelized cost of Li$^+$ brine', zorder=5)
 
 # Create stacked bars for WaterTAP model (right plot)
 bottom = 0
@@ -372,11 +372,11 @@ revenue_bar_watertap = ax2.bar(x_watertap, -revenue_watertap, width, label='Prec
 
 # Calculate and add levelized cost dot
 levelized_cost_watertap = total_capex_watertap + total_opex_watertap - revenue_watertap
-ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=70, label='Levelized cost of Li brine', zorder=5)
+ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=70, label='Levelized cost of Li$^+$ brine', zorder=5)
 
 # Customize the plots
 # Left plot (Industry report)
-ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=11)
+ax1.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=11)
 ax1.set_xticks([x_industry])
 ax1.set_xticklabels(['Industry report'], fontsize=12)
 ax1.tick_params(axis='both', labelsize=10)
@@ -413,15 +413,49 @@ current_yticklabels.append(f'${levelized_cost_industry:.0f}')
 ax1.set_yticks(current_yticks)
 ax1.set_yticklabels(current_yticklabels)
 
-# Add legend for industry plot
-ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=11)
-ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=8)
+# Add legend for industry plot with headers
+ax1.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=11)
+
+# Create legend handles with headers
+legend_handles = []
+legend_labels = []
+
+# Add capital costs header
+capex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='CAPITAL COSTS')
+legend_handles.append(capex_header)
+legend_labels.append('CAPITAL COSTS')
+
+# Add capital cost items
+for i, (category, value) in enumerate(zip(capex_breakdown_industry.keys(), capex_values_industry)):
+    legend_handles.append(capex_bars_industry[i])
+    legend_labels.append(category)
+
+# Add operating costs header
+opex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OPERATING COSTS')
+legend_handles.append(opex_header)
+legend_labels.append('OPERATING COSTS')
+
+# Add operating cost items
+for i, (category, value) in enumerate(zip(opex_breakdown_industry.keys(), opex_values_industry)):
+    legend_handles.append(opex_bars_industry[i])
+    legend_labels.append(category)
+
+# Add other header
+other_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OTHER')
+legend_handles.append(other_header)
+legend_labels.append('OTHER')
+
+# Add revenue and levelized cost
+legend_handles.extend([revenue_bar_industry, ax1.collections[0]])
+legend_labels.extend(['Precipitated salts revenue', 'Levelized cost of Li$^+$ brine'])
+
+ax1.legend(legend_handles, legend_labels, loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=8)
 
 # Grid for better readability
 ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
 # Right plot (WaterTAP model)
-ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=11)
+ax2.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=11)
 ax2.set_xticks([x_watertap])
 ax2.set_xticklabels(['WaterTAP model'], fontsize=12)
 ax2.tick_params(axis='both', labelsize=10)
@@ -451,8 +485,41 @@ current_yticklabels.append(f'${levelized_cost_watertap:.0f}')
 ax2.set_yticks(current_yticks)
 ax2.set_yticklabels(current_yticklabels)
 
-# Add legend for WaterTAP plot
-ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=8)
+# Add legend for WaterTAP plot with headers
+# Create legend handles with headers
+legend_handles = []
+legend_labels = []
+
+# Add capital costs header
+capex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='CAPITAL COSTS')
+legend_handles.append(capex_header)
+legend_labels.append('CAPITAL COSTS')
+
+# Add capital cost items
+for i, (category, value) in enumerate(zip(capex_breakdown_watertap.keys(), capex_values_watertap)):
+    legend_handles.append(capex_bars_watertap[i])
+    legend_labels.append(category)
+
+# Add operating costs header
+opex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OPERATING COSTS')
+legend_handles.append(opex_header)
+legend_labels.append('OPERATING COSTS')
+
+# Add operating cost items
+for i, (category, value) in enumerate(zip(opex_breakdown_watertap.keys(), opex_values_watertap)):
+    legend_handles.append(opex_bars_watertap[i])
+    legend_labels.append(category)
+
+# Add other header
+other_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OTHER')
+legend_handles.append(other_header)
+legend_labels.append('OTHER')
+
+# Add revenue and levelized cost
+legend_handles.extend([revenue_bar_watertap, ax2.collections[0]])
+legend_labels.extend(['Precipitated salts revenue', 'Levelized cost of Li$^+$ brine'])
+
+ax2.legend(legend_handles, legend_labels, loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=8)
 
 # Grid for better readability
 ax2.grid(axis='y', alpha=0.3, linestyle='--')
@@ -460,20 +527,9 @@ ax2.grid(axis='y', alpha=0.3, linestyle='--')
 # Adjust layout
 plt.tight_layout()
 
-# Draw figure-wide dotted lines at levelized costs across both subplots
-ax1_pos = ax1.get_position()
-ax2_pos = ax2.get_position()
-x_start = min(ax1_pos.x0, ax2_pos.x0)
-x_end = max(ax1_pos.x1, ax2_pos.x1)
-
-# Transform data y to figure y coordinate
-y_fig_industry = fig.transFigure.inverted().transform(ax1.transData.transform((0, levelized_cost_industry)))[1]
-y_fig_watertap = fig.transFigure.inverted().transform(ax2.transData.transform((0, levelized_cost_watertap)))[1]
-
-fig.lines.append(Line2D([x_start, x_end], [y_fig_industry, y_fig_industry], transform=fig.transFigure,
-                        color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=10))
-fig.lines.append(Line2D([x_start, x_end], [y_fig_watertap, y_fig_watertap], transform=fig.transFigure,
-                        color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=10))
+# Draw dotted lines at levelized costs within each subplot
+ax1.axhline(levelized_cost_industry, color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=1)
+ax2.axhline(levelized_cost_watertap, color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=1)
 
 # Show the plot
 plt.show()

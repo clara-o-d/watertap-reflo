@@ -56,20 +56,21 @@ def create_heat_map(csv_file_path, flow_volume, evaporation_rate):
         annot=True,
         fmt='.1f',
         cmap=custom_cmap,
-        cbar_kws={'label': 'Levelized Cost (thousands $/mt Li)'},
+        cbar_kws={'label': 'Levelized Cost (thousands $/mt Li$^+$)'},
         linewidths=0.5,
         annot_kws={'fontsize': 14, 'fontweight': 'bold'}
     )
+    ax.invert_yaxis()
     
     # Set colorbar label font size
     cbar = ax.collections[0].colorbar
-    cbar.ax.set_ylabel('Levelized Cost (thousands $/Mt Li)', fontsize=14)
+    cbar.ax.set_ylabel('Levelized Cost (thousands $/Mt Li$^+$)', fontsize=14)
     cbar.ax.tick_params(labelsize=12)
     
     # Set labels and title
     plt.xlabel('Evaporation Rate (mm/year)', fontsize=14)
     plt.ylabel('Inlet Lithium Concentration (%)', fontsize=14)
-    plt.title('Levelized Cost of Li+ Brine', fontsize=16, fontweight='bold')
+    plt.title('Levelized Cost of Li$^+$ Brine', fontsize=16, fontweight='bold')
     
     # Rotate x-axis labels for better readability
     plt.xticks(rotation=45, fontsize=12)

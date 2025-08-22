@@ -10,6 +10,7 @@ from pyomo.environ import Param, Var, Constraint, Expression
 from pyomo.environ import units as pyunits
 import idaes.core.util.scaling as iscale
 from pyomo.environ import value
+from watertap.core.util.initialization import assert_degrees_of_freedom
 
 def add_costing(m):
     """Add costing components to the lithium extraction flowsheet.
@@ -197,7 +198,32 @@ def add_costing(m):
     m.fs.costing.register_flow_type("government_agreements", m.fs.government_agreements_cost)
     m.fs.costing.cost_flow(m.fs.annual_lithium_outflow, "government_agreements")
 
-    iscale.calculate_scaling_factors(m)
+    # Recovered solids costing
+    m.fs.recovered_product_rev = Param(
+        initialize=-0.288,
+        mutable=True,
+        units=pyunits.USD_2020/pyunits.kg,
+        doc="Precipitated product revenue (negative) ($/kg)"
+    )
+    m.fs.recovered_product_cost = Param(
+        initialize=0.0805,
+        mutable=True,
+        units=pyunits.USD_2020/pyunits.kg,
+        doc="Precipitated product handling and processing cost ($/kg)"
+    )
+    m.fs.recovered_byproduct_cost = Param(
+        initialize=0.0048,
+        mutable=True,
+        units=pyunits.USD_2020/pyunits.kg,
+        doc="Recovered byproduct handling cost ($/kg)"
+    )
+
+    m.fs.product_per_recovered_solids = Param(
+        initialize=0.0457,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Portion of recovered solids that becomes product"
+    )
     
     # Fix costing parameters
     m.fs.costing.plant_lifetime.fix(35)
@@ -207,8 +233,8 @@ def add_costing(m):
     m.fs.costing.utilization_factor.fix(0.98)
 
     m.fs.costing.evaporation_pond.liner_thickness.fix(40)
-    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(-0.0132 * pyunits.USD_2020 / pyunits.kg, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(0.0083 * pyunits.USD_2020 / pyunits.kg, to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(m.fs.recovered_product_rev * m.fs.product_per_recovered_solids, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(m.fs.recovered_product_cost * m.fs.product_per_recovered_solids + m.fs.recovered_byproduct_cost * (1 - m.fs.product_per_recovered_solids), to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
     m.fs.costing.evaporation_pond.land_cost.fix(0)
     m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
@@ -216,3 +242,4 @@ def add_costing(m):
 
     
     process_costing(m)
+    assert_degrees_of_freedom(m, 0)
