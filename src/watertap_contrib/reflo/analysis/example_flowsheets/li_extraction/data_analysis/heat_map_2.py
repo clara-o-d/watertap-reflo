@@ -4,32 +4,26 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
 
+
 def create_heat_map(csv_file_path, flow_volume, evaporation_rate):
-    """
-    Create a heat map from sensitivity analysis data.
+    """Create a heat map from sensitivity analysis data with percentage variations.
     
-    Parameters:
-    -----------
-    csv_file_path : str
-        Path to the CSV file containing the data
-    evaporation_rate : float
-        Base evaporation rate to multiply by adjustment factor
+    Args:
+        csv_file_path (str): Path to the CSV file containing the data
+        flow_volume (float): Flow volume for concentration calculation
+        evaporation_rate (float): Base evaporation rate to multiply by adjustment factor
+        
+    Returns:
+        pandas.DataFrame: Pivot table data used for the heat map
     """
-    
-    # Read the CSV file
+    # Read and process the CSV file
     df = pd.read_csv(csv_file_path)
-    
-    # Select only the first 3 columns and rename them
     df = df.iloc[:, :3]
     df.columns = ['inlet_lithium_concentration', 'evap_adjustment_factor', 'levelized_cost']
     
-    # Calculate true inlet lithium concentration
+    # Calculate derived values
     df['true_inlet_lithium_concentration'] = (df['inlet_lithium_concentration'] / flow_volume / 10).round(2)
-    
-    # Calculate true evaporation rate
     df['true_evaporation_rate'] = df['evap_adjustment_factor'] * evaporation_rate / 0.75
-    
-    # Convert levelized cost to thousands per metric ton
     df['levelized_cost_thousands'] = df['levelized_cost'] / 1000
     
     # Create pivot table for heat map
@@ -40,13 +34,13 @@ def create_heat_map(csv_file_path, flow_volume, evaporation_rate):
         aggfunc='mean'
     )
     
-    # Round column labels (evaporation rates) to nearest integer
+    # Round column labels to nearest integer
     pivot_data.columns = [round(col) for col in pivot_data.columns]
     
-    # Calculate median values for base case
-    baseline_inlet_li = 0.2  # Fixed baseline value
-    baseline_evap_rate = 1753.0  # Fixed baseline value
-    baseline_cost = 6.458613  # Fixed baseline cost value from the data
+    # Baseline values for percentage calculations
+    baseline_inlet_li = 0.2
+    baseline_evap_rate = 1753.0
+    baseline_cost = 6.458613
     
     # Create percentage variation labels for x-axis (evaporation rates)
     x_labels = []
@@ -121,17 +115,17 @@ def create_heat_map(csv_file_path, flow_volume, evaporation_rate):
     plt.ylabel('Inlet Li$^+$ concentration (%)', fontsize=16)
     plt.title('Li$^+$ brine levelized cost estimate and % change', fontsize=18, fontweight='bold')
     
-    # Adjust layout to prevent label cutoff
+    # Adjust layout and save
     plt.tight_layout()
-    
-    # Save the plot
     plt.savefig('lithium_cost_heat_map.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     return pivot_data
 
-if __name__ == "__main__":
-    # Parameters - UPDATE THESE VALUES
+
+def main():
+    """Main function to create the heat map."""
+    # Parameters
     FLOW_VOLUME = 1.280
     EVAPORATION_RATE = 1315.0 / 0.75
     CSV_FILE = "watertap-reflo/src/inlet_evap_sensitivity_high.csv"
@@ -140,3 +134,7 @@ if __name__ == "__main__":
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME, EVAPORATION_RATE)
     print("Heat map created successfully!")
     print(f"Data shape: {result_data.shape}")
+
+
+if __name__ == "__main__":
+    main()

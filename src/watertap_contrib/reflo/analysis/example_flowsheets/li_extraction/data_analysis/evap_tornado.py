@@ -27,14 +27,39 @@ def load_and_process_data(filename):
     if isinstance(first_col, str) and first_col.startswith('# '):
         new_col = first_col.lstrip('# ').strip()
         df = df.rename(columns={first_col: new_col})
-        # Also strip leading '# ' from the values in this column if they are strings
         if df[new_col].dtype == object:
             df[new_col] = df[new_col].str.lstrip('# ').str.strip()
     
-    # Print available columns for debugging
-    print(f"Available columns: {list(df.columns)}")
-    
     return df
+
+
+def calculate_sensitivity(x1, y1, x2, y2):
+    """Calculate sensitivity between two data points.
+    
+    Args:
+        x1, y1: First point coordinates
+        x2, y2: Second point coordinates
+        
+    Returns:
+        tuple: (sensitivity, is_valid)
+    """
+    if abs(x1) < 1e-10:
+        pct_change_x = abs(x2 - x1)
+    else:
+        pct_change_x = (x2 - x1) / x1 * 100
+    
+    if abs(y1) < 1e-10:
+        pct_change_y = y2 - y1
+    else:
+        pct_change_y = (y2 - y1) / y1 * 100
+    
+    if abs(pct_change_x) > 0.01:
+        sensitivity = pct_change_y / pct_change_x
+        if abs(sensitivity) < 1000:
+            return sensitivity, True
+    
+    return 0, False
+
 
 def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
     """Perform one-at-a-time sensitivity analysis.
@@ -45,7 +70,7 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
         input_params: List of input parameters to analyze
         
     Returns:
-        list: Sensitivity analysis results
+        DataFrame: Sensitivity analysis results
     """
     if input_params is None:
         input_params = [
@@ -55,8 +80,10 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
             'dye_cost',
             'shipping_cost',
         ]
-    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters (true OAT analysis - only comparing pairs where one parameter differs):")
+    
+    print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters:")
     sensitivity_data = []
+    
     for var in input_params:
         if var not in df.columns:
             print(f"  Warning: Parameter '{var}' not found in data columns, skipping")
@@ -82,73 +109,47 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
         # Compare each pair of data points to find valid OAT comparisons
         for i, row1 in valid_data.iterrows():
             for j, row2 in valid_data.iterrows():
-                if i >= j:  # Avoid duplicate comparisons
+                if i >= j:
                     continue
                 
                 # Check if all other parameters are identical (within reasonable tolerance)
                 is_oat_pair = True
                 for other_param in other_params:
                     val1, val2 = row1[other_param], row2[other_param]
-                    # Use reasonable tolerance for floating point comparison (1e-8)
                     if abs(val1 - val2) > 1e-8:
                         is_oat_pair = False
                         break
                 
                 if is_oat_pair:
-                    # Calculate sensitivity for this OAT pair in both directions
                     x1, y1 = row1[var], row1[target_col]
                     x2, y2 = row2[var], row2[target_col]
                     
                     # Calculate increase direction: from lower to higher parameter value
                     if x1 < x2:
-                        # x1 -> x2 is parameter increase
                         x_low, y_low = x1, y1
                         x_high, y_high = x2, y2
                     else:
-                        # x2 -> x1 is parameter increase 
                         x_low, y_low = x2, y2
                         x_high, y_high = x1, y1
                     
                     # Calculate sensitivity for parameter increase (low -> high)
-                    if abs(x_low) < 1e-10:
-                        pct_change_x_inc = abs(x_high - x_low)
-                    else:
-                        pct_change_x_inc = (x_high - x_low) / x_low * 100
-                    
-                    if abs(y_low) < 1e-10:
-                        pct_change_y_inc = y_high - y_low
-                    else:
-                        pct_change_y_inc = (y_high - y_low) / y_low * 100
-                    
-                    if abs(pct_change_x_inc) > 0.01:  # At least 0.01% change
-                        sensitivity_inc = pct_change_y_inc / pct_change_x_inc
-                        if abs(sensitivity_inc) < 1000:  # Reasonable bound
-                            oat_sensitivities_increase.append(sensitivity_inc)
+                    sens_inc, valid_inc = calculate_sensitivity(x_low, y_low, x_high, y_high)
+                    if valid_inc:
+                        oat_sensitivities_increase.append(sens_inc)
                     
                     # Calculate sensitivity for parameter decrease (high -> low)
-                    if abs(x_high) < 1e-10:
-                        pct_change_x_dec = abs(x_low - x_high)
-                    else:
-                        pct_change_x_dec = (x_low - x_high) / x_high * 100
-                    
-                    if abs(y_high) < 1e-10:
-                        pct_change_y_dec = y_low - y_high
-                    else:
-                        pct_change_y_dec = (y_low - y_high) / y_high * 100
-                    
-                    if abs(pct_change_x_dec) > 0.01:  # At least 0.01% change
-                        sensitivity_dec = pct_change_y_dec / pct_change_x_dec
-                        if abs(sensitivity_dec) < 1000:  # Reasonable bound
-                            oat_sensitivities_decrease.append(sensitivity_dec)
+                    sens_dec, valid_dec = calculate_sensitivity(x_high, y_high, x_low, y_low)
+                    if valid_dec:
+                        oat_sensitivities_decrease.append(sens_dec)
         
-        # Calculate average sensitivities for increase and decrease
+        # Calculate average sensitivities
         avg_increase_sensitivity = np.mean(oat_sensitivities_increase) if oat_sensitivities_increase else 0
         avg_decrease_sensitivity = np.mean(oat_sensitivities_decrease) if oat_sensitivities_decrease else 0
         
         # Calculate overall statistics
         all_oat_sensitivities = oat_sensitivities_increase + oat_sensitivities_decrease
         if not all_oat_sensitivities:
-            print(f"  Warning: No valid OAT pairs found for {var} (parameter changes are coupled with other parameter changes)")
+            print(f"  Warning: No valid OAT pairs found for {var}")
             continue
         
         avg_sensitivity = np.mean(all_oat_sensitivities)
@@ -178,23 +179,30 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
             'y_mean': y_mean,
             'valid_points': len(valid_data)
         })
+        
         print(f"  {var}: increase sensitivity={avg_increase_sensitivity:.3f} (n={len(oat_sensitivities_increase)} OAT pairs), decrease sensitivity={avg_decrease_sensitivity:.3f} (n={len(oat_sensitivities_decrease)} OAT pairs)")
     
-    # Sort by maximum absolute effect (either increase or decrease)
+    # Sort by maximum absolute effect
     sensitivity_df = pd.DataFrame(sensitivity_data)
     if not sensitivity_df.empty:
         sensitivity_df['max_abs_effect'] = sensitivity_df[['avg_increase_sensitivity', 'avg_decrease_sensitivity']].abs().max(axis=1)
         sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=False)
+    
     return sensitivity_df
 
+
 def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mapping=None):
+    """Create tornado plot for sensitivity analysis results."""
     if title is None:
         title = f"Sensitivity Analysis: {target_col}"
+    
     if sensitivity_df.empty:
         print("No valid sensitivity data to plot")
         return None, None
+    
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
     sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=True)
+    
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.set_frame_on(False)
 
@@ -214,9 +222,6 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     decrease_hatch = []
     
     for _, row in sensitivity_df.iterrows():
-        # Use the increase sensitivity to determine relationship type
-        # Positive increase sensitivity = direct relationship (parameter increase → target increase)
-        # Negative increase sensitivity = inverse relationship (parameter increase → target decrease)
         increase_sens = row['avg_increase_sensitivity']
         
         if increase_sens >= 0:
@@ -229,7 +234,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
             decrease_hatch.append('///')
     
     # Bars for parameter increase effects (right side, positive direction)
-    bars_increase = ax.barh(
+    ax.barh(
         y_pos,
         sensitivity_df['avg_increase_sensitivity'],
         height=bar_width,
@@ -240,9 +245,9 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     )
     
     # Bars for parameter decrease effects (left side, negative direction)
-    bars_decrease = ax.barh(
+    ax.barh(
         y_pos,
-        -sensitivity_df['avg_decrease_sensitivity'],  # Make negative to show on left side
+        -sensitivity_df['avg_decrease_sensitivity'],
         height=bar_width,
         color='#55C667',
         alpha=0.7,
@@ -252,27 +257,25 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['display_name'], fontsize=10)
-    # ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
-    
-    # Set x-axis limits from -0.5 to 0.5
     ax.set_xlim(-0.5, 0.5)
     
     # Create custom legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#55C667', alpha=0.7, label='Positive'), #07433C #55C667
-        Patch(facecolor='#55C667', alpha=0.7, hatch='///', label='Negative') # #279989 #20A387
+        Patch(facecolor='#55C667', alpha=0.7, label='Positive'),
+        Patch(facecolor='#55C667', alpha=0.7, hatch='///', label='Negative')
     ]
     
     ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
     plt.tight_layout()
     return fig, ax
 
+
 def create_data_summary_plot(df, target_col):
-    """Create a summary plot showing data availability and basic statistics"""
+    """Create a summary plot showing data availability and basic statistics."""
     param_cols = [col for col in df.columns if col != target_col]
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
@@ -314,7 +317,9 @@ def create_data_summary_plot(df, target_col):
     plt.tight_layout()
     return fig, (ax1, ax2)
 
+
 def main():
+    """Main function to run the sensitivity analysis."""
     target_col = 'LCOLi (USD/mt)'
     possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
     df = None
@@ -334,25 +339,13 @@ def main():
         print("Error: No parameter sweep results found. Please run the parameter sweep first.")
         return
 
-    # Define the specific model inputs being swept in the current parameter sweep (exclude WACC)
+    # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
         'Inlet Li+ concentration',
-        # 'Fraction of water evaporated',
         'Inlet vapor temperature',
         'Evaporation rate adjustment factor',
-        # 'Pipeline friction head',
-        # 'Land cost',
-        # 'Government agreements cost',
-        # 'Pond liner cost',
-        # 'Recovered solids cost',
-        # 'Shipping cost',
-        # 'Electricity cost',
-        # 'Dike height',
-        # 'Pipeline length',
-        # 'Utilization factor',
-        # 'Final Li+ concentration',
-        # 'Final TDS concentration',
     ]
+    
     # Confirm input/output match for each parameter
     for var in input_vars:
         resultant_var = f"resultant {var}"
@@ -395,21 +388,11 @@ def main():
     sensitivity_df = oat_sensitivity(df, target_col, input_params=input_vars)
     
     if not sensitivity_df.empty:
-        # Optional: Define custom parameter name mapping for display
-        # Uncomment and modify the mapping below to use custom parameter names in the plot
+        # Define custom parameter name mapping for display
         param_name_mapping = {
             'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
             'Inlet vapor temperature': f'Vapor\ntemperature',
             'Evaporation rate adjustment factor': f'Evaporation\nrate',
-            # 'Pipeline friction head': f'Pipeline\nfriction\nhead',
-            # 'Land cost': f'Land\ncost',
-            # 'Government agreements cost': f'Government\nagreements\ncost',
-            # 'Pond liner cost': f'Pond\nliner\ncost',
-            # 'Recovered solids cost': f'Recovered\nsolids\ncost',
-            # 'Shipping cost': f'Shipping\ncost',
-            # 'Electricity cost': f'Electricity\ncost',
-            # 'Final Li+ concentration': f'Final\nLi+\nconcentration',
-            # 'Final TDS concentration': f'Final\nTDS\nconcentration',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
@@ -436,6 +419,7 @@ def main():
         print("No valid sensitivity data calculated.")
     
     print("\nTrue OAT sensitivity analysis completed!")
+
 
 if __name__ == "__main__":
     main()

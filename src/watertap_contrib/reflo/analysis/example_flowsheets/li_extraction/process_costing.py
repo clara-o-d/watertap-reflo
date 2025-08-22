@@ -5,7 +5,6 @@ Calculates LCOLi and specific energy consumption metrics.
 
 from pyomo.environ import Param, Var, Constraint
 from pyomo.environ import units as pyunits
-from pyomo.environ import value
 
 def process_costing(m):
     """Initialize costing and add LCOLi calculations.
@@ -24,8 +23,10 @@ def process_costing(m):
         doc="Density of concentrated brine for Li+ volume calculation"
     )
     vol_flow_li = m.fs.li_outflow / m.fs.density_concentrated_brine  # m³/s
+
     m.fs.costing.add_LCOW(vol_flow_li, name="LCOLi") # $/m³ Li
     m.fs.costing.add_specific_energy_consumption(vol_flow_li, name="specific_energy_consumption")
+
     # Add variable and constraint for $/kg
     m.fs.costing.LCOLi_mass = Var(
         initialize=1000,
@@ -35,4 +36,15 @@ def process_costing(m):
     )
     m.fs.costing.LCOLi_mass_constraint = Constraint(
         expr=m.fs.costing.LCOLi_mass == pyunits.convert(m.fs.costing.LCOLi / m.fs.density_concentrated_brine, to_units=m.fs.costing.base_currency / pyunits.t)
-    ) 
+    )
+
+    # Add variable and constraint for kWh/kg
+    m.fs.costing.specific_energy_consumption_mass = Var(
+        initialize=1000,
+        units=m.fs.costing.base_currency / pyunits.t,
+        bounds=(0, None),
+        doc="Specific energy consumption by mass ($/kg)"
+    )
+    m.fs.costing.specific_energy_consumption_mass_constraint = Constraint(
+        expr=m.fs.costing.specific_energy_consumption_mass == pyunits.convert(m.fs.costing.specific_energy_consumption / m.fs.density_concentrated_brine, to_units=pyunits.kWh / pyunits.t)
+    )

@@ -1,1 +1,0 @@
-{'outputs': ['Number of wells'], 'sweep_params': ['Number of wells']}

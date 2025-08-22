@@ -10,10 +10,10 @@ import numpy as np
 categories = ['Industry report\n(2020)', 'WaterTAP model\n(2022)']
 
 # Cost breakdown ($/kg Li or whatever units you're using)
-levelized_costs = np.array([2.0248e+03,  3.3767e+03])
-capital_costs = np.array([941.7290, 1.0673e+03])
-operating_costs = np.array([4.2312e+03, 4.9722e+03])
-revenue = np.array([3.1482e+03, 2.6629e+03])
+levelized_costs = np.array([3535,  3552])
+capital_costs = np.array([1421, 1122])
+operating_costs = np.array([6865, 7191])
+revenue = np.array([4751, 4761])
 
 # Colors as specified
 capex_color = '#4198b5'

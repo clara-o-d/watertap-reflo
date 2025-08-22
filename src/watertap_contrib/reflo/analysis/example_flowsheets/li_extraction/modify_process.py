@@ -6,7 +6,6 @@ Defines additional constraints and parameters for the lithium extraction process
 import pyomo.environ as pyo
 from pyomo.environ import units as pyunits, value
 from pyomo.core.base.constraint import Constraint
-from pyomo.core.base.expression import Expression
 from pyomo.core.base.var import Var
 from pyomo.core.base.param import Param
 

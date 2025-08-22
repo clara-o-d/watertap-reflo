@@ -11,7 +11,6 @@ from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.add_costin
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.display_costing_results import display_costing_results
 from idaes.core.util import DiagnosticsToolbox
 from pyomo.environ import assert_optimal_termination
-from pyomo.environ import Var
 
 __author__ = "Clara Drysdale"
 

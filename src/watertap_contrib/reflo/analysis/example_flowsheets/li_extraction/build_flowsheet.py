@@ -14,9 +14,6 @@ from watertap.core.util.initialization import assert_degrees_of_freedom
 import idaes.core.util.scaling as iscale
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.modify_process import modify_process
 from idaes.core.util.model_statistics import degrees_of_freedom
-from pyomo.environ import units as pyunits
-from pyomo.environ import value
-from pyomo.environ import Constraint, Var
 
 def define_pond_parameters(m):
     """Set evaporation pond parameters."""

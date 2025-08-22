@@ -42,7 +42,8 @@ def display_costing_results(m, detailed=False):
         # Energy consumption
         if hasattr(m.fs.costing, 'specific_energy_consumption'):
             spec_energy = value(m.fs.costing.specific_energy_consumption)
-            print(f"  Specific Energy Consumption: {spec_energy:.3f} kWh/m³")
+            spec_energy_mass = value(m.fs.costing.specific_energy_consumption_mass)
+            print(f"  Specific Energy Consumption: {spec_energy:.3f} kWh/m³ ({spec_energy_mass:.3f} kWh/mt)")
             
             if hasattr(m.fs.costing, 'aggregate_flow_electricity'):
                 total_electricity = value(m.fs.costing.aggregate_flow_electricity)
@@ -342,4 +343,4 @@ def display_costing_results(m, detailed=False):
             
     except Exception as e:
         print(f"Error displaying costing results: {e}")
-    print("="*50) 
+    print("="*50)

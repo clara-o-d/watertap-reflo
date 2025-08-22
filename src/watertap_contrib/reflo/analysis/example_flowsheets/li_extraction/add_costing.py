@@ -6,23 +6,17 @@ Adds capital and operating costs for wells, piping, pumping, and shipping.
 from idaes.core import UnitModelCostingBlock
 from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.process_costing import process_costing
-from pyomo.environ import Param, Var, Constraint, Expression
+from pyomo.environ import Param, Var, Expression
 from pyomo.environ import units as pyunits
-import idaes.core.util.scaling as iscale
 from pyomo.environ import value
 from watertap.core.util.initialization import assert_degrees_of_freedom
 
-def add_costing(m):
-    """Add costing components to the lithium extraction flowsheet.
+def modify_capital_costs(m):
+    """Modify capital costs for the lithium extraction flowsheet.
     
     Args:
-        m: Pyomo model to add costing to
+        m: Pyomo model to modify capital costs for
     """
-    m.fs.costing = REFLOCosting()
-    m.fs.costing.base_currency = pyunits.USD_2023
-
-    m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
-
     # Wellfield capital cost
     m.fs.well_capital_cost = Param(
         initialize=104.65e6 / 379,  # 104.65M total / 320 wells
@@ -42,18 +36,29 @@ def add_costing(m):
     m.fs.other_fixed_assets_factor = Param(
         initialize=1.20,
         mutable=True,
-        doc="Other fixed assets factor"
+        doc="Factor to account for other fixed assets"
     )
+
+    # Solids handling capital cost
     m.fs.solids_handling_unit_capital_cost = Param(
         initialize=552e6 / 15889852457,  # 552M total / 15,926,736,980 kg Li = cost per kg Li
         mutable=True, units=pyunits.USD_2020/pyunits.kg,
         doc="Solids handling capital cost per kg Li in 2020 ($/kg)"
     )
 
+    # Shipping capital cost
+    m.fs.truck_capital_cost = Param(
+        initialize=158000,
+        mutable=True,
+        units=pyunits.USD_2023,
+        doc="Truck capital cost"
+    )
+
     m.fs.total_well_capital_cost = Var(initialize=104.65e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total wellfield capital cost")
     m.fs.total_piping_pump_capital_cost = Var(initialize=104.65e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total piping and pump capital cost")
     m.fs.total_facilities_electrical_capital_cost = Var(initialize=86.72e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total facilities/electrical capital cost")
     m.fs.total_solids_handling_capital_cost = Var(initialize=552e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total solids handling capital cost")
+    m.fs.total_truck_capital_cost = Var(initialize=158000*230, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total truck capital cost")
 
     @m.fs.Constraint(doc="Total wellfield capital cost")
     def total_well_capital_cost_constraint(b):
@@ -71,15 +76,6 @@ def add_costing(m):
     def total_solids_handling_capital_cost_constraint(b):
         return b.total_solids_handling_capital_cost == b.solids_handling_unit_capital_cost * b.pond.mass_flow_precipitate * (b.pond.mass_flow_precipitate/15889852457)**0.7
     
-    # Shipping capital cost
-    m.fs.truck_capital_cost = Param(
-        initialize=158000,
-        mutable=True,
-        units=pyunits.USD_2023,
-        doc="Truck capital cost"
-    )
-    m.fs.total_truck_capital_cost = Var(initialize=158000*230, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total truck capital cost")
-
     @m.fs.Constraint(doc="Total truck capital cost")
     def total_truck_capital_cost_constraint(b):
         return b.total_truck_capital_cost == b.number_of_trucks * b.truck_capital_cost * 1.36 # Indirect cost multiplier
@@ -106,7 +102,13 @@ def add_costing(m):
     def capital_cost_constraint(b):
         return b.capital_cost == b.total_capital_cost
 
-    # Pumping flow variable and constraint
+def add_flow_costs(m):
+    """Add flow costs to the lithium extraction flowsheet.
+    
+    Args:
+        m: Pyomo model to add flow costs to
+    """
+    # Pumping flow variable and flow cost
     m.fs.pumping_flow = Var(
         initialize=100000, 
         units=pyunits.m**3/pyunits.year, 
@@ -198,7 +200,12 @@ def add_costing(m):
     m.fs.costing.register_flow_type("government_agreements", m.fs.government_agreements_cost)
     m.fs.costing.cost_flow(m.fs.annual_lithium_outflow, "government_agreements")
 
-    # Recovered solids costing
+def add_solids_costing(m):
+    """Add solids costing to the lithium extraction flowsheet.
+    
+    Args:
+        m: Pyomo model to add solids costing to
+    """
     m.fs.recovered_product_rev = Param(
         initialize=-0.288,
         mutable=True,
@@ -224,22 +231,38 @@ def add_costing(m):
         units=pyunits.dimensionless,
         doc="Portion of recovered solids that becomes product"
     )
+
+    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(m.fs.recovered_product_rev * m.fs.product_per_recovered_solids, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
+    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(m.fs.recovered_product_cost * m.fs.product_per_recovered_solids + m.fs.recovered_byproduct_cost * (1 - m.fs.product_per_recovered_solids), to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
+
+def add_costing(m):
+    """Add costing components to the lithium extraction flowsheet.
     
-    # Fix costing parameters
+    Args:
+        m: Pyomo model to add costing to
+    """
+    m.fs.costing = REFLOCosting()
+    m.fs.costing.base_currency = pyunits.USD_2023
+
+    m.fs.pond.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+
+    modify_capital_costs(m)
+    add_flow_costs(m)
+    add_solids_costing(m)
+    
+    # Fix globalcosting parameters
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.10) # capital_recovery_factor = 0.103; 0.04
     m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
     m.fs.costing.electrical_carbon_intensity.fix(0.229)
     m.fs.costing.utilization_factor.fix(0.98)
 
+    # Fix evaporation pond costing parameters
     m.fs.costing.evaporation_pond.liner_thickness.fix(40)
-    m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(m.fs.recovered_product_rev * m.fs.product_per_recovered_solids, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
-    m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(m.fs.recovered_product_cost * m.fs.product_per_recovered_solids + m.fs.recovered_byproduct_cost * (1 - m.fs.product_per_recovered_solids), to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
     m.fs.costing.evaporation_pond.enhancement_dose_basis.fix(0)
     m.fs.costing.evaporation_pond.land_cost.fix(0)
     m.fs.costing.evaporation_pond.land_clearing_cost.fix(1000)
     m.fs.costing.evaporation_pond.fence_capital_cost_base.fix(0)
 
-    
     process_costing(m)
     assert_degrees_of_freedom(m, 0)

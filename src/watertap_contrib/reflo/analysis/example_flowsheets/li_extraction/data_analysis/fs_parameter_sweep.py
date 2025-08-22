@@ -1,14 +1,5 @@
 """
 Parameter sweep for lithium extraction flowsheet (fs.py)
-
-Input parameters:
-- target_li_concentration: Target Li+ concentration in outflow (100-300 g/kg)
-
-Output parameters:
-- LCOLi_mass: Levelized cost of lithium by mass (USD/mt)
-- aggregate_capital_cost: Total capital costs (USD)
-- aggregate_operating_cost: Total operating costs (USD/year)
-- fraction_evaporated: Fraction of water evaporated
 """
 
 from parameter_sweep import parameter_sweep, LinearSample
@@ -30,7 +21,6 @@ def build_model(**kwargs):
     
     # Add costing
     add_costing(m)
-    # solve(m)
     
     return m
 
@@ -59,10 +49,10 @@ def build_sweep_params(m, **kwargs):
     # )
 
     sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.15, 2.56, 6
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.15, 2.56, 1
     )
     sweep_params['Inlet TDS concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 5
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 1
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -77,10 +67,10 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.friction_head, 800, 1000, 3
     # )
     sweep_params['Final Li+ concentration'] = LinearSample(
-        m.fs.final_li_conc, 0.01, 0.06, 3
+        m.fs.final_li_conc, 0.01, 0.06, 1
     )
     sweep_params['Final TDS concentration'] = LinearSample(
-        m.fs.final_tds_conc, 0.2, 0.429, 4
+        m.fs.final_tds_conc, 0.2, 0.429, 1
     )
 
     return sweep_params
@@ -180,9 +170,9 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='widerr_sensitivity.csv', 
-        h5_results_file_name='costing_sensitivity.h5',
+        csv_results_file_name='parameter_sweep.csv', 
+        h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'extraction_sensitivity.csv' and 'extraction_sensitivity.h5'") 
+    print("Results saved to 'parameter_sweep.csv' and 'parameter_sweep.h5'") 
