@@ -21,7 +21,7 @@ def modify_capital_costs(m):
     m.fs.well_capital_cost = Param(
         initialize=104.65e6 / 379,  # 104.65M total / 320 wells
         mutable=True, units=pyunits.USD_2020,
-        doc="Capital cost per extraction well ($/well)"
+        doc="Capital cost per brine extraction well ($/well)"
     )
     m.fs.piping_unit_cost = Param(
         initialize=104.65e6 / 5.0,  # 104.65M total / 5 km = cost per km
@@ -35,7 +35,7 @@ def modify_capital_costs(m):
     )
     m.fs.other_fixed_assets_factor = Param(
         initialize=1.20,
-        mutable=True,
+        mutable=True, units=pyunits.dimensionless,
         doc="Factor to account for other fixed assets"
     )
 
@@ -51,7 +51,7 @@ def modify_capital_costs(m):
         initialize=158000,
         mutable=True,
         units=pyunits.USD_2023,
-        doc="Truck capital cost"
+        doc="Capital cost per truck"
     )
 
     m.fs.total_well_capital_cost = Var(initialize=104.65e6, units=m.fs.costing.base_currency, bounds=(0, None), doc="Total wellfield capital cost")
@@ -80,27 +80,22 @@ def modify_capital_costs(m):
     def total_truck_capital_cost_constraint(b):
         return b.total_truck_capital_cost == b.number_of_trucks * b.truck_capital_cost * 1.36 # Indirect cost multiplier
 
-    # Capital cost replacement
-    m.fs.pond.costing.total_capital_cost = Expression(
-        expr=m.fs.pond.costing.land_capital_cost + 
-        m.fs.pond.costing.land_clearing_capital_cost + 
-        m.fs.pond.costing.dike_capital_cost + 
-        m.fs.pond.costing.liner_capital_cost + 
-        m.fs.pond.costing.fence_capital_cost + 
-        m.fs.pond.costing.road_capital_cost + 
-        m.fs.other_fixed_assets_factor * (
-        m.fs.total_well_capital_cost + 
-        m.fs.total_piping_pump_capital_cost + 
-        m.fs.total_facilities_electrical_capital_cost) +
-        m.fs.total_truck_capital_cost +
-        m.fs.total_solids_handling_capital_cost,
-        doc="Total capital cost (pond + extraction + piping/pumps + facilities)"
-    )
-
     m.fs.pond.costing.capital_cost_constraint.deactivate()
     @m.fs.pond.costing.Constraint(doc="Capital cost for pond + extraction + piping/pumps + facilities")
     def capital_cost_constraint(b):
-        return b.capital_cost == b.total_capital_cost
+        total_capital_cost = (b.land_capital_cost + 
+        b.land_clearing_capital_cost + 
+        b.dike_capital_cost + 
+        b.liner_capital_cost + 
+        b.fence_capital_cost + 
+        b.road_capital_cost + 
+        b.parent_block().parent_block().other_fixed_assets_factor * (
+        b.parent_block().parent_block().total_well_capital_cost + 
+        b.parent_block().parent_block().total_piping_pump_capital_cost + 
+        b.parent_block().parent_block().total_facilities_electrical_capital_cost) +
+        b.parent_block().parent_block().total_truck_capital_cost +
+        b.parent_block().parent_block().total_solids_handling_capital_cost)
+        return b.capital_cost == total_capital_cost
 
 def add_flow_costs(m):
     """Add flow costs to the lithium extraction flowsheet.
@@ -113,7 +108,7 @@ def add_flow_costs(m):
         initialize=100000, 
         units=pyunits.m**3/pyunits.year, 
         bounds=(0, None), 
-        doc="Pumping volumetric flow rate"
+        doc="Brine pumping volumetric flow rate"
     )
 
     @m.fs.Constraint(doc="Pumping flow calculation")
@@ -128,7 +123,7 @@ def add_flow_costs(m):
         initialize=0.1,
         bounds=(0, None),
         units=pyunits.kW,
-        doc="Mechanical power for pumping"
+        doc="Mechanical power for brine pumping"
     )
 
     @m.fs.Constraint(doc="Pumping power calculation")
@@ -153,7 +148,7 @@ def add_flow_costs(m):
         initialize=1e7,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
-        doc="Annual total concentrated brine outflow for shipping (post-evaporation)"
+        doc="Annual total concentrated brine mass outflow for shipping (post-evaporation)"
     )
 
     @m.fs.Constraint(doc="Annual concentrated brine outflow for shipping")
@@ -186,7 +181,7 @@ def add_flow_costs(m):
         initialize=1e6,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
-        doc="Annual total lithium outflow for government agreements"
+        doc="Annual total lithium mass outflow for government agreements"
     )
 
     @m.fs.Constraint(doc="Annual lithium outflow for government agreements")
@@ -234,7 +229,7 @@ def add_solids_costing(m):
 
     m.fs.costing.recovered_solids.cost.set_value(value(pyunits.convert(m.fs.recovered_product_rev * m.fs.product_per_recovered_solids, to_units=pyunits.USD_2023 / pyunits.kg))) # Equivalent to about 288 USD_2020/Mt Product, 0.288 USD_2020/kg Product
     m.fs.costing.evaporation_pond.recovered_solids_handling_cost.fix(value(pyunits.convert(m.fs.recovered_product_cost * m.fs.product_per_recovered_solids + m.fs.recovered_byproduct_cost * (1 - m.fs.product_per_recovered_solids), to_units=m.fs.costing.base_currency / pyunits.kg))) # Equivalent to about 172 USD_2020/Mt Product, 0.172 USD_2020/kg Product
-
+    
 def add_costing(m):
     """Add costing components to the lithium extraction flowsheet.
     
@@ -250,7 +245,7 @@ def add_costing(m):
     add_flow_costs(m)
     add_solids_costing(m)
     
-    # Fix globalcosting parameters
+    # Fix global costing parameters
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.10) # capital_recovery_factor = 0.103; 0.04
     m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))

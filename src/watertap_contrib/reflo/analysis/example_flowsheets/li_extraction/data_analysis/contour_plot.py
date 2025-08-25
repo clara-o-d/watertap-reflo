@@ -103,10 +103,10 @@ def create_heat_map(csv_file_path, flow_volume):
     Z = pivot_data.values
     
     # Create contourf plot with the same colorscheme
-    contour = plt.contourf(X, Y, Z, levels=12, cmap='viridis', extend='both')
+    contour = plt.contourf(X, Y, Z, levels=20, cmap='viridis', extend='both')
     
     # Add contour lines
-    contour_lines = plt.contour(X, Y, Z, levels=12, colors='black', alpha=0.3, linewidths=0.5)
+    contour_lines = plt.contour(X, Y, Z, levels=20, colors='black', alpha=0.3, linewidths=0.5)
     
     # Add colorbar with the same styling
     cbar = plt.colorbar(contour, label='Levelized cost (thousands $/t Li⁺)')
@@ -174,7 +174,7 @@ def create_heat_map(csv_file_path, flow_volume):
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
     FLOW_VOLUME = 1.280  # Flow volume for mass fraction conversion
-    CSV_FILE = "watertap-reflo/src/wide_sensitivity.csv"
+    CSV_FILE = "watertap-reflo/src/widerr_sensitivity.csv"
     
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME)

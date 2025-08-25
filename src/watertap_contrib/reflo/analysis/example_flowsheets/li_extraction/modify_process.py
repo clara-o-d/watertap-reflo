@@ -34,7 +34,7 @@ def brine_extraction_section(m):
         initialize=379,
         mutable=True,
         units=pyunits.dimensionless,
-        doc="Number of extraction wells"
+        doc="Number of brine extraction wells"
     )
     m.fs.piping_length = Param(
         initialize=5.0,
@@ -68,7 +68,7 @@ def brine_extraction_section(m):
         initialize=value(m.fs.static_head + m.fs.friction_head * m.fs.piping_length),
         bounds=(0, None),
         units=pyunits.m,
-        doc="Pumping head (m)"
+        doc="Brine pumping head (m)"
     )
     
     # Constraint to calculate total pumping head
@@ -82,13 +82,13 @@ def shipping_section(m):
         initialize=230,
         mutable=True,
         units=pyunits.dimensionless,
-        doc="Number of trucks"
+        doc="Number of trucks for concentrated brine shipping"
     )
     m.fs.shipping_distance = Param(
         initialize=250,
         mutable=True,
         units=pyunits.km,
-        doc="Shipping distance to next facility (km)"
+        doc="Shipping distance to processing facility (km)"
     )
 
 def flow_parameters(m):
@@ -121,28 +121,28 @@ def flow_variables(m):
         initialize=1.536,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
-        doc="Lithium outflow rate"
+        doc="Lithium mass outflow rate"
     )
     
     m.fs.concentrated_brine_outflow = Var(
         initialize=25.6,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
-        doc="TDS and water outflow rate"
+        doc="TDS and water mass outflow rate"
     )
     
     m.fs.tds_outflow = Var(
         initialize=10.96,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
-        doc="TDS outflow rate"
+        doc="TDS mass outflow rate"
     )
     
     m.fs.water_outflow = Var(
         initialize=14.64,
         bounds=(0, None),
         units=pyunits.kg / pyunits.s,
-        doc="Water outflow rate"
+        doc="Water mass outflow rate"
     )
     
     m.fs.fraction_evaporated = Var(

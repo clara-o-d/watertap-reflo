@@ -3,11 +3,12 @@ Parameter sweep for lithium extraction flowsheet (fs.py)
 """
 
 from parameter_sweep import parameter_sweep, LinearSample
+from idaes.core.util.initialization import propagate_state
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.build_flowsheet import build_flowsheet
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve import solve
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.add_costing import add_costing
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.process_costing import process_costing
-from pyomo.environ import assert_optimal_termination, TerminationCondition
+from pyomo.environ import TerminationCondition
 from watertap.core.solvers import get_solver
 import os
 
@@ -41,7 +42,7 @@ def build_sweep_params(m, **kwargs):
     # )
 
     # sweep_params['Shipping cost'] = LinearSample(
-    #     m.fs.shipping_unit_cost, 6.4e-5, 8.4e-5, 3
+    #     m.fs.shipping_unit_cost, 1.0e-4, 1.2e-4, 3
     # )
 
     # sweep_params['Electricity cost'] = LinearSample(
@@ -49,10 +50,10 @@ def build_sweep_params(m, **kwargs):
     # )
 
     sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.15, 2.56, 1
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.5, 2.56, 15
     )
     sweep_params['Inlet TDS concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 1
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 5
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -67,10 +68,10 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.friction_head, 800, 1000, 3
     # )
     sweep_params['Final Li+ concentration'] = LinearSample(
-        m.fs.final_li_conc, 0.01, 0.06, 1
+        m.fs.final_li_conc, 0.01, 0.06, 3
     )
     sweep_params['Final TDS concentration'] = LinearSample(
-        m.fs.final_tds_conc, 0.2, 0.429, 1
+        m.fs.final_tds_conc, 0.2, 0.429, 3
     )
 
     return sweep_params
@@ -120,6 +121,9 @@ def build_outputs(m, **kwargs):
 def optimize_function(m, **kwargs):
     """Optimize the flowsheet with fallback solver options."""
     solver = get_solver()
+    m.fs.feed.initialize()
+    propagate_state(m.fs.feed_to_pond)
+    m.fs.pond.initialize()
 
     # Try with default settings first
     print("Attempting solve with default solver settings...")

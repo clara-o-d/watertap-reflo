@@ -238,7 +238,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         y_pos,
         sensitivity_df['avg_increase_sensitivity'],
         height=bar_width,
-        color='#55C667',
+        color='#20A387', #55C667 #20A387
         alpha=0.7,
         hatch=increase_hatch,
         label='Parameter increase effect'
@@ -249,7 +249,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         y_pos,
         -sensitivity_df['avg_decrease_sensitivity'],
         height=bar_width,
-        color='#55C667',
+        color='#20A387',
         alpha=0.7,
         hatch=decrease_hatch,
         label='Parameter decrease effect'
@@ -257,7 +257,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['display_name'], fontsize=10)
-    ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
+    # ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
+    ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
     ax.set_xlim(-0.5, 0.5)
@@ -265,8 +266,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     # Create custom legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#55C667', alpha=0.7, label='Positive'),
-        Patch(facecolor='#55C667', alpha=0.7, hatch='///', label='Negative')
+        Patch(facecolor='#20A387', alpha=0.7, label='Positive'),
+        Patch(facecolor='#20A387', alpha=0.7, hatch='///', label='Negative')
     ]
     
     ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
@@ -341,9 +342,11 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
-        'Inlet Li+ concentration',
-        'Inlet vapor temperature',
-        'Evaporation rate adjustment factor',
+        'Government agreements cost',
+        'Pond liner cost',
+        'Recovered solids cost',
+        'Shipping cost',
+        'Electricity cost',
     ]
     
     # Confirm input/output match for each parameter
@@ -390,9 +393,11 @@ def main():
     if not sensitivity_df.empty:
         # Define custom parameter name mapping for display
         param_name_mapping = {
-            'Inlet Li+ concentration': f'Inlet Li+\nconcentration',
-            'Inlet vapor temperature': f'Vapor\ntemperature',
-            'Evaporation rate adjustment factor': f'Evaporation\nrate',
+            'Government agreements cost': 'Government\nagreements\ncost',
+            'Pond liner cost': 'Pond\nliner\ncost',
+            'Recovered solids cost': 'Recovered\nsolids\ncost',
+            'Shipping cost': 'Shipping\ncost',
+            'Electricity cost': 'Electricity\ncost',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
