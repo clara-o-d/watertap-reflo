@@ -203,7 +203,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     sensitivity_df['variable'] = sensitivity_df['variable'].astype(str).str.lstrip('# ').str.strip()
     sensitivity_df = sensitivity_df.sort_values(by='max_abs_effect', ascending=True)
     
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_frame_on(False)
 
     y_pos = np.arange(len(sensitivity_df))
@@ -256,12 +256,13 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     )
     
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(sensitivity_df['display_name'], fontsize=10)
-    # ax.set_title(title, fontsize=12, fontweight='bold', pad=20)
-    ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=10)
+    ax.set_yticklabels(sensitivity_df['display_name'], fontsize=16)
+    # ax.set_title(title, fontsize=20, fontweight='bold', pad=16)
+    ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=18)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
     ax.set_xlim(-0.5, 0.5)
+    ax.tick_params(axis='x', labelsize=16)
     
     # Create custom legend
     from matplotlib.patches import Patch
@@ -270,53 +271,12 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
         Patch(facecolor='#20A387', alpha=0.7, hatch='///', label='Negative')
     ]
     
-    ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
+    ax.legend(handles=legend_elements, loc='lower right', fontsize=16)
     plt.tight_layout()
     return fig, ax
 
 
-def create_data_summary_plot(df, target_col):
-    """Create a summary plot showing data availability and basic statistics."""
-    param_cols = [col for col in df.columns if col != target_col]
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    # Plot 1: Data availability
-    valid_counts = []
-    param_names = []
-    for col in param_cols:
-        valid_mask = ~(df[col].isna() | df[target_col].isna())
-        valid_counts.append(valid_mask.sum())
-        param_names.append(col)
-    
-    bars = ax1.bar(range(len(param_names)), valid_counts, color='skyblue', alpha=0.7)
-    ax1.set_xlabel('Parameters')
-    ax1.set_ylabel('Number of Valid Data Points')
-    ax1.set_title('Data Availability by Parameter')
-    ax1.set_xticks(range(len(param_names)))
-    ax1.set_xticklabels(param_names, rotation=45, ha='right')
-    
-    # Add value labels on bars
-    for bar, count in zip(bars, valid_counts):
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
-                str(count), ha='center', va='bottom')
-    
-    # Plot 2: Target variable distribution
-    valid_target = df[target_col].dropna()
-    if len(valid_target) > 0:
-        ax2.hist(valid_target, bins=min(20, len(valid_target)//2), alpha=0.7, color='lightgreen')
-        ax2.set_xlabel(target_col)
-        ax2.set_ylabel('Frequency')
-        ax2.set_title(f'Distribution of {target_col}')
-        ax2.axvline(valid_target.mean(), color='red', linestyle='--', label=f'Mean: {valid_target.mean():.2e}')
-        ax2.axvline(valid_target.median(), color='orange', linestyle='--', label=f'Median: {valid_target.median():.2e}')
-        ax2.legend()
-    else:
-        ax2.text(0.5, 0.5, 'No valid data', ha='center', va='center', transform=ax2.transAxes)
-        ax2.set_title(f'Distribution of {target_col}')
-    
-    plt.tight_layout()
-    return fig, (ax1, ax2)
+
 
 
 def main():
@@ -347,11 +307,17 @@ def main():
         'Recovered solids cost',
         'Shipping cost',
         'Electricity cost',
+        # 'Dike height',
+        # 'Pipeline length',
+        # 'Utilization factor',
+        # 'Inlet Li+ concentration',
+        # 'Inlet vapor temperature',
+        # 'Evaporation rate adjustment factor',
     ]
     
     # Confirm input/output match for each parameter
     for var in input_vars:
-        resultant_var = f"resultant {var}"
+        resultant_var = f"Resultant {var}"
         if resultant_var in df.columns and var in df.columns:
             mismatch = (df[var] != df[resultant_var]) & ~(df[var].isna() | df[resultant_var].isna())
             if mismatch.any():
@@ -372,19 +338,8 @@ def main():
     print(f"  Success rate: {valid_points/total_points*100:.1f}%")
     
     if valid_points < 3:
-        print("Warning: Very few valid data points. Creating data summary plot only.")
-        fig, axes = create_data_summary_plot(df, target_col)
-        plt.savefig('data_summary_plot.png', dpi=300, bbox_inches='tight')
-        print("Data summary plot saved as 'data_summary_plot.png'")
-        plt.show()
+        print("Warning: Very few valid data points. Cannot proceed with sensitivity analysis.")
         return
-    
-    # Create data summary plot
-    print(f"\nCreating data summary plot...")
-    fig, axes = create_data_summary_plot(df, target_col)
-    plt.savefig('data_summary_plot.png', dpi=300, bbox_inches='tight')
-    print("Data summary plot saved as 'data_summary_plot.png'")
-    plt.close()
     
     # Create tornado plot
     print(f"\nCreating tornado plot for: {target_col}")
@@ -398,6 +353,12 @@ def main():
             'Recovered solids cost': 'Recovered\nsolids\ncost',
             'Shipping cost': 'Shipping\ncost',
             'Electricity cost': 'Electricity\ncost',
+            # 'Dike height': 'Dike\nheight',
+            # 'Pipeline length': 'Pipeline\nlength',
+            # 'Utilization factor': 'Utilization\nfactor',
+            # 'Inlet Li+ concentration': 'Inlet\nLi+ concentration',
+            # 'Inlet vapor temperature': 'Inlet\nvapor\ntemperature',
+            # 'Evaporation rate adjustment factor': 'Evaporation\nrate\nadjustment\nfactor',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 

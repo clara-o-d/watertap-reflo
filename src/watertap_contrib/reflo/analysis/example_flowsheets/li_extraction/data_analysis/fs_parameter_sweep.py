@@ -50,10 +50,10 @@ def build_sweep_params(m, **kwargs):
     # )
 
     sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.5, 2.56, 15
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.4, 2.56, 25
     )
     sweep_params['Inlet TDS concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 5
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 25
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -68,11 +68,20 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.friction_head, 800, 1000, 3
     # )
     sweep_params['Final Li+ concentration'] = LinearSample(
-        m.fs.final_li_conc, 0.01, 0.06, 3
+        m.fs.final_li_conc, 0.02, 0.02, 1
     )
     sweep_params['Final TDS concentration'] = LinearSample(
-        m.fs.final_tds_conc, 0.2, 0.429, 3
+        m.fs.final_tds_conc, 0.315, 0.315, 1
     )
+    # sweep_params['Dike height'] = LinearSample(
+    #     m.fs.number_of_wells, 379, 379, 1
+    # )
+    # sweep_params['Pipeline length'] = LinearSample(
+    #     m.fs.piping_length, 4.0, 6.0, 3
+    # )
+    # sweep_params['Utilization factor'] = LinearSample(
+    #     m.fs.costing.utilization_factor, 0.95, 1.0, 3
+    # )
 
     return sweep_params
 
@@ -112,18 +121,20 @@ def build_outputs(m, **kwargs):
 
     outputs['Resultant final Li+ concentration'] = m.fs.final_li_conc
     outputs['Resultant final TDS concentration'] = m.fs.final_tds_conc
-    # Additional useful outputs
-    outputs['Li outflow (kg/s)'] = m.fs.li_outflow
-    outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
+    # outputs['Resultant pipeline length'] = m.fs.piping_length
+    # outputs['Resultant utilization factor'] = m.fs.costing.utilization_factor
+    # # Additional useful outputs
+    # outputs['Li outflow (kg/s)'] = m.fs.li_outflow
+    # outputs['Concentrated brine outflow (kg/s)'] = m.fs.concentrated_brine_outflow
     
     return outputs
 
 def optimize_function(m, **kwargs):
     """Optimize the flowsheet with fallback solver options."""
     solver = get_solver()
-    m.fs.feed.initialize()
-    propagate_state(m.fs.feed_to_pond)
-    m.fs.pond.initialize()
+    # m.fs.feed.initialize()
+    # propagate_state(m.fs.feed_to_pond)
+    # m.fs.pond.initialize()
 
     # Try with default settings first
     print("Attempting solve with default solver settings...")
@@ -174,7 +185,7 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep.csv', 
+        csv_results_file_name='parameter_sweep2.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )

@@ -1,6 +1,6 @@
 """Results comparison visualization for lithium extraction flowsheet.
 
-Creates cost breakdown visualization for industry report data with detailed categories.
+Creates cost breakdown visualization for industry report data with viridis color and matching capex categories.
 """
 
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ import numpy as np
 
 
 def calculate_lithium_costs(inflation_factor=1.0):
-    """Calculate lithium costs based on SQM's 2020 numbers and WaterTAP's 2022 numbers.
+    """Calculate lithium costs based on SQM's 2020 numbers and WaterTAP's 2020 numbers.
     
     Args:
         inflation_factor (float): Factor to adjust all costs for inflation (default: 1.0 = no adjustment)
@@ -20,7 +20,7 @@ def calculate_lithium_costs(inflation_factor=1.0):
     # SQM's 2020 numbers
     sqm_operating_total = 500000000 * inflation_factor  # USD_2020/year
     sqm_capital_watertap_factor = (27+17+13+7+(27+17+13+7)/(28+27+17+13+7)*8)/100
-    sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12+.04)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.05+.06
+    sqm_operating_watertap_factor = sqm_capital_watertap_factor*(.18+.14+.12)+(27+17+13+7)/(28+27+17+13+7)*.25+.14+.05+.06
     sqm_operating_watertap_factor_capex = .18*sqm_capital_watertap_factor/sqm_operating_watertap_factor
     sqm_operating_watertap = sqm_operating_total * sqm_operating_watertap_factor
 
@@ -230,16 +230,17 @@ def create_cost_breakdown_plot(costs):
     }
 
     # WaterTAP model capital cost breakdown percentages
+    # Reorganized to match industry categories
     capex_breakdown_watertap = {
-        'Precipitated salts processing (capex)': costs['watertap_capex_solids_handling_pct'],
-        'Liner cost': costs['watertap_capex_liner_cost_pct'],
-        'Well cost': costs['watertap_capex_well_cost_pct'],
-        'Pipe and pump cost': costs['watertap_capex_pipe_pump_cost_pct'],
-        'Dike cost': costs['watertap_capex_dike_cost_pct'],
-        'Shipping cost': costs['watertap_capex_shipping_cost_pct'],
-        'Electrical cost': costs['watertap_capex_electrical_cost_pct'],
-        'Land clearing cost': costs['watertap_capex_land_clearing_cost_pct'],
-        'Road cost': costs['watertap_capex_road_cost_pct']
+        'Evaporation ponds': (costs['watertap_capex_liner_cost_pct'] + 
+                             costs['watertap_capex_dike_cost_pct'] + 
+                             costs['watertap_capex_land_clearing_cost_pct'] + 
+                             costs['watertap_capex_road_cost_pct']),
+        'Precipitated salts processing': costs['watertap_capex_solids_handling_pct'],
+        'Extraction wells': (costs['watertap_capex_well_cost_pct'] + 
+                            costs['watertap_capex_pipe_pump_cost_pct'] + 
+                            costs['watertap_capex_electrical_cost_pct']),
+        'Other (capex)': costs['watertap_capex_shipping_cost_pct']
     }
 
     # WaterTAP model operating cost breakdown percentages
@@ -270,15 +271,15 @@ def create_cost_breakdown_plot(costs):
     ]
 
     capex_values_watertap = [
-        costs['watertap_capex_solids_handling'],
-        costs['watertap_capex_liner_cost'],
-        costs['watertap_capex_well_cost'],
-        costs['watertap_capex_pipe_pump_cost'],
-        costs['watertap_capex_dike_cost'],
-        costs['watertap_capex_shipping_cost'],
-        costs['watertap_capex_electrical_cost'],
-        costs['watertap_capex_land_clearing_cost'],
-        costs['watertap_capex_road_cost']
+        (costs['watertap_capex_liner_cost'] + 
+         costs['watertap_capex_dike_cost'] + 
+         costs['watertap_capex_land_clearing_cost'] + 
+         costs['watertap_capex_road_cost']),  # Evaporation ponds
+        costs['watertap_capex_solids_handling'],  # Precipitated salts processing
+        (costs['watertap_capex_well_cost'] + 
+         costs['watertap_capex_pipe_pump_cost'] + 
+         costs['watertap_capex_electrical_cost']),  # Extraction wells
+        costs['watertap_capex_shipping_cost']  # Other (capex)
     ]
 
     opex_values_watertap = [
@@ -290,64 +291,75 @@ def create_cost_breakdown_plot(costs):
         costs['watertap_opex_liner_replacement']
     ]
 
-    # Colors for different categories
-    capex_colors_industry = ['#2d5a7a', '#3d7aa0', '#4198b5', '#5ba3c2']
-    opex_colors_industry = ['#610059', '#7a1a6b', '#93347d', '#ac4e8f', '#c568a1', '#de82b3']
+    # Colors for different categories using viridis color scheme
+    # Capex colors: viridis blues (distinct from opex)
+    capex_colors_industry = ['#453781', '#6d5cb7', '#9787da', '#cac0f1']
+    capex_colors_watertap = ['#453781', '#6d5cb7', '#9787da', '#cac0f1']
 
-    capex_colors_watertap = ['#2d5a7a', '#3d7aa0', '#4198b5', '#5ba3c2', '#7ab8d1', '#9acde0', '#bce2f0', '#d6f0f9', '#e6f7fc']
-    opex_colors_watertap = ['#610059', '#7a1a6b', '#93347d', '#ac4e8f', '#c568a1', '#de82b3']
+    # Opex colors: viridis greens/yellows (distinct from capex)
+    opex_colors_industry = ['#287D8E', '#42a6bb', '#58c3da', '#77d8ec', '#a1e8f7', '#b9eef9']
+    opex_colors_watertap = ['#287D8E', '#42a6bb', '#58c3da', '#77d8ec', '#a1e8f7', '#b9eef9']
 
-    revenue_color = '#165d54'
-    dot_color = '#279989'
+    # Revenue color: viridis purple (distinct from capex and opex)
+    revenue_color = '#3CBB75'
+    dot_color = '#DCE319'
 
     # Set up the plots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 8))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.8, 7.6))
     ax1.set_frame_on(False)
     ax2.set_frame_on(False)
 
     # Add a common title above both plots
-    fig.suptitle('Lithium Brine Cost Breakdown Comparison', fontsize=24, fontweight='bold', y=0.95)
+    fig.suptitle('Lithium Brine Cost Breakdown Comparison', fontsize=20, fontweight='bold', y=0.98)
 
     # Width of bar
-    width = 0.20
-    x_industry = 0.15
-    x_watertap = 0.15
+    width = 0.12
+    x_industry = 0.075
+    x_watertap = 0.075
 
     # Create stacked bars for industry report (left plot)
     bottom = 0
+    capex_bars_industry = []
     for i, (category, value) in enumerate(zip(capex_breakdown_industry.keys(), capex_values_industry)):
-        ax1.bar(x_industry, value, width, bottom=bottom, label=category, color=capex_colors_industry[i])
+        bar = ax1.bar(x_industry, value, width, bottom=bottom, label=category, color=capex_colors_industry[i])
+        capex_bars_industry.append(bar)
         bottom += value
 
     # Create stacked bars for operating costs (on top of capital costs)
+    opex_bars_industry = []
     for i, (category, value) in enumerate(zip(opex_breakdown_industry.keys(), opex_values_industry)):
-        ax1.bar(x_industry, value, width, bottom=bottom, label=category, color=opex_colors_industry[i])
+        bar = ax1.bar(x_industry, value, width, bottom=bottom, label=category, color=opex_colors_industry[i])
+        opex_bars_industry.append(bar)
         bottom += value
 
     # Plot revenue as negative bar below the x-axis
-    ax1.bar(x_industry, -revenue_industry, width, label='Precipitated salts revenue', color=revenue_color)
+    revenue_bar_industry = ax1.bar(x_industry, -revenue_industry, width, label='Precipitated salts revenue', color=revenue_color)
 
     # Calculate and add levelized cost dot
     levelized_cost_industry = total_capex_industry + total_opex_industry - revenue_industry
-    ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=300, label='Levelized cost of Li brine', zorder=5)
+    ax1.scatter(x_industry, levelized_cost_industry, color=dot_color, s=150, label='Levelized cost of Li$^+$ brine', zorder=5)
 
     # Create stacked bars for WaterTAP model (right plot)
     bottom = 0
+    capex_bars_watertap = []
     for i, (category, value) in enumerate(zip(capex_breakdown_watertap.keys(), capex_values_watertap)):
-        ax2.bar(x_watertap, value, width, bottom=bottom, label=category, color=capex_colors_watertap[i])
+        bar = ax2.bar(x_watertap, value, width, bottom=bottom, label=category, color=capex_colors_watertap[i])
+        capex_bars_watertap.append(bar)
         bottom += value
 
     # Create stacked bars for operating costs (on top of capital costs)
+    opex_bars_watertap = []
     for i, (category, value) in enumerate(zip(opex_breakdown_watertap.keys(), opex_values_watertap)):
-        ax2.bar(x_watertap, value, width, bottom=bottom, label=category, color=opex_colors_watertap[i])
+        bar = ax2.bar(x_watertap, value, width, bottom=bottom, label=category, color=opex_colors_watertap[i])
+        opex_bars_watertap.append(bar)
         bottom += value
 
     # Plot revenue as negative bar below the x-axis
-    ax2.bar(x_watertap, -revenue_watertap, width, label='Precipitated salts revenue', color=revenue_color)
+    revenue_bar_watertap = ax2.bar(x_watertap, -revenue_watertap, width, label='Precipitated salts revenue', color=revenue_color)
 
     # Calculate and add levelized cost dot
     levelized_cost_watertap = total_capex_watertap + total_opex_watertap - revenue_watertap
-    ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=300, label='Levelized cost of Li brine', zorder=5)
+    ax2.scatter(x_watertap, levelized_cost_watertap, color=dot_color, s=150, label='Levelized cost of Li$^+$ brine', zorder=5)
 
     # Calculate overall y-limits for both plots
     total_costs_industry = total_capex_industry + total_opex_industry
@@ -357,67 +369,156 @@ def create_cost_breakdown_plot(costs):
     y_max_overall = max(total_costs_industry, total_costs_watertap, levelized_cost_industry, levelized_cost_watertap) * 1.1
 
     # Customize left plot (Industry report)
-    ax1.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
+    ax1.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=18)
     ax1.set_xticks([x_industry])
-    ax1.set_xticklabels(['Industry report'], fontsize=16)
-    ax1.tick_params(axis='both', labelsize=12)
+    ax1.set_xticklabels(['Industry report'], fontsize=18)
+    ax1.tick_params(axis='both', labelsize=16)
     ax1.set_xlim(0, 0.5)
     ax1.set_ylim(y_min_overall, y_max_overall)
     ax1.axhline(0, color='black', linewidth=1)
-    ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
+
+    # Add levelized cost y-tick labels
+    current_yticks = list(ax1.get_yticks())
+    current_yticklabels = [f'${tick:.0f}' for tick in current_yticks]
+    if len(current_yticks) >= 2:
+        spacings = np.diff(sorted(current_yticks))
+        median_spacing = np.median(spacings)
+        tolerance = 0.5 * median_spacing
+    else:
+        tolerance = 0
+    if len(current_yticks) > 0:
+        diffs = [abs(t - levelized_cost_industry) for t in current_yticks]
+        nearest_idx = int(np.argmin(diffs))
+        if diffs[nearest_idx] <= tolerance:
+            current_yticks.pop(nearest_idx)
+            current_yticklabels.pop(nearest_idx)
+    current_yticks.append(levelized_cost_industry)
+    current_yticklabels.append(f'${levelized_cost_industry:.0f}')
+    ax1.set_yticks(current_yticks)
+    ax1.set_yticklabels(current_yticklabels)
+
+    # Add legend for industry plot with headers
+    legend_handles = []
+    legend_labels = []
+
+    # Add capital costs header
+    capex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='CAPITAL COSTS')
+    legend_handles.append(capex_header)
+    legend_labels.append('CAPITAL COSTS')
+
+    # Add capital cost items
+    for i, (category, value) in enumerate(zip(capex_breakdown_industry.keys(), capex_values_industry)):
+        legend_handles.append(capex_bars_industry[i])
+        if category == 'Precipitated salts processing':
+            legend_labels.append('Precipitated salts\nprocessing')
+        else:
+            legend_labels.append(category)
+
+    # Add operating costs header
+    opex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OPERATING COSTS')
+    legend_handles.append(opex_header)
+    legend_labels.append('OPERATING COSTS')
+
+    # Add operating cost items
+    for i, (category, value) in enumerate(zip(opex_breakdown_industry.keys(), opex_values_industry)):
+        legend_handles.append(opex_bars_industry[i])
+        legend_labels.append(category)
+
+    # Add other header
+    other_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OTHER')
+    legend_handles.append(other_header)
+    legend_labels.append('OTHER')
+
+    # Add revenue and levelized cost
+    legend_handles.extend([revenue_bar_industry, ax1.collections[0]])
+    legend_labels.extend(['Precipitated salts\nrevenue', 'Levelized cost of\nLi$^+$ brine'])
+
+    ax1.legend(legend_handles, legend_labels, loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=16)
+
+    # Grid for better readability
     ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
-    # Customize right plot (WaterTAP model)
-    ax2.set_ylabel('Cost (USD_2025/Mt Li)', fontsize=14)
+    # Right plot (WaterTAP model)
+    ax2.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=18)
     ax2.set_xticks([x_watertap])
-    ax2.set_xticklabels(['WaterTAP model'], fontsize=16)
-    ax2.tick_params(axis='both', labelsize=12)
+    ax2.set_xticklabels(['WaterTAP model'], fontsize=18)
+    ax2.tick_params(axis='both', labelsize=16)
     ax2.set_xlim(0, 0.5)
     ax2.set_ylim(y_min_overall, y_max_overall)
     ax2.axhline(0, color='black', linewidth=1)
-    ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
-    ax2.grid(axis='y', alpha=0.3, linestyle='--')
 
     # Add levelized cost y-tick labels
-    for ax, levelized_cost in [(ax1, levelized_cost_industry), (ax2, levelized_cost_watertap)]:
-        current_yticks = list(ax.get_yticks())
-        current_yticklabels = [f'${tick:.0f}' for tick in current_yticks]
-        
-        if len(current_yticks) >= 2:
-            spacings = np.diff(sorted(current_yticks))
-            median_spacing = np.median(spacings)
-            tolerance = 0.5 * median_spacing
+    current_yticks = list(ax2.get_yticks())
+    current_yticklabels = [f'${tick:.0f}' for tick in current_yticks]
+    if len(current_yticks) >= 2:
+        spacings = np.diff(sorted(current_yticks))
+        median_spacing = np.median(spacings)
+        tolerance = 0.5 * median_spacing
+    else:
+        tolerance = 0
+    if len(current_yticks) > 0:
+        diffs = [abs(t - levelized_cost_watertap) for t in current_yticks]
+        nearest_idx = int(np.argmin(diffs))
+        if diffs[nearest_idx] <= tolerance:
+            current_yticks.pop(nearest_idx)
+            current_yticklabels.pop(nearest_idx)
+    current_yticks.append(levelized_cost_watertap)
+    current_yticklabels.append(f'${levelized_cost_watertap:.0f}')
+    ax2.set_yticks(current_yticks)
+    ax2.set_yticklabels(current_yticklabels)
+
+    # Add legend for WaterTAP plot with headers
+    legend_handles = []
+    legend_labels = []
+
+    # Add capital costs header
+    capex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='CAPITAL COSTS')
+    legend_handles.append(capex_header)
+    legend_labels.append('CAPITAL COSTS')
+
+    # Add capital cost items
+    for i, (category, value) in enumerate(zip(capex_breakdown_watertap.keys(), capex_values_watertap)):
+        legend_handles.append(capex_bars_watertap[i])
+        if category == 'Precipitated salts processing':
+            legend_labels.append('Precipitated salts\nprocessing')
         else:
-            tolerance = 0
-            
-        if len(current_yticks) > 0:
-            diffs = [abs(t - levelized_cost) for t in current_yticks]
-            nearest_idx = int(np.argmin(diffs))
-            if diffs[nearest_idx] <= tolerance:
-                current_yticks.pop(nearest_idx)
-                current_yticklabels.pop(nearest_idx)
-                
-        current_yticks.append(levelized_cost)
-        current_yticklabels.append(f'${levelized_cost:.0f}')
-        ax.set_yticks(current_yticks)
-        ax.set_yticklabels(current_yticklabels)
+            legend_labels.append(category)
+
+    # Add operating costs header
+    opex_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OPERATING COSTS')
+    legend_handles.append(opex_header)
+    legend_labels.append('OPERATING COSTS')
+
+    # Add operating cost items
+    for i, (category, value) in enumerate(zip(opex_breakdown_watertap.keys(), opex_values_watertap)):
+        legend_handles.append(opex_bars_watertap[i])
+        if category == 'Precipitated salts processing (opex)':
+            legend_labels.append('Precipitated salts\nprocessing (opex)')
+        elif category == 'Maintenance-labor-chemical':
+            legend_labels.append('Maintenance-labor-\nchemical')
+        else:
+            legend_labels.append(category)
+
+    # Add other header
+    other_header = Line2D([0], [0], color='none', marker='s', markersize=0, label='OTHER')
+    legend_handles.append(other_header)
+    legend_labels.append('OTHER')
+
+    # Add revenue and levelized cost
+    legend_handles.extend([revenue_bar_watertap, ax2.collections[0]])
+    legend_labels.extend(['Precipitated salts\nrevenue', 'Levelized cost of\nLi$^+$ brine'])
+
+    ax2.legend(legend_handles, legend_labels, loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=16)
+
+    # Grid for better readability
+    ax2.grid(axis='y', alpha=0.3, linestyle='--')
 
     # Adjust layout
     plt.tight_layout()
 
-    # Draw figure-wide dotted lines at levelized costs across both subplots
-    ax1_pos = ax1.get_position()
-    ax2_pos = ax2.get_position()
-    x_start = min(ax1_pos.x0, ax2_pos.x0)
-    x_end = max(ax1_pos.x1, ax2_pos.x1)
-
-    y_fig_industry = fig.transFigure.inverted().transform(ax1.transData.transform((0, levelized_cost_industry)))[1]
-    y_fig_watertap = fig.transFigure.inverted().transform(ax2.transData.transform((0, levelized_cost_watertap)))[1]
-
-    fig.lines.append(Line2D([x_start, x_end], [y_fig_industry, y_fig_industry], transform=fig.transFigure,
-                            color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=10))
-    fig.lines.append(Line2D([x_start, x_end], [y_fig_watertap, y_fig_watertap], transform=fig.transFigure,
-                            color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=10))
+    # Draw dotted lines at levelized costs within each subplot
+    ax1.axhline(levelized_cost_industry, color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=1)
+    ax2.axhline(levelized_cost_watertap, color='black', linestyle=':', linewidth=2, alpha=0.7, zorder=1)
 
     return fig, (ax1, ax2)
 
@@ -460,15 +561,15 @@ def print_cost_summary(costs):
 
     # WaterTAP capex breakdown
     capex_breakdown_watertap = {
-        'Precipitated salts processing (capex)': costs['watertap_capex_solids_handling'],
-        'Liner cost': costs['watertap_capex_liner_cost'],
-        'Well cost': costs['watertap_capex_well_cost'],
-        'Pipe and pump cost': costs['watertap_capex_pipe_pump_cost'],
-        'Dike cost': costs['watertap_capex_dike_cost'],
-        'Shipping cost': costs['watertap_capex_shipping_cost'],
-        'Electrical cost': costs['watertap_capex_electrical_cost'],
-        'Land clearing cost': costs['watertap_capex_land_clearing_cost'],
-        'Road cost': costs['watertap_capex_road_cost']
+        'Evaporation ponds': (costs['watertap_capex_liner_cost'] + 
+                             costs['watertap_capex_dike_cost'] + 
+                             costs['watertap_capex_land_clearing_cost'] + 
+                             costs['watertap_capex_road_cost']),
+        'Precipitated salts processing': costs['watertap_capex_solids_handling'],
+        'Extraction wells': (costs['watertap_capex_well_cost'] + 
+                            costs['watertap_capex_pipe_pump_cost'] + 
+                            costs['watertap_capex_electrical_cost']),
+        'Other (capex)': costs['watertap_capex_shipping_cost']
     }
 
     # WaterTAP opex breakdown
@@ -499,15 +600,10 @@ def print_cost_summary(costs):
     }
 
     watertap_capex_key_mapping = {
-        'Precipitated salts processing (capex)': 'watertap_capex_solids_handling_pct',
-        'Liner cost': 'watertap_capex_liner_cost_pct',
-        'Well cost': 'watertap_capex_well_cost_pct',
-        'Pipe and pump cost': 'watertap_capex_pipe_pump_cost_pct',
-        'Dike cost': 'watertap_capex_dike_cost_pct',
-        'Shipping cost': 'watertap_capex_shipping_cost_pct',
-        'Electrical cost': 'watertap_capex_electrical_cost_pct',
-        'Land clearing cost': 'watertap_capex_land_clearing_cost_pct',
-        'Road cost': 'watertap_capex_road_cost_pct'
+        'Evaporation ponds': 'combined',  # Special case
+        'Precipitated salts processing': 'watertap_capex_solids_handling_pct',
+        'Extraction wells': 'combined',  # Special case
+        'Other (capex)': 'watertap_capex_shipping_cost_pct'
     }
 
     watertap_opex_key_mapping = {
@@ -541,7 +637,18 @@ def print_cost_summary(costs):
     print("\nWATERTAP MODEL:")
     print("Capital Costs Breakdown:")
     for category, value in capex_breakdown_watertap.items():
-        pct = costs[watertap_capex_key_mapping[category]] * 100
+        if watertap_capex_key_mapping[category] == 'combined':
+            if category == 'Evaporation ponds':
+                pct = (costs['watertap_capex_liner_cost_pct'] + 
+                       costs['watertap_capex_dike_cost_pct'] + 
+                       costs['watertap_capex_land_clearing_cost_pct'] + 
+                       costs['watertap_capex_road_cost_pct']) * 100
+            elif category == 'Extraction wells':
+                pct = (costs['watertap_capex_well_cost_pct'] + 
+                       costs['watertap_capex_pipe_pump_cost_pct'] + 
+                       costs['watertap_capex_electrical_cost_pct']) * 100
+        else:
+            pct = costs[watertap_capex_key_mapping[category]] * 100
         print(f"  {category}: ${value:.0f} ({pct:.1f}%)")
 
     print(f"\nTotal Capital Costs: ${total_capex_watertap:.0f}")
