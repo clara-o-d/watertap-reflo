@@ -168,7 +168,7 @@ def flow_constraints(m):
     def eq_li_outflow(b):
         return b.li_outflow == prop_in.flow_mass_phase_comp["Liq", "Li+"] * b.li_recovery
     
-    # Constraint: tds_water_outflow = li_outflow / final_li_conc
+    # Constraint: concentrated_brine_outflow = li_outflow / final_li_conc
     @m.fs.Constraint(doc="Concentrated brine outflow constraint")
     def eq_concentrated_brine_outflow(b):
         return b.concentrated_brine_outflow * b.final_li_conc == b.li_outflow

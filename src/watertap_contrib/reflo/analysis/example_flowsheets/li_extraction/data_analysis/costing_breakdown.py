@@ -369,7 +369,7 @@ def create_cost_breakdown_plot(costs):
     y_max_overall = max(total_costs_industry, total_costs_watertap, levelized_cost_industry, levelized_cost_watertap) * 1.1
 
     # Customize left plot (Industry report)
-    ax1.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=18)
+    ax1.set_ylabel('Cost (USD_2025/t Li$^+$)', fontsize=18)
     ax1.set_xticks([x_industry])
     ax1.set_xticklabels(['Industry report'], fontsize=18)
     ax1.tick_params(axis='both', labelsize=16)
@@ -439,7 +439,7 @@ def create_cost_breakdown_plot(costs):
     ax1.grid(axis='y', alpha=0.3, linestyle='--')
 
     # Right plot (WaterTAP model)
-    ax2.set_ylabel('Cost (USD_2025/Mt Li$^+$)', fontsize=18)
+    ax2.set_ylabel('Cost (USD_2025/t Li$^+$)', fontsize=18)
     ax2.set_xticks([x_watertap])
     ax2.set_xticklabels(['WaterTAP model'], fontsize=18)
     ax2.tick_params(axis='both', labelsize=16)

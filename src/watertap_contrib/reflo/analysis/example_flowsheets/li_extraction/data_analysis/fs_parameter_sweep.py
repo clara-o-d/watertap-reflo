@@ -98,7 +98,7 @@ def build_outputs(m, **kwargs):
     
     outputs = dict()
     
-    outputs['LCOLi (USD/mt)'] = m.fs.costing.LCOLi_mass
+    outputs['LCOLi (USD/t)'] = m.fs.costing.LCOLi_mass
     outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
     outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
     outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
