@@ -1,4 +1,4 @@
-from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.build_flowsheet import build_flowsheet
+from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_build_flowsheet import build_flowsheet
 # from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.solve import solve
 # from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.add_costing import add_costing
 # from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.process_costing import process_costing
