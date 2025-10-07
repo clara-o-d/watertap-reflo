@@ -1,6 +1,10 @@
 #################################################################################
 # Lithium Carbonate Plant Flowsheet
 # Salar de Carmen (Antofagasta) Process
+# Model Gaps:
+## 1. Boron extraction
+## 2. Lithium carbonate drying
+## 3. Lithium carbonate compression
 #################################################################################
 
 import pyomo.environ as pyo
@@ -32,10 +36,6 @@ from watertap.unit_models.pressure_changer import Pump
 from watertap.unit_models.stoichiometric_reactor import StoichiometricReactor
 from watertap.core.wt_database import Database
 
-# ============================================================================
-# FIX UNIT MODEL VARIABLES
-# ============================================================================
-
 def set_brine_feed_conditions(m):
     """
     Set the brine feed conditions.
@@ -49,12 +49,14 @@ def set_brine_feed_conditions(m):
     m.fs.brine_feed.properties[0].temperature.fix(T_ref)
     m.fs.brine_feed.properties[0].pressure.fix(P_ref)
     
-    # Calculate total flow rate based on industrial-scale operation
-    total_flow_vol = 1000 * pyunits.L / pyunits.minute
-    total_flow_vol = pyo.units.convert(total_flow_vol, to_units=pyunits.L/pyunits.s)
+    # Total mass flow rate: 27.93 kg/s
+    total_flow_mass = 27.93 * pyunits.kg / pyunits.s
     
     # Density = 1.252 kg/L = 1252 g/L
     density = 1252 * pyunits.g / pyunits.L
+    
+    # Calculate volumetric flow rate from mass flow rate
+    total_flow_vol = total_flow_mass / density  # L/s
     
     # MWs in g/mol (with pyunits)
     MW = {
@@ -71,6 +73,8 @@ def set_brine_feed_conditions(m):
         "HCO3": 61.0168 * pyunits.g/pyunits.mol,
         "CO3": 60.0092 * pyunits.g/pyunits.mol,
     }
+    
+    # Concentrations in ppm (mg/kg or parts per million by mass)
     ppm = {
         "Na": 570,
         "K": 160,
@@ -81,35 +85,35 @@ def set_brine_feed_conditions(m):
         "SO4": 220,
         "B": 6270,
         "HCO3": 100,
-        "CO3": 50,  # Typical carbonate concentration in brine
+        "CO3": 50,
     }
-    # Calculate molar flow rates for each solute
+    
+    # Calculate molar flow rates for each solute based on mass flow rate
     for comp in ppm:
-        conc_g_L = ppm[comp] * density / 1e6  # g/L
-        conc_mol_L = conc_g_L / MW[comp]      # mol/L
-        flow_mol_s = conc_mol_L * total_flow_vol  # mol/s
-        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp].fix(pyo.value(flow_mol_s))
-    # H+ from pH
+        # Convert ppm to mass fraction (kg/kg)
+        mass_fraction = ppm[comp] / 1e6  # dimensionless
+        # Calculate mass flow rate of component (kg/s)
+        comp_mass_flow = mass_fraction * total_flow_mass  # kg/s
+        # Convert to molar flow rate (mol/s)
+        comp_molar_flow = comp_mass_flow / MW[comp]  # mol/s
+        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp].fix(pyo.value(comp_molar_flow))
+    
+    # H+ from pH (assuming pH = 6.5)
     H_conc_mol_L = 3.16e-7 * pyunits.mol / pyunits.L
     H_flow_mol_s = H_conc_mol_L * total_flow_vol
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H"].fix(pyo.value(H_flow_mol_s))
-    # Water: density - sum of all solute concentrations
-    total_solute_g_L = sum(ppm[c] * density / 1e6 for c in ppm) + H_conc_mol_L * MW["H"]
-    water_g_L = density - total_solute_g_L
-    water_conc_mol_L = water_g_L / MW["H2O"]
-    water_flow_mol_s = water_conc_mol_L * total_flow_vol
-    m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_flow_mol_s))
+    
+    # Water: Calculate water mass flow rate as difference from total
+    total_solute_mass_fraction = sum(ppm[c] / 1e6 for c in ppm) + (H_conc_mol_L * MW["H"] / density)
+    water_mass_fraction = 1.0 - total_solute_mass_fraction  # dimensionless
+    water_mass_flow = water_mass_fraction * total_flow_mass  # kg/s
+    water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
+    m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
 
 def fix_unit_model_variables(m):
     """
     Fix the required variables for each unit model in the flowsheet.
     """
-    
-    # ============================================================================
-    # FEED UNITS
-    # ============================================================================
-    
-    # Feed conditions are set in separate functions
     
     # ============================================================================
     # STORAGE TANK
@@ -176,6 +180,7 @@ def set_scaling_factors(m):
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "B"))
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "H"))
     m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "HCO3"))
+    m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "CO3"))
     
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "H2O"))
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-1, index=("Liq", "Na"))
@@ -188,6 +193,7 @@ def set_scaling_factors(m):
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "B"))
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-9, index=("Liq", "H"))
     m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "HCO3"))
+    m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "CO3"))
     
     m.fs.brine_props.set_default_scaling("temperature", 1e-2)
     m.fs.brine_props.set_default_scaling("pressure", 1e-5)
@@ -199,8 +205,9 @@ def set_scaling_factors(m):
     # UNIT MODEL SCALING
     # ============================================================================
     
-    iscale.set_scaling_factor(m.fs.brine_storage.storage_time[0], 1e-4)
-    iscale.set_scaling_factor(m.fs.brine_storage.surge_capacity[0], 10.0)
+    iscale.set_scaling_factor(m.fs.brine_storage.storage_time[0], 1e-3)
+    iscale.set_scaling_factor(m.fs.brine_storage.surge_capacity[0], 1.0)
+    iscale.set_scaling_factor(m.fs.brine_storage.tank_volume[0], 1e-3)
     
     iscale.set_scaling_factor(m.fs.brine_pump.deltaP[0], 1e-5)
     iscale.set_scaling_factor(m.fs.brine_pump.efficiency_pump[0], 1.0)
@@ -218,6 +225,10 @@ def set_scaling_factors(m):
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"], 1e3)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate, 10.0)
     
+    # Reagent flow mass scaling factors
+    iscale.set_scaling_factor(m.fs.softening_reactor.flow_mass_reagent["Na2CO3"], 1e3)
+    iscale.set_scaling_factor(m.fs.softening_reactor.flow_mass_reagent["CaO"], 1e3)
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], 1e3)
     
     
     # ============================================================================

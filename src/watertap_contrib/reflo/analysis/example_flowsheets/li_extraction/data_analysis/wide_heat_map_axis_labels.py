@@ -247,25 +247,25 @@ def create_heat_map(csv_file_path, flow_volume):
                 plt.plot([tds_max, tds_max], [li_start, li_end], 
                         color=color, linestyle='--', linewidth=3, alpha=1)
         
-        # # Add text label in the center of each brine source range
-        # if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
-        #     tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min):
-        #     # Calculate center position for the label
-        #     li_center = (max(li_min, heatmap_li_min) + min(li_max, heatmap_li_max)) / 2
-        #     tds_center = (max(tds_min, heatmap_tds_min) + min(tds_max, heatmap_tds_max)) / 2
+        # Add text label in the center of each brine source range
+        if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
+            tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min):
+            # Calculate center position for the label
+            li_center = (max(li_min, heatmap_li_min) + min(li_max, heatmap_li_max)) / 2
+            tds_center = (max(tds_min, heatmap_tds_min) + min(tds_max, heatmap_tds_max)) / 2
             
-        #     # Handle multi-line text for Salar de Hombre Muerto
-        #     if name == 'Salar de Hombre Muerto':
-        #         display_text = 'Salar de\nHombre Muerto'
-        #     else:
-        #         display_text = name
+            # Handle multi-line text for Salar de Hombre Muerto
+            if name == 'Salar de Hombre Muerto':
+                display_text = 'Salar de\nHombre Muerto'
+            else:
+                display_text = name
             
         
-        #     # Add text label with translucent white background for better visibility
-        #     plt.text(tds_center, li_center, display_text, 
-        #             ha='center', va='center', fontsize=12, fontweight='bold',
-        #             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-        #                      edgecolor=color, linewidth=2, alpha=0.7))
+            # Add text label with translucent white background for better visibility
+            plt.text(tds_center, li_center, display_text, 
+                    ha='center', va='center', fontsize=12, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                             edgecolor=color, linewidth=2, alpha=0.7))
         
         # Create legend element
         legend_elements.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=3, label=name))
@@ -282,7 +282,7 @@ def create_heat_map(csv_file_path, flow_volume):
                                      markersize=8, linestyle='', label='WaterTAP model'))
     
     # Add legend
-    plt.legend(handles=legend_elements, loc='upper left', fontsize=12, bbox_to_anchor=(0.02, 0.98))
+    # plt.legend(handles=legend_elements, loc='upper left', fontsize=12, bbox_to_anchor=(0.02, 0.98))
     
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
