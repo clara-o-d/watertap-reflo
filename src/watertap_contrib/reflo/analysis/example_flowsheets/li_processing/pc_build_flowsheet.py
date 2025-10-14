@@ -14,6 +14,7 @@ from pyomo.environ import units
 from pyomo.core import TransformationFactory
 import idaes.core.util.scaling as iscale
 import idaes.logger as idaeslog
+from io import StringIO
 
 # IDAES imports
 from idaes.core import FlowsheetBlock
@@ -21,6 +22,8 @@ from idaes.models.unit_models import Feed, Pump
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core import MaterialFlowBasis
+from idaes.core.scaling import report_scaling_factors
+from idaes.core.util.model_diagnostics import SVDToolbox, svd_sparse, svd_dense, DiagnosticsToolbox
 
 # WaterTAP imports
 from watertap.property_models.multicomp_aq_sol_prop_pack import (
@@ -162,6 +165,9 @@ def fix_unit_model_variables(m):
 def set_scaling_factors(m):
     """
     Set scaling factors for the lithium processing flowsheet.
+    
+    Args:
+        m: The flowsheet model
     """
     
     # ============================================================================
@@ -248,6 +254,366 @@ def set_scaling_factors(m):
     
     print("Scaling factors set successfully!")
 
+def initialize_flowsheet(m):
+    """
+    Initialize the flowsheet by setting up all unit models in sequence.
+    
+    Args:
+        m: The flowsheet model to initialize
+        
+    Returns:
+        m: The initialized flowsheet model
+    """
+    print("\n" + "="*60)
+    print("INITIALIZATION SEQUENCE")
+    print("="*60)
+    
+    # Initialize brine feed
+    print("\n1. Initializing brine feed...")
+    m.fs.brine_feed.initialize()
+    m.fs.brine_feed.report()
+    
+    # Check for unfixed variables in the feed block
+    check_unfixed_variables(m.fs.brine_feed.properties[0], "brine_feed.properties[0]")
+    
+    # Propagate state to storage tank
+    print("\n2. Propagating state to storage tank...")
+    propagate_state(m.fs.brine_feed_to_storage)
+    m.fs.brine_storage.initialize()
+    m.fs.brine_storage.report()
+    print(f"DOF after brine storage: {degrees_of_freedom(m)}")
+
+    # Propagate state to pump
+    print("\n3. Propagating state to pump...")
+    propagate_state(m.fs.storage_to_pump)
+    m.fs.brine_pump.initialize()
+    m.fs.brine_pump.report()
+    print(f"DOF after brine pump: {degrees_of_freedom(m)}")
+    
+    # Propagate state to softening reactor
+    print("\n4. Propagating state to softening reactor...")
+    propagate_state(m.fs.pump_to_softening)
+    m.fs.softening_reactor.initialize()
+    # Note: report() method has an issue with reactor_outlet attribute, so we'll skip it for now
+    print("Softening reactor initialized successfully!")
+    print(f"DOF after softening reactor: {degrees_of_freedom(m)}")
+    
+    # Propagate state to lithium carbonate reactor
+    print("\n5. Propagating state to lithium carbonate reactor...")
+    propagate_state(m.fs.softening_to_lithium)
+    m.fs.lithium_carbonate_reactor.initialize()
+    # Note: report() method has an issue with reactor_outlet attribute, so we'll skip it for now
+    print("Lithium carbonate reactor initialized successfully!")
+    print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
+    
+    # Check degrees of freedom
+    print("\n" + "="*60)
+    print("INITIALIZATION COMPLETE")
+    print("="*60)
+    
+    # Check final degrees of freedom
+    dof = degrees_of_freedom(m)
+    print(f"\nFinal Degrees of Freedom: {dof}")
+    if dof == 0:
+        print("✓ All variables are properly fixed!")
+    else:
+        print(f"⚠ Warning: {dof} degrees of freedom remaining")
+        check_unfixed_variables(m, "entire flowsheet")
+    
+    # Print feed conditions summary
+    print("\nBrine Feed Conditions:")
+    print(f"Temperature: {pyo.value(m.fs.brine_feed.properties[0].temperature)} K")
+    print(f"Pressure: {pyo.value(m.fs.brine_feed.properties[0].pressure)} Pa")
+    print(f"Flow rate: {pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq'])} m³/s ({pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq']) * 60000:.0f} L/min)")
+    print(f"pH: 6.50")
+    print(f"Density: 1.252 kg/L")
+    
+    
+    print("\n" + "="*60)
+    print("UNIT MODEL FIXED VARIABLES SUMMARY")
+    print("="*60)
+    print("Storage Tank:")
+    print(f"  - Storage time: {pyo.value(m.fs.brine_storage.storage_time[0])} hours")
+    print(f"  - Surge capacity: {pyo.value(m.fs.brine_storage.surge_capacity[0])*100:.1f}%")
+    
+    print("\nPump:")
+    print(f"  - Pressure increase: {pyo.value(m.fs.brine_pump.deltaP[0])/1e5:.1f} bar")
+    print(f"  - Efficiency: {pyo.value(m.fs.brine_pump.efficiency_pump[0])*100:.1f}%")
+    
+    print("\nSoftening Reactor:")
+    print(f"  - Na2CO3 dose: {pyo.value(m.fs.softening_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
+    print(f"  - CaO dose: {pyo.value(m.fs.softening_reactor.reagent_dose['CaO'])*1e3:.1f} g/L")
+    print(f"  - Calcite formation: {pyo.value(m.fs.softening_reactor.flow_mass_precipitate['Calcite'])*1e3:.3f} g/s")
+    print(f"  - Brucite formation: {pyo.value(m.fs.softening_reactor.flow_mass_precipitate['Brucite'])*1e3:.3f} g/s")
+    print(f"  - Waste solids fraction: {pyo.value(m.fs.softening_reactor.waste_mass_frac_precipitate)*100:.1f}%")
+    
+    print("\nLithium Carbonate Reactor:")
+    print(f"  - Na2CO3 dose: {pyo.value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
+    print(f"  - Li2CO3 formation: {pyo.value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])*1e3:.3f} g/s")
+    print(f"  - Waste solids fraction: {pyo.value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.1f}%")
+    
+    print("\n" + "="*60)
+    print("SCALING FACTORS SUMMARY")
+    print("="*60)
+    print("Property Package Scaling:")
+    print(f"  - Flow rates: 1e-2 (m³/s)")
+    print(f"  - Concentrations: 1e-1 to 1e-9 (g/L)")
+    print(f"  - Temperature: 1e-2 (K)")
+    print(f"  - Pressure: 1e-5 (Pa)")
+    print(f"  - Density: 1e-3 (kg/m³)")
+    
+    
+    print("\nUnit Model Scaling:")
+    print(f"  - Storage time: 1e-4 (s)")
+    print(f"  - Pump work: 1e-3 (W)")
+    print(f"  - Tank volumes: 1e-2 (m³)")
+    print(f"  - Cross-sectional areas: 1e-1 (m²)")
+    print(f"  - Reagent doses: 1e3 (kg/m³)")
+    print(f"  - Precipitate flows: 1e3 (kg/s)")
+    print(f"  - Lithium carbonate formation: 1e3 (kg/s)")
+    
+    print("\nFeed Stream Scaling:")
+    print(f"  - All flow rates: 1e-2 (m³/s)")
+    print(f"  - All temperatures: 1e-2 (K)")
+    print(f"  - All pressures: 1e-5 (Pa)")
+    
+    return m
+
+def run_diagnostics(m, report_scaling=False, analyze_jacobian=False, 
+                            check_jacobian_quality=False):
+    """
+    Run comprehensive scaling diagnostics on the flowsheet.
+    
+    Args:
+        m: The flowsheet model
+        report_scaling: Boolean flag to generate and print a detailed scaling factors report
+        analyze_jacobian: Boolean flag to perform SVD analysis on the Jacobian to verify scaling
+        check_jacobian_quality: Boolean flag to run DiagnosticsToolbox checks for extreme Jacobian values
+    """
+    
+    # ============================================================================
+    # REPORT SCALING FACTORS (if requested)
+    # ============================================================================
+    
+    if report_scaling:
+        print("\n" + "="*80)
+        print("SCALING FACTORS REPORT")
+        print("="*80)
+        
+        # Create a StringIO buffer to capture the report
+        report_buffer = StringIO()
+        
+        # Report scaling factors for the entire flowsheet
+        print("\n>>> FLOWSHEET LEVEL SCALING FACTORS <<<")
+        report_scaling_factors(m.fs, descend_into=True, stream=report_buffer)
+        
+        # Print the captured report
+        report_content = report_buffer.getvalue()
+        print(report_content)
+        
+        print("\n" + "="*80)
+        print("END OF SCALING FACTORS REPORT")
+        print("="*80 + "\n")
+        input("Press enter to continue")
+    
+    # ============================================================================
+    # SVD ANALYSIS OF JACOBIAN (if requested)
+    # ============================================================================
+    
+    if analyze_jacobian:
+        print("\n" + "="*80)
+        print("SINGULAR VALUE DECOMPOSITION (SVD) ANALYSIS")
+        print("="*80)
+        print("\nAnalyzing the Jacobian matrix to verify scaling quality...")
+        print("This helps identify ill-conditioned constraints and variables.\n")
+        
+        try:
+            # Try sparse SVD first for efficiency
+            print("Attempting sparse SVD analysis...")
+            try:
+                svd = SVDToolbox(
+                    m.fs,
+                    number_of_smallest_singular_values=10,
+                    singular_value_tolerance=1e-4,
+                    size_cutoff_in_singular_vector=0.1,
+                    svd_callback=svd_sparse
+                )
+                svd.run_svd_analysis()
+                print("✓ Sparse SVD completed successfully")
+            except Exception as sparse_error:
+                # Fallback to dense SVD if sparse fails
+                print(f"⚠ Sparse SVD failed: {str(sparse_error)}")
+                print("Falling back to dense SVD method...")
+                
+                svd = SVDToolbox(
+                    m.fs,
+                    number_of_smallest_singular_values=10,
+                    singular_value_tolerance=1e-4,
+                    size_cutoff_in_singular_vector=0.1,
+                    svd_callback=svd_dense
+                )
+                svd.run_svd_analysis()
+                print("✓ Dense SVD completed successfully")
+            
+            # Display the rank of equality constraints
+            print("\n" + "-"*80)
+            print("CONSTRAINT RANK ANALYSIS")
+            print("-"*80)
+            svd.display_rank_of_equality_constraints()
+            
+            # Display variables and constraints associated with smallest singular values
+            print("\n" + "-"*80)
+            print("VARIABLES AND CONSTRAINTS WITH SMALLEST SINGULAR VALUES")
+            print("-"*80)
+            print("Components with large values in singular vectors associated with")
+            print("small singular values may indicate scaling issues.\n")
+            svd.display_underdetermined_variables_and_constraints(singular_values=[1, 2, 3])
+            
+            # Print singular values summary
+            print("\n" + "-"*80)
+            print("SINGULAR VALUE SUMMARY")
+            print("-"*80)
+            print(f"Number of singular values computed: {len(svd.s)}")
+            print(f"Smallest singular value: {svd.s[0]:.3e}")
+            print(f"Largest singular value: {svd.s[-1]:.3e}")
+            condition_number = svd.s[-1]/svd.s[0] if svd.s[0] > 0 else float('inf')
+            print(f"Condition number (max/min): {condition_number:.3e}")
+            
+            # Print all singular values
+            print(f"\nAll {len(svd.s)} smallest singular values:")
+            for i, sv in enumerate(svd.s, 1):
+                print(f"  σ_{i}: {sv:.3e}")
+            
+            # Interpretation guide
+            print("\n" + "-"*80)
+            print("INTERPRETATION AND RECOMMENDATIONS")
+            print("-"*80)
+            
+            # Check for very small singular values
+            small_sv_count = sum(1 for sv in svd.s if sv < 1e-6)
+            if small_sv_count > 0:
+                print(f"⚠ WARNING: {small_sv_count} singular value(s) < 1e-6 detected")
+                print("   This may indicate:")
+                print("   - Nearly linearly dependent constraints")
+                print("   - Poor scaling of variables or constraints")
+                print("   - Structural issues in the model")
+                print("   → Review the variables/constraints listed above")
+                print("   → Consider adjusting scaling factors for highlighted components")
+            elif svd.s[0] < 1e-4:
+                print(f"⚠ CAUTION: Smallest singular value is {svd.s[0]:.3e} (< 1e-4)")
+                print("   The model may have minor scaling issues")
+                print("   → Consider reviewing the scaling of highlighted components")
+            else:
+                print("✓ All singular values are above 1e-4 threshold")
+                print("  The Jacobian appears reasonably well-scaled")
+            
+            # Check condition number
+            print()
+            if condition_number > 1e10:
+                print(f"⚠ WARNING: Very high condition number ({condition_number:.2e} > 1e10)")
+                print("   The model is severely ill-conditioned")
+                print("   → Strongly recommend improving scaling")
+                print("   → May experience solver convergence failures")
+            elif condition_number > 1e8:
+                print(f"⚠ WARNING: High condition number ({condition_number:.2e} > 1e8)")
+                print("   The model is ill-conditioned and may be difficult to solve")
+                print("   → Consider improving scaling to reduce condition number")
+            elif condition_number > 1e6:
+                print(f"⚠ CAUTION: Moderate condition number ({condition_number:.2e} > 1e6)")
+                print("   Solver may experience some numerical difficulties")
+                print("   → Consider minor scaling improvements")
+            else:
+                print(f"✓ Acceptable condition number ({condition_number:.2e})")
+                print("  The Jacobian is well-conditioned for numerical solving")
+            
+            print("\n" + "="*80)
+            print("END OF SVD ANALYSIS")
+            print("="*80 + "\n")
+            
+        except ValueError as e:
+            print(f"\n⚠ SVD Analysis could not be performed: {str(e)}")
+            print("This typically occurs if the model has fewer than 2 equality constraints")
+            print("or if the model structure doesn't support SVD analysis.")
+            print("="*80 + "\n")
+        except Exception as e:
+            print(f"\n⚠ SVD Analysis failed with error: {str(e)}")
+            print("This may occur due to Jacobian evaluation issues.")
+            print("Consider running this analysis after model initialization.")
+            print("="*80 + "\n")
+        input("Press enter to continue")
+    # ============================================================================
+    # JACOBIAN QUALITY DIAGNOSTICS (if requested)
+    # ============================================================================
+    
+    if check_jacobian_quality:
+        print("\n" + "="*80)
+        print("JACOBIAN QUALITY DIAGNOSTICS")
+        print("="*80)
+        print("\nRunning DiagnosticsToolbox to identify extreme Jacobian values...")
+        print("This helps pinpoint specific scaling issues in variables and constraints.\n")
+        
+        try:
+            # Initialize DiagnosticsToolbox
+            dt = DiagnosticsToolbox(m.fs)
+            
+            # Check for extreme Jacobian entries
+            print("\n" + "-"*80)
+            print("EXTREME JACOBIAN ENTRIES")
+            print("-"*80)
+            print("Identifies individual Jacobian entries that are exceptionally large or small.")
+            print("These often indicate poorly scaled variables or constraints.\n")
+            dt.display_extreme_jacobian_entries()
+            
+            # Check for constraints with extreme Jacobian rows
+            print("\n" + "-"*80)
+            print("CONSTRAINTS WITH EXTREME JACOBIAN ROWS")
+            print("-"*80)
+            print("Constraints with extreme L2 norms in their Jacobian rows may be poorly scaled.\n")
+            dt.display_constraints_with_extreme_jacobians()
+            
+            # Check for variables with extreme Jacobian columns
+            print("\n" + "-"*80)
+            print("VARIABLES WITH EXTREME JACOBIAN COLUMNS")
+            print("-"*80)
+            print("Variables with extreme L2 norms in their Jacobian columns may be poorly scaled.\n")
+            dt.display_variables_with_extreme_jacobians()
+            
+            # Additional useful diagnostics
+            print("\n" + "-"*80)
+            print("VARIABLES NEAR BOUNDS")
+            print("-"*80)
+            print("Variables close to their bounds may cause solver issues.\n")
+            dt.display_variables_near_bounds()
+            
+            # Check for variables with extreme values
+            print("\n" + "-"*80)
+            print("VARIABLES WITH EXTREME VALUES")
+            print("-"*80)
+            print("Variables with very large or small values may indicate scaling issues.\n")
+            dt.display_variables_with_extreme_values()
+            
+            # Summary and recommendations
+            print("\n" + "-"*80)
+            print("DIAGNOSTICS SUMMARY")
+            print("-"*80)
+            print("Review the components listed above. Common fixes include:")
+            print("  1. Adjusting scaling factors for highlighted variables")
+            print("  2. Adjusting scaling factors for highlighted constraints")
+            print("  3. Reformulating constraints with extreme coefficients")
+            print("  4. Checking for unit consistency in the model")
+            print("  5. Reviewing variable bounds and initial values")
+            
+            print("\n" + "="*80)
+            print("END OF JACOBIAN QUALITY DIAGNOSTICS")
+            print("="*80 + "\n")
+            
+        except Exception as e:
+            print(f"\n⚠ Jacobian quality diagnostics failed with error: {str(e)}")
+            print("This may occur if the model structure doesn't support these diagnostics")
+            print("or if there are issues evaluating the Jacobian.")
+            print("="*80 + "\n")
+        input("Press enter to continue")
+        
 def build_flowsheet():
     """
     Build the lithium carbonate plant flowsheet.
@@ -379,7 +745,9 @@ def build_flowsheet():
     set_brine_feed_conditions(m)
     fix_unit_model_variables(m)
     set_scaling_factors(m)
-    
+    # initialize_flowsheet(m)
+    run_diagnostics(m,report_scaling=False, analyze_jacobian=False, check_jacobian_quality=True)
+
     return m
 
 def check_unfixed_variables(block, name="block"):
@@ -410,131 +778,6 @@ def check_unfixed_variables(block, name="block"):
     
     return unfixed_vars
 
-def initialize_flowsheet(m):
-    """
-    Initialize the flowsheet by setting up all unit models in sequence.
-    
-    Args:
-        m: The flowsheet model to initialize
-        
-    Returns:
-        m: The initialized flowsheet model
-    """
-    print("\n" + "="*60)
-    print("INITIALIZATION SEQUENCE")
-    print("="*60)
-    
-    # Initialize brine feed
-    print("\n1. Initializing brine feed...")
-    m.fs.brine_feed.initialize()
-    m.fs.brine_feed.report()
-    
-    # Check for unfixed variables in the feed block
-    check_unfixed_variables(m.fs.brine_feed.properties[0], "brine_feed.properties[0]")
-    
-    # Propagate state to storage tank
-    print("\n2. Propagating state to storage tank...")
-    propagate_state(m.fs.brine_feed_to_storage)
-    m.fs.brine_storage.initialize()
-    m.fs.brine_storage.report()
-    print(f"DOF after brine storage: {degrees_of_freedom(m)}")
-
-    # Propagate state to pump
-    print("\n3. Propagating state to pump...")
-    propagate_state(m.fs.storage_to_pump)
-    m.fs.brine_pump.initialize()
-    m.fs.brine_pump.report()
-    print(f"DOF after brine pump: {degrees_of_freedom(m)}")
-    
-    # Propagate state to softening reactor
-    print("\n4. Propagating state to softening reactor...")
-    propagate_state(m.fs.pump_to_softening)
-    m.fs.softening_reactor.initialize()
-    # Note: report() method has an issue with reactor_outlet attribute, so we'll skip it for now
-    print("Softening reactor initialized successfully!")
-    print(f"DOF after softening reactor: {degrees_of_freedom(m)}")
-    
-    # Propagate state to lithium carbonate reactor
-    print("\n5. Propagating state to lithium carbonate reactor...")
-    propagate_state(m.fs.softening_to_lithium)
-    m.fs.lithium_carbonate_reactor.initialize()
-    # Note: report() method has an issue with reactor_outlet attribute, so we'll skip it for now
-    print("Lithium carbonate reactor initialized successfully!")
-    print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
-    
-    # Check degrees of freedom
-    print("\n" + "="*60)
-    print("INITIALIZATION COMPLETE")
-    print("="*60)
-    
-    # Check final degrees of freedom
-    dof = degrees_of_freedom(m)
-    print(f"\nFinal Degrees of Freedom: {dof}")
-    if dof == 0:
-        print("✓ All variables are properly fixed!")
-    else:
-        print(f"⚠ Warning: {dof} degrees of freedom remaining")
-        check_unfixed_variables(m, "entire flowsheet")
-    
-    # Print feed conditions summary
-    print("\nBrine Feed Conditions:")
-    print(f"Temperature: {pyo.value(m.fs.brine_feed.properties[0].temperature)} K")
-    print(f"Pressure: {pyo.value(m.fs.brine_feed.properties[0].pressure)} Pa")
-    print(f"Flow rate: {pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq'])} m³/s ({pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq']) * 60000:.0f} L/min)")
-    print(f"pH: 6.50")
-    print(f"Density: 1.252 kg/L")
-    
-    
-    print("\n" + "="*60)
-    print("UNIT MODEL FIXED VARIABLES SUMMARY")
-    print("="*60)
-    print("Storage Tank:")
-    print(f"  - Storage time: {pyo.value(m.fs.brine_storage.storage_time[0])} hours")
-    print(f"  - Surge capacity: {pyo.value(m.fs.brine_storage.surge_capacity[0])*100:.1f}%")
-    
-    print("\nPump:")
-    print(f"  - Pressure increase: {pyo.value(m.fs.brine_pump.deltaP[0])/1e5:.1f} bar")
-    print(f"  - Efficiency: {pyo.value(m.fs.brine_pump.efficiency_pump[0])*100:.1f}%")
-    
-    print("\nSoftening Reactor:")
-    print(f"  - Na2CO3 dose: {pyo.value(m.fs.softening_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
-    print(f"  - CaO dose: {pyo.value(m.fs.softening_reactor.reagent_dose['CaO'])*1e3:.1f} g/L")
-    print(f"  - Calcite formation: {pyo.value(m.fs.softening_reactor.flow_mass_precipitate['Calcite'])*1e3:.3f} g/s")
-    print(f"  - Brucite formation: {pyo.value(m.fs.softening_reactor.flow_mass_precipitate['Brucite'])*1e3:.3f} g/s")
-    print(f"  - Waste solids fraction: {pyo.value(m.fs.softening_reactor.waste_mass_frac_precipitate)*100:.1f}%")
-    
-    print("\nLithium Carbonate Reactor:")
-    print(f"  - Na2CO3 dose: {pyo.value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
-    print(f"  - Li2CO3 formation: {pyo.value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])*1e3:.3f} g/s")
-    print(f"  - Waste solids fraction: {pyo.value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.1f}%")
-    
-    print("\n" + "="*60)
-    print("SCALING FACTORS SUMMARY")
-    print("="*60)
-    print("Property Package Scaling:")
-    print(f"  - Flow rates: 1e-2 (m³/s)")
-    print(f"  - Concentrations: 1e-1 to 1e-9 (g/L)")
-    print(f"  - Temperature: 1e-2 (K)")
-    print(f"  - Pressure: 1e-5 (Pa)")
-    print(f"  - Density: 1e-3 (kg/m³)")
-    
-    
-    print("\nUnit Model Scaling:")
-    print(f"  - Storage time: 1e-4 (s)")
-    print(f"  - Pump work: 1e-3 (W)")
-    print(f"  - Tank volumes: 1e-2 (m³)")
-    print(f"  - Cross-sectional areas: 1e-1 (m²)")
-    print(f"  - Reagent doses: 1e3 (kg/m³)")
-    print(f"  - Precipitate flows: 1e3 (kg/s)")
-    print(f"  - Lithium carbonate formation: 1e3 (kg/s)")
-    
-    print("\nFeed Stream Scaling:")
-    print(f"  - All flow rates: 1e-2 (m³/s)")
-    print(f"  - All temperatures: 1e-2 (K)")
-    print(f"  - All pressures: 1e-5 (Pa)")
-    
-    return m
-
 def main():
     """
     Main function to build and run the flowsheet.
@@ -550,6 +793,9 @@ def main():
     
     # Initialize the flowsheet
     m = initialize_flowsheet(m)
+        
+    # Run diagnostics
+    run_diagnostics(m,report_scaling=False, analyze_jacobian=False, check_jacobian_quality=False)
     
     return m
 
