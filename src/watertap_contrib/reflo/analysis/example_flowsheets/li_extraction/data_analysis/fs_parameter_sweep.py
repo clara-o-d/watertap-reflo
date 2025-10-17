@@ -68,10 +68,10 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.friction_head, 800, 1000, 3
     # )
     sweep_params['Final Li+ concentration'] = LinearSample(
-        m.fs.final_li_conc, 0.02, 0.02, 1
+        m.fs.final_li_conc, 0.03, 0.03, 1
     )
     sweep_params['Final TDS concentration'] = LinearSample(
-        m.fs.final_tds_conc, 0.315, 0.315, 1
+        m.fs.final_tds_conc, 0.400, 0.400, 1
     )
     # sweep_params['Dike height'] = LinearSample(
     #     m.fs.number_of_wells, 379, 379, 1
@@ -185,9 +185,9 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep2.csv', 
+        csv_results_file_name='parameter_sweep3.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'parameter_sweep.csv' and 'parameter_sweep.h5'") 
+    print("Results saved to 'parameter_sweep3.csv'") 

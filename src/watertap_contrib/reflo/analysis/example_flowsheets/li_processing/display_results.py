@@ -36,8 +36,11 @@ def display_costing_results(m):
     if hasattr(m.fs.brine_pump, 'costing'):
         print(f"  Pump Capital Cost: ${value(m.fs.brine_pump.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.softening_reactor, 'costing'):
-        print(f"  Softening Reactor Capital Cost: ${value(m.fs.softening_reactor.costing.capital_cost):,.0f}")
+    if hasattr(m.fs.soda_ash_reactor, 'costing'):
+        print(f"  Soda Ash Reactor Capital Cost: ${value(m.fs.soda_ash_reactor.costing.capital_cost):,.0f}")
+    
+    if hasattr(m.fs.lime_reactor, 'costing'):
+        print(f"  Lime Reactor Capital Cost: ${value(m.fs.lime_reactor.costing.capital_cost):,.0f}")
     
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         print(f"  Lithium Carbonate Reactor Capital Cost: ${value(m.fs.lithium_carbonate_reactor.costing.capital_cost):,.0f}")
@@ -48,8 +51,10 @@ def display_costing_results(m):
         total_capital_cost += value(m.fs.brine_storage.costing.capital_cost)
     if hasattr(m.fs.brine_pump, 'costing'):
         total_capital_cost += value(m.fs.brine_pump.costing.capital_cost)
-    if hasattr(m.fs.softening_reactor, 'costing'):
-        total_capital_cost += value(m.fs.softening_reactor.costing.capital_cost)
+    if hasattr(m.fs.soda_ash_reactor, 'costing'):
+        total_capital_cost += value(m.fs.soda_ash_reactor.costing.capital_cost)
+    if hasattr(m.fs.lime_reactor, 'costing'):
+        total_capital_cost += value(m.fs.lime_reactor.costing.capital_cost)
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         total_capital_cost += value(m.fs.lithium_carbonate_reactor.costing.capital_cost)
     
@@ -66,18 +71,19 @@ def display_costing_results(m):
         print(f"  Annual electricity cost: ${annual_electricity_cost:,.0f}")
     
     # Reagent costs
-    if hasattr(m.fs, 'softening_reactor'):
+    if hasattr(m.fs, 'soda_ash_reactor'):
         try:
-            na2co3_flow = value(m.fs.softening_reactor.flow_mass_reagent["Na2CO3"])  # kg/s
+            na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"])  # kg/s
             annual_na2co3_cost = na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)  # kg/year * $/kg
-            print(f"  Annual Na2CO3 cost (softening): ${annual_na2co3_cost:,.0f}")
+            print(f"  Annual Na2CO3 cost (soda ash reactor): ${annual_na2co3_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
-        
+    
+    if hasattr(m.fs, 'lime_reactor'):
         try:
-            cao_flow = value(m.fs.softening_reactor.flow_mass_reagent["CaO"])  # kg/s
+            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["CaO"])  # kg/s
             annual_cao_cost = cao_flow * 31536000 * value(m.fs.lime_cost)  # kg/year * $/kg
-            print(f"  Annual CaO cost (softening): ${annual_cao_cost:,.0f}")
+            print(f"  Annual CaO cost (lime reactor): ${annual_cao_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -96,10 +102,12 @@ def display_costing_results(m):
     
     # Add reagent costs if available
     try:
-        if hasattr(m.fs, 'softening_reactor'):
-            na2co3_flow = value(m.fs.softening_reactor.flow_mass_reagent["Na2CO3"])
+        if hasattr(m.fs, 'soda_ash_reactor'):
+            na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"])
             total_opex += na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)
-            cao_flow = value(m.fs.softening_reactor.flow_mass_reagent["CaO"])
+        
+        if hasattr(m.fs, 'lime_reactor'):
+            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["CaO"])
             total_opex += cao_flow * 31536000 * value(m.fs.lime_cost)
         
         if hasattr(m.fs, 'lithium_carbonate_reactor'):
@@ -211,27 +219,39 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Softening reactor results
-    if hasattr(m.fs, 'softening_reactor'):
-        print(f"\nMAGNESIUM/CALCIUM REMOVAL REACTOR:")
+    # Soda ash reactor results
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        print(f"\nSODA ASH REACTOR (FIRST SOFTENING STAGE):")
         try:
-            print(f"  Na2CO3 dose: {value(m.fs.softening_reactor.reagent_dose['Na2CO3']):.4f} kg/L")
+            print(f"  Na2CO3 dose: {value(m.fs.soda_ash_reactor.reagent_dose['Na2CO3']):.4f} kg/L")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  CaO dose: {value(m.fs.softening_reactor.reagent_dose['CaO']):.4f} kg/L")
+            print(f"  MgCO3 formation: {value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3']):.4f} kg/s")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Calcite formation: {value(m.fs.softening_reactor.flow_mass_precipitate['Calcite']):.4f} kg/s")
+            print(f"  Waste solids fraction: {value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate):.1%}")
+        except (AttributeError, TypeError, KeyError):
+            pass
+    
+    # Lime reactor results
+    if hasattr(m.fs, 'lime_reactor'):
+        print(f"\nLIME REACTOR (SECOND SOFTENING STAGE):")
+        try:
+            print(f"  CaO dose: {value(m.fs.lime_reactor.reagent_dose['CaO']):.4f} kg/L")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Brucite formation: {value(m.fs.softening_reactor.flow_mass_precipitate['Brucite']):.4f} kg/s")
+            print(f"  Brucite formation: {value(m.fs.lime_reactor.flow_mass_precipitate['Brucite']):.4f} kg/s")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Waste solids fraction: {value(m.fs.softening_reactor.waste_mass_frac_precipitate):.1%}")
+            print(f"  Gypsum formation: {value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum']):.4f} kg/s")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Waste solids fraction: {value(m.fs.lime_reactor.waste_mass_frac_precipitate):.1%}")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -285,10 +305,15 @@ def display_results(m, show_costing=False):
         print(f"  Lithium recovery: {li_recovery:.1f}%")
     
     # Chemical consumption
-    if hasattr(m.fs, 'softening_reactor') and hasattr(m.fs, 'lithium_carbonate_reactor'):
-        total_na2co3 = value(m.fs.softening_reactor.reagent_dose['Na2CO3']) + value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])
+    total_na2co3 = 0
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        total_na2co3 += value(m.fs.soda_ash_reactor.reagent_dose['Na2CO3'])
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        total_na2co3 += value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])
+    if total_na2co3 > 0:
         print(f"  Total Na2CO3 consumption: {total_na2co3:.4f} kg/L brine")
-        print(f"  CaO consumption: {value(m.fs.softening_reactor.reagent_dose['CaO']):.4f} kg/L brine")
+    if hasattr(m.fs, 'lime_reactor'):
+        print(f"  CaO consumption: {value(m.fs.lime_reactor.reagent_dose['CaO']):.4f} kg/L brine")
     
     # Energy consumption
     total_power = 0
@@ -323,3 +348,4 @@ def display_results(m, show_costing=False):
     # Display costing results if requested
     if show_costing:
         display_costing_results(m)
+

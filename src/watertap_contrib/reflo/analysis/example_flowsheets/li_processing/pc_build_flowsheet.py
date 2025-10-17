@@ -1,6 +1,13 @@
 #################################################################################
 # Lithium Carbonate Plant Flowsheet
 # Salar de Carmen (Antofagasta) Process
+# 
+# Process Flow:
+## 1. Brine feed -> Storage tank -> Pump
+## 2. Soda ash reactor (Na2CO3 -> precipitates MgCO3)
+## 3. Lime reactor (CaO -> precipitates Mg(OH)2 and CaSO4)
+## 4. Lithium carbonate reactor (Na2CO3 -> precipitates Li2CO3)
+#
 # Model Gaps:
 ## 1. Boron extraction
 ## 2. Lithium carbonate drying
@@ -133,19 +140,31 @@ def fix_unit_model_variables(m):
     m.fs.brine_pump.efficiency_pump[0].fix(0.75)
     
     # ============================================================================
-    # SOFTENING REACTOR
+    # SODA ASH REACTOR (First softening stage)
     # ============================================================================
     
-    # Fix reagent doses (typical values for water softening)
-    m.fs.softening_reactor.reagent_dose["Na2CO3"].fix(1e-3 * units.kg / units.L)  # 1 g/L
-    m.fs.softening_reactor.reagent_dose["CaO"].fix(1e-3 * units.kg / units.L)      # 1 g/L
+    # Fix reagent dose for soda ash
+    m.fs.soda_ash_reactor.reagent_dose["Na2CO3"].fix(1.5e-3 * units.kg / units.L)  # 1.5 g/L
     
-    # Fix precipitate formation rates (based on expected removal)
-    m.fs.softening_reactor.flow_mass_precipitate["Calcite"].fix(0.5e-3 * units.kg / units.s)   # CaCO3
-    m.fs.softening_reactor.flow_mass_precipitate["Brucite"].fix(0.3e-3 * units.kg / units.s)   # Mg(OH)2
+    # Fix magnesium carbonate formation rate
+    m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"].fix(0.4e-3 * units.kg / units.s)  # MgCO3
     
     # Fix waste stream solids fraction
-    m.fs.softening_reactor.waste_mass_frac_precipitate.fix(0.2)  # 20% solids in waste stream
+    m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.15)  # 15% solids in waste stream
+    
+    # ============================================================================
+    # LIME REACTOR (Second softening stage)
+    # ============================================================================
+    
+    # Fix reagent dose for lime
+    m.fs.lime_reactor.reagent_dose["CaO"].fix(1e-3 * units.kg / units.L)  # 1 g/L
+    
+    # Fix precipitate formation rates
+    m.fs.lime_reactor.flow_mass_precipitate["Brucite"].fix(0.3e-3 * units.kg / units.s)  # Mg(OH)2
+    m.fs.lime_reactor.flow_mass_precipitate["Gypsum"].fix(0.2e-3 * units.kg / units.s)   # CaSO4
+    
+    # Fix waste stream solids fraction
+    m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.2)  # 20% solids in waste stream
     
     # ============================================================================
     # LITHIUM CARBONATE REACTOR
@@ -219,21 +238,23 @@ def set_scaling_factors(m):
     iscale.set_scaling_factor(m.fs.brine_pump.efficiency_pump[0], 1.0)
     iscale.set_scaling_factor(m.fs.brine_pump.control_volume.work[0], 1e-3)
     
-    # Softening reactor scaling factors
-    iscale.set_scaling_factor(m.fs.softening_reactor.reagent_dose["Na2CO3"], 1e3)
-    iscale.set_scaling_factor(m.fs.softening_reactor.reagent_dose["CaO"], 1e3)
-    iscale.set_scaling_factor(m.fs.softening_reactor.flow_mass_precipitate["Calcite"], 1e3)
-    iscale.set_scaling_factor(m.fs.softening_reactor.flow_mass_precipitate["Brucite"], 1e3)
-    iscale.set_scaling_factor(m.fs.softening_reactor.waste_mass_frac_precipitate, 10.0)
+    # Soda ash reactor scaling factors
+    iscale.set_scaling_factor(m.fs.soda_ash_reactor.reagent_dose["Na2CO3"], 1e3)
+    iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"], 1e3)
+    iscale.set_scaling_factor(m.fs.soda_ash_reactor.waste_mass_frac_precipitate, 10.0)
+    iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"], 1e3)
+    
+    # Lime reactor scaling factors
+    iscale.set_scaling_factor(m.fs.lime_reactor.reagent_dose["CaO"], 1e3)
+    iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["Brucite"], 1e3)
+    iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["Gypsum"], 1e3)
+    iscale.set_scaling_factor(m.fs.lime_reactor.waste_mass_frac_precipitate, 10.0)
+    iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_reagent["CaO"], 1e3)
     
     # Lithium carbonate reactor scaling factors
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.reagent_dose["Na2CO3"], 1e3)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"], 1e3)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate, 10.0)
-    
-    # Reagent flow mass scaling factors
-    iscale.set_scaling_factor(m.fs.softening_reactor.flow_mass_reagent["Na2CO3"], 1e3)
-    iscale.set_scaling_factor(m.fs.softening_reactor.flow_mass_reagent["CaO"], 1e3)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], 1e3)
     
     
@@ -290,19 +311,24 @@ def initialize_flowsheet(m):
     m.fs.brine_pump.report()
     print(f"DOF after brine pump: {degrees_of_freedom(m)}")
     
-    # Propagate state to softening reactor
-    print("\n4. Propagating state to softening reactor...")
-    propagate_state(m.fs.pump_to_softening)
-    m.fs.softening_reactor.initialize()
-    # Note: report() method has an issue with reactor_outlet attribute, so we'll skip it for now
-    print("Softening reactor initialized successfully!")
-    print(f"DOF after softening reactor: {degrees_of_freedom(m)}")
+    # Propagate state to soda ash reactor
+    print("\n4. Propagating state to soda ash reactor...")
+    propagate_state(m.fs.pump_to_soda_ash)
+    m.fs.soda_ash_reactor.initialize()
+    print("Soda ash reactor initialized successfully!")
+    print(f"DOF after soda ash reactor: {degrees_of_freedom(m)}")
+    
+    # Propagate state to lime reactor
+    print("\n5. Propagating state to lime reactor...")
+    propagate_state(m.fs.soda_ash_to_lime)
+    m.fs.lime_reactor.initialize()
+    print("Lime reactor initialized successfully!")
+    print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
     
     # Propagate state to lithium carbonate reactor
-    print("\n5. Propagating state to lithium carbonate reactor...")
-    propagate_state(m.fs.softening_to_lithium)
+    print("\n6. Propagating state to lithium carbonate reactor...")
+    propagate_state(m.fs.lime_to_lithium)
     m.fs.lithium_carbonate_reactor.initialize()
-    # Note: report() method has an issue with reactor_outlet attribute, so we'll skip it for now
     print("Lithium carbonate reactor initialized successfully!")
     print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
     
@@ -340,12 +366,16 @@ def initialize_flowsheet(m):
     print(f"  - Pressure increase: {pyo.value(m.fs.brine_pump.deltaP[0])/1e5:.1f} bar")
     print(f"  - Efficiency: {pyo.value(m.fs.brine_pump.efficiency_pump[0])*100:.1f}%")
     
-    print("\nSoftening Reactor:")
-    print(f"  - Na2CO3 dose: {pyo.value(m.fs.softening_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
-    print(f"  - CaO dose: {pyo.value(m.fs.softening_reactor.reagent_dose['CaO'])*1e3:.1f} g/L")
-    print(f"  - Calcite formation: {pyo.value(m.fs.softening_reactor.flow_mass_precipitate['Calcite'])*1e3:.3f} g/s")
-    print(f"  - Brucite formation: {pyo.value(m.fs.softening_reactor.flow_mass_precipitate['Brucite'])*1e3:.3f} g/s")
-    print(f"  - Waste solids fraction: {pyo.value(m.fs.softening_reactor.waste_mass_frac_precipitate)*100:.1f}%")
+    print("\nSoda Ash Reactor (First Softening Stage):")
+    print(f"  - Na2CO3 dose: {pyo.value(m.fs.soda_ash_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
+    print(f"  - MgCO3 formation: {pyo.value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])*1e3:.3f} g/s")
+    print(f"  - Waste solids fraction: {pyo.value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)*100:.1f}%")
+    
+    print("\nLime Reactor (Second Softening Stage):")
+    print(f"  - CaO dose: {pyo.value(m.fs.lime_reactor.reagent_dose['CaO'])*1e3:.1f} g/L")
+    print(f"  - Brucite formation: {pyo.value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])*1e3:.3f} g/s")
+    print(f"  - Gypsum formation: {pyo.value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])*1e3:.3f} g/s")
+    print(f"  - Waste solids fraction: {pyo.value(m.fs.lime_reactor.waste_mass_frac_precipitate)*100:.1f}%")
     
     print("\nLithium Carbonate Reactor:")
     print(f"  - Na2CO3 dose: {pyo.value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
@@ -666,36 +696,54 @@ def build_flowsheet():
         property_package=m.fs.brine_props,
     )
     
-    # Define reagents for softening
-    reagents = {
+    # Define reagents for soda ash reactor (first softening stage)
+    soda_ash_reagents = {
         "Na2CO3": {
             "mw": 105.99 * pyunits.g / pyunits.mol,
-            "dissolution_stoichiometric": {"Na": 2, "HCO3": 1},
+            "dissolution_stoichiometric": {"Na": 2, "CO3": 1},
             "density_reagent": 1.2 * pyunits.kg / pyunits.L,
         },
+    }
+    
+    # Define precipitates for soda ash reactor
+    soda_ash_precipitates = {
+        "MgCO3": {
+            "mw": 84.3139 * pyunits.g / pyunits.mol,
+            "precipitation_stoichiometric": {"Mg": 1, "CO3": 1},
+        },
+    }
+    
+    m.fs.soda_ash_reactor = StoichiometricReactor(
+        property_package=m.fs.brine_props,
+        reagent=soda_ash_reagents,
+        precipitate=soda_ash_precipitates,
+    )
+    
+    # Define reagents for lime reactor (second softening stage)
+    lime_reagents = {
         "CaO": {
             "mw": 56.0774 * pyunits.g / pyunits.mol,
-            "dissolution_stoichiometric": {"Ca": 1, "H2O": 1},
-            "density_reagent": 1.2 * pyunits.kg / pyunits.L,
+            "dissolution_stoichiometric": {"Ca": 1},
+            "density_reagent": 3.34 * pyunits.kg / pyunits.L,
         },
     }
     
-    # Define precipitants for softening
-    precipitants = {
-        "Calcite": {
-            "mw": 100.09 * pyunits.g / pyunits.mol,
-            "precipitation_stoichiometric": {"Ca": 1, "HCO3": 1},
-        },
+    # Define precipitates for lime reactor
+    lime_precipitates = {
         "Brucite": {
             "mw": 58.3197 * pyunits.g / pyunits.mol,
-            "precipitation_stoichiometric": {"Mg": 1, "H2O": 1},
+            "precipitation_stoichiometric": {"Mg": 1, "H2O": 2},
+        },
+        "Gypsum": {
+            "mw": 136.14 * pyunits.g / pyunits.mol,
+            "precipitation_stoichiometric": {"Ca": 1, "SO4": 1},
         },
     }
     
-    m.fs.softening_reactor = StoichiometricReactor(
+    m.fs.lime_reactor = StoichiometricReactor(
         property_package=m.fs.brine_props,
-        reagent=reagents,
-        precipitate=precipitants,
+        reagent=lime_reagents,
+        precipitate=lime_precipitates,
     )
     
     # Define reagents for lithium carbonate precipitation
@@ -732,8 +780,9 @@ def build_flowsheet():
     
     m.fs.brine_feed_to_storage = Arc(source=m.fs.brine_feed.outlet, destination=m.fs.brine_storage.inlet)
     m.fs.storage_to_pump = Arc(source=m.fs.brine_storage.outlet, destination=m.fs.brine_pump.inlet)
-    m.fs.pump_to_softening = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.softening_reactor.inlet)
-    m.fs.softening_to_lithium = Arc(source=m.fs.softening_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
+    m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
+    m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
+    m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
     # Note: lithium carbonate product is available at m.fs.lithium_carbonate_reactor.waste
     
     TransformationFactory("network.expand_arcs").apply_to(m)
@@ -746,7 +795,7 @@ def build_flowsheet():
     fix_unit_model_variables(m)
     set_scaling_factors(m)
     # initialize_flowsheet(m)
-    run_diagnostics(m,report_scaling=False, analyze_jacobian=False, check_jacobian_quality=True)
+    run_diagnostics(m,report_scaling=False, analyze_jacobian=False, check_jacobian_quality=False)
 
     return m
 

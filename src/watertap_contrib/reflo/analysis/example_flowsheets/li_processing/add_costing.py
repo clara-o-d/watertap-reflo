@@ -1,6 +1,11 @@
 """Costing module for lithium processing flowsheet.
 
-Adds capital and operating costs for storage tank, pump, and reactors.
+Adds capital and operating costs for:
+- Storage tank
+- Pump
+- Soda ash reactor (first softening stage)
+- Lime reactor (second softening stage)
+- Lithium carbonate reactor
 """
 
 from idaes.core import UnitModelCostingBlock
@@ -23,13 +28,17 @@ def add_flow_costs(m):
         m.fs.brine_pump.control_volume.work[0].setlb(0)
     
     # Reagent flows - set lower bounds to 0 for costing
-    if hasattr(m.fs.softening_reactor, 'flow_mass_reagent'):
-        if "Na2CO3" in m.fs.softening_reactor.flow_mass_reagent:
-            original_lb = m.fs.softening_reactor.flow_mass_reagent["Na2CO3"].lb
-            m.fs.softening_reactor.flow_mass_reagent["Na2CO3"].setlb(0)
-        if "CaO" in m.fs.softening_reactor.flow_mass_reagent:
-            original_lb = m.fs.softening_reactor.flow_mass_reagent["CaO"].lb
-            m.fs.softening_reactor.flow_mass_reagent["CaO"].setlb(0)
+    # Soda ash reactor
+    if hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
+        if "Na2CO3" in m.fs.soda_ash_reactor.flow_mass_reagent:
+            original_lb = m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"].lb
+            m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"].setlb(0)
+    
+    # Lime reactor
+    if hasattr(m.fs.lime_reactor, 'flow_mass_reagent'):
+        if "CaO" in m.fs.lime_reactor.flow_mass_reagent:
+            original_lb = m.fs.lime_reactor.flow_mass_reagent["CaO"].lb
+            m.fs.lime_reactor.flow_mass_reagent["CaO"].setlb(0)
     
     if hasattr(m.fs.lithium_carbonate_reactor, 'flow_mass_reagent'):
         if "Na2CO3" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
@@ -39,7 +48,7 @@ def add_flow_costs(m):
     # Pump electricity cost
     m.fs.costing.cost_flow(m.fs.brine_pump.control_volume.work[0], "electricity")
     
-    # Reagent costs for softening reactor
+    # Reagent costs
     m.fs.soda_ash_cost = Param(
         initialize=0.5,  # USD_2023/kg
         mutable=True,
@@ -58,9 +67,11 @@ def add_flow_costs(m):
     m.fs.costing.register_flow_type("soda_ash", m.fs.soda_ash_cost)
     m.fs.costing.register_flow_type("lime", m.fs.lime_cost)
     
-    # Cost reagent flows
-    m.fs.costing.cost_flow(m.fs.softening_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
-    m.fs.costing.cost_flow(m.fs.softening_reactor.flow_mass_reagent["CaO"], "lime")
+    # Cost reagent flows for soda ash reactor
+    m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
+    
+    # Cost reagent flows for lime reactor
+    m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["CaO"], "lime")
     
     # Cost soda ash for lithium carbonate reactor
     m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
@@ -78,7 +89,8 @@ def add_costing(m):
     # Add unit model costing blocks
     m.fs.brine_storage.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.brine_pump.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
-    m.fs.softening_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    m.fs.soda_ash_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
     # Add flow costs

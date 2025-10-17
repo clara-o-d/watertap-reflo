@@ -17,8 +17,10 @@ def process_costing(m):
         m.fs.brine_storage.costing.initialize()
     if hasattr(m.fs.brine_pump, 'costing'):
         m.fs.brine_pump.costing.initialize()
-    if hasattr(m.fs.softening_reactor, 'costing'):
-        m.fs.softening_reactor.costing.initialize()
+    if hasattr(m.fs.soda_ash_reactor, 'costing'):
+        m.fs.soda_ash_reactor.costing.initialize()
+    if hasattr(m.fs.lime_reactor, 'costing'):
+        m.fs.lime_reactor.costing.initialize()
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         m.fs.lithium_carbonate_reactor.costing.initialize()
     
