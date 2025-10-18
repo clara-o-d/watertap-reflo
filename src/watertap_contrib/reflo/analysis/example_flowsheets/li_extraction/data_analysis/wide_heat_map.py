@@ -52,7 +52,7 @@ def create_heat_map(csv_file_path, flow_volume):
     df_filtered['levelized_cost_thousands'] = df_filtered['LCOLi (USD/mt)'] / 1000
     
     # Create binned heat map data
-    num_bins = 10  # Number of bins for each axis
+    num_bins = 25  # Number of bins for each axis
     
     # Create bins for Li+ and TDS concentrations
     li_bins = np.linspace(df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max(), num_bins + 1)
@@ -75,15 +75,18 @@ def create_heat_map(csv_file_path, flow_volume):
     tds_centers = (tds_bins[:-1] + tds_bins[1:]) / 2
     
     # Interpolate to fill missing values in the binned grid
-    pivot_filled = (
-        pivot_data
-            .interpolate(method='linear', axis=1, limit_direction='both')
-            .interpolate(method='linear', axis=0, limit_direction='both')
-            .ffill(axis=1).bfill(axis=1)
-            .ffill(axis=0).bfill(axis=0)
-    )
-    if pivot_filled.isna().any().any():
-        pivot_filled = pivot_filled.fillna(pivot_filled.stack().mean())
+    # pivot_filled = (
+    #     pivot_data
+    #         .interpolate(method='linear', axis=1, limit_direction='both')
+    #         .interpolate(method='linear', axis=0, limit_direction='both')
+    #         .ffill(axis=1).bfill(axis=1)
+    #         .ffill(axis=0).bfill(axis=0)
+    # )
+    # if pivot_filled.isna().any().any():
+    #     pivot_filled = pivot_filled.fillna(pivot_filled.stack().mean())
+    
+    # Use original pivot data without interpolation
+    pivot_filled = pivot_data
 
     # Calculate baseline values for percentage calculations (using bin centers)
     baseline_li = li_centers[-1]  # Use highest bin center as baseline
@@ -245,7 +248,7 @@ def create_heat_map(csv_file_path, flow_volume):
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
     FLOW_VOLUME = 1.280  # Flow volume for mass fraction conversion
-    CSV_FILE = "watertap-reflo/src/parameter_sweep1.csv"
+    CSV_FILE = "parameter_sweep3.csv"
     
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME)

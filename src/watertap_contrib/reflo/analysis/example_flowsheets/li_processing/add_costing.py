@@ -6,10 +6,14 @@ Adds capital and operating costs for:
 - Soda ash reactor (first softening stage)
 - Lime reactor (second softening stage)
 - Lithium carbonate reactor
+- Softening dewatering unit (belt filter press)
+- Centrifuge dewatering unit (centrifuge)
+- Lithium dewatering unit (belt filter press)
 """
 
 from idaes.core import UnitModelCostingBlock
 from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
+from watertap.costing.unit_models.dewatering import cost_dewatering, DewateringType
 from pyomo.environ import Param, Var, Expression
 from pyomo.environ import units as pyunits
 from pyomo.environ import value
@@ -47,6 +51,21 @@ def add_flow_costs(m):
     
     # Pump electricity cost
     m.fs.costing.cost_flow(m.fs.brine_pump.control_volume.work[0], "electricity")
+    
+    # Softening dewatering unit electricity cost
+    if hasattr(m.fs.softening_dewatering, 'electricity_consumption'):
+        m.fs.softening_dewatering.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.softening_dewatering.electricity_consumption[0], "electricity")
+    
+    # Centrifuge dewatering unit electricity cost
+    if hasattr(m.fs.centrifuge_dewatering, 'electricity_consumption'):
+        m.fs.centrifuge_dewatering.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.centrifuge_dewatering.electricity_consumption[0], "electricity")
+    
+    # Lithium dewatering unit electricity cost
+    if hasattr(m.fs.li_dewatering, 'electricity_consumption'):
+        m.fs.li_dewatering.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.li_dewatering.electricity_consumption[0], "electricity")
     
     # Reagent costs
     m.fs.soda_ash_cost = Param(
@@ -92,6 +111,36 @@ def add_costing(m):
     m.fs.soda_ash_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    
+    # Add softening dewatering unit costing with belt filter press configuration
+    m.fs.softening_dewatering.costing = UnitModelCostingBlock(
+        flowsheet_costing_block=m.fs.costing,
+        costing_method=cost_dewatering,
+        costing_method_arguments={
+            "dewatering_type": DewateringType.filter_belt_press,
+            "cost_electricity_flow": True,
+        },
+    )
+    
+    # Add centrifuge dewatering unit costing with centrifuge configuration
+    m.fs.centrifuge_dewatering.costing = UnitModelCostingBlock(
+        flowsheet_costing_block=m.fs.costing,
+        costing_method=cost_dewatering,
+        costing_method_arguments={
+            "dewatering_type": DewateringType.centrifuge,
+            "cost_electricity_flow": True,
+        },
+    )
+    
+    # Add lithium dewatering unit costing with belt filter press configuration
+    m.fs.li_dewatering.costing = UnitModelCostingBlock(
+        flowsheet_costing_block=m.fs.costing,
+        costing_method=cost_dewatering,
+        costing_method_arguments={
+            "dewatering_type": DewateringType.filter_belt_press,
+            "cost_electricity_flow": True,
+        },
+    )
     
     # Add flow costs
     add_flow_costs(m)

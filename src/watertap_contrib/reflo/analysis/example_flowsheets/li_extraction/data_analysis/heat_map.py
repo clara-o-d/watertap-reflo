@@ -128,7 +128,7 @@ def main():
     # Parameters
     FLOW_VOLUME = 1.280
     EVAPORATION_RATE = 1315.0 / 0.75
-    CSV_FILE = "watertap-reflo/src/inlet_evap_sensitivity_high.csv"
+    CSV_FILE = "inlet_evap_sensitivity_high.csv"
     
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME, EVAPORATION_RATE)

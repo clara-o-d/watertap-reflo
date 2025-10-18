@@ -2,11 +2,14 @@
 # Lithium Carbonate Plant Flowsheet
 # Salar de Carmen (Antofagasta) Process
 # 
-# Process Flow:
-## 1. Brine feed -> Storage tank -> Pump
-## 2. Soda ash reactor (Na2CO3 -> precipitates MgCO3)
-## 3. Lime reactor (CaO -> precipitates Mg(OH)2 and CaSO4)
-## 4. Lithium carbonate reactor (Na2CO3 -> precipitates Li2CO3)
+    # Process Flow:
+    ## 1. Brine feed -> Storage tank -> Pump
+    ## 2. Soda ash reactor (Na2CO3 -> precipitates MgCO3)
+    ## 3. Lime reactor (CaO -> precipitates Mg(OH)2 and CaSO4)
+    ## 4. Softening dewatering (separates Mg(OH)2 and CaSO4 precipitates)
+    ## 5. Centrifuge dewatering (further concentrates softening precipitates)
+    ## 6. Lithium carbonate reactor (Na2CO3 -> precipitates Li2CO3)
+    ## 7. Lithium dewatering (separates Li2CO3 slurry into solids and clarified liquid)
 #
 # Model Gaps:
 ## 1. Boron extraction
@@ -25,7 +28,8 @@ from io import StringIO
 
 # IDAES imports
 from idaes.core import FlowsheetBlock
-from idaes.models.unit_models import Feed, Pump
+from idaes.models.unit_models import Feed, Pump, Separator
+from idaes.models.unit_models.separator import SplittingType
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core import MaterialFlowBasis
@@ -179,6 +183,80 @@ def fix_unit_model_variables(m):
     # Fix waste stream solids fraction
     m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.15)  # 15% solids in waste stream
     
+    # ============================================================================
+    # SOFTENING DEWATERING UNIT (Separator for Mg(OH)2 and CaSO4 precipitates)
+    # ============================================================================
+    
+    # Fix component-specific split fractions for softening dewatering
+    # Overflow (clarified liquid) gets most water and dissolved ions
+    # Underflow (concentrated solids) retains Mg(OH)2 and CaSO4 precipitates
+    # Index: [time, outlet, component] for componentFlow split basis
+    
+    # Water: 95% to overflow (clarified liquid), 5% to underflow (moisture in solids)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
+    
+    # Dissolved ions: 90% to overflow (stay in solution), 10% to underflow (entrapped in filter cake)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "Na"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "K"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "Li"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "Cl"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "B"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "H"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "Mg"].fix(0.05)
+    m.fs.softening_dewatering.split_fraction[0, "overflow", "Ca"].fix(0.05)
+    
+    # ============================================================================
+    # CENTRIFUGE DEWATERING UNIT (Further dewatering of softening precipitates)
+    # ============================================================================
+    
+    # Fix component-specific split fractions for centrifuge dewatering
+    # More aggressive water removal than belt filter press
+    # Index: [time, outlet, component] for componentFlow split basis
+    
+    # Water: 85% to overflow (clarified liquid), 15% to underflow (moisture in solids)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
+    
+    # All ions: 70% to overflow (stay in solution), 30% to underflow (entrapped in filter cake)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "Na"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "K"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "Li"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "Mg"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "Ca"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "Cl"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "B"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "H"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.05)
+    m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.05)
+    
+    # ============================================================================
+    # LITHIUM DEWATERING UNIT (Separator acting as dewatering for Li2CO3 slurry)
+    # ============================================================================
+    
+    # Fix component-specific split fractions for lithium dewatering
+    # Overflow (clarified liquid) gets most water and dissolved ions
+    # Underflow (concentrated solids) retains Li2CO3 precipitate
+    # Index: [time, outlet, component] for componentFlow split basis
+    
+    # Water: 95% to overflow (clarified liquid), 5% to underflow (moisture in solids)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
+    
+    # Dissolved ions: 90% to overflow (stay in solution), 10% to underflow (entrapped in filter cake)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "Na"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "K"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "Mg"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "Ca"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "Cl"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "B"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "H"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.10)
+    m.fs.li_dewatering.split_fraction[0, "overflow", "Li"].fix(0.10)
+    
     print("Unit model variables fixed successfully!")
 
 def set_scaling_factors(m):
@@ -257,6 +335,22 @@ def set_scaling_factors(m):
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate, 10.0)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], 1e3)
     
+    # Softening dewatering unit scaling factors
+    iscale.set_scaling_factor(m.fs.softening_dewatering.split_fraction[0, "overflow", "H2O"], 1.0)
+    iscale.set_scaling_factor(m.fs.softening_dewatering.split_fraction[0, "overflow", "Mg"], 1.0)
+    iscale.set_scaling_factor(m.fs.softening_dewatering.split_fraction[0, "overflow", "Ca"], 1.0)
+    iscale.set_scaling_factor(m.fs.softening_dewatering.electricity_consumption[0], 1e-3)
+    
+    # Centrifuge dewatering unit scaling factors
+    iscale.set_scaling_factor(m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "H2O"], 1.0)
+    iscale.set_scaling_factor(m.fs.centrifuge_dewatering.split_fraction[0, "overflow", "Na"], 1.0)
+    iscale.set_scaling_factor(m.fs.centrifuge_dewatering.electricity_consumption[0], 1e-3)
+    
+    # Lithium dewatering unit scaling factors
+    iscale.set_scaling_factor(m.fs.li_dewatering.split_fraction[0, "overflow", "H2O"], 1.0)
+    iscale.set_scaling_factor(m.fs.li_dewatering.split_fraction[0, "overflow", "Li"], 1.0)
+    iscale.set_scaling_factor(m.fs.li_dewatering.electricity_consumption[0], 1e-3)
+    
     
     # ============================================================================
     # FEED STREAM SCALING
@@ -325,12 +419,33 @@ def initialize_flowsheet(m):
     print("Lime reactor initialized successfully!")
     print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
     
+    # Propagate state to softening dewatering unit
+    print("\n6. Propagating state to softening dewatering unit...")
+    propagate_state(m.fs.lime_to_softening_dewater)
+    m.fs.softening_dewatering.initialize()
+    print("Softening dewatering unit initialized successfully!")
+    print(f"DOF after softening dewatering: {degrees_of_freedom(m)}")
+    
+    # Propagate state to centrifuge dewatering unit
+    print("\n7. Propagating state to centrifuge dewatering unit...")
+    propagate_state(m.fs.softening_to_centrifuge)
+    m.fs.centrifuge_dewatering.initialize()
+    print("Centrifuge dewatering unit initialized successfully!")
+    print(f"DOF after centrifuge dewatering: {degrees_of_freedom(m)}")
+    
     # Propagate state to lithium carbonate reactor
-    print("\n6. Propagating state to lithium carbonate reactor...")
+    print("\n8. Propagating state to lithium carbonate reactor...")
     propagate_state(m.fs.lime_to_lithium)
     m.fs.lithium_carbonate_reactor.initialize()
     print("Lithium carbonate reactor initialized successfully!")
     print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
+    
+    # Propagate state to lithium dewatering unit
+    print("\n9. Propagating state to lithium dewatering unit...")
+    propagate_state(m.fs.lithium_to_dewatering)
+    m.fs.li_dewatering.initialize()
+    print("Lithium dewatering unit initialized successfully!")
+    print(f"DOF after lithium dewatering: {degrees_of_freedom(m)}")
     
     # Check degrees of freedom
     print("\n" + "="*60)
@@ -381,6 +496,21 @@ def initialize_flowsheet(m):
     print(f"  - Na2CO3 dose: {pyo.value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
     print(f"  - Li2CO3 formation: {pyo.value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])*1e3:.3f} g/s")
     print(f"  - Waste solids fraction: {pyo.value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.1f}%")
+    
+    print("\nSoftening Dewatering Unit (Water removal from Mg(OH)2 and CaSO4 slurry):")
+    print(f"  - Water to overflow (clarified liquid): {pyo.value(m.fs.softening_dewatering.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
+    print(f"  - All ions to overflow (liquid phase): {pyo.value(m.fs.softening_dewatering.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
+    print(f"  - All ions to underflow (entrapped in solids): {(1-pyo.value(m.fs.softening_dewatering.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
+    
+    print("\nCentrifuge Dewatering Unit (Further dewatering of softening precipitates):")
+    print(f"  - Water to overflow (clarified liquid): {pyo.value(m.fs.centrifuge_dewatering.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
+    print(f"  - All ions to overflow (liquid phase): {pyo.value(m.fs.centrifuge_dewatering.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
+    print(f"  - All ions to underflow (entrapped in solids): {(1-pyo.value(m.fs.centrifuge_dewatering.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
+    
+    print("\nLithium Dewatering Unit (Water removal from Li2CO3 slurry):")
+    print(f"  - Water to overflow (clarified liquid): {pyo.value(m.fs.li_dewatering.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
+    print(f"  - All ions to overflow (liquid phase): {pyo.value(m.fs.li_dewatering.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
+    print(f"  - All ions to underflow (entrapped in solids): {(1-pyo.value(m.fs.li_dewatering.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
     
     print("\n" + "="*60)
     print("SCALING FACTORS SUMMARY")
@@ -770,8 +900,108 @@ def build_flowsheet():
         precipitate=lithium_precipitants,
     )
     
-    # The lithium carbonate product will be available at the waste outlet of the reactor
-    # In a real process, this would be connected to a dryer
+    # Dewatering unit for softening precipitates (Mg(OH)2 and CaSO4)
+    # Separates waste stream from lime reactor into concentrated solids and clarified liquid
+    m.fs.softening_dewatering = Separator(
+        property_package=m.fs.brine_props,
+        outlet_list=["overflow", "underflow"],
+        split_basis=SplittingType.componentFlow  # Split each component independently
+    )
+    
+    # Add electricity consumption variable for costing
+    m.fs.softening_dewatering.electricity_consumption = pyo.Var(
+        m.fs.time,
+        initialize=0.1,
+        units=pyunits.kW,
+        bounds=(0, None),
+        doc="Electricity consumption of softening dewatering unit"
+    )
+    
+    m.fs.softening_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+        m.fs.time,
+        initialize=0.006,
+        units=pyunits.kWh / pyunits.m**3,
+        mutable=True,
+        doc="Specific electricity intensity for belt filter press"
+    )
+    
+    @m.fs.softening_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+    def softening_eq_electricity_consumption(blk, t):
+        return blk.electricity_consumption[t] == pyunits.convert(
+            blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+            to_units=pyunits.kW,
+        )
+    
+    # Centrifuge dewatering unit for further dewatering of softening precipitates
+    # Takes underflow from softening dewatering and further concentrates the solids
+    m.fs.centrifuge_dewatering = Separator(
+        property_package=m.fs.brine_props,
+        outlet_list=["overflow", "underflow"],
+        split_basis=SplittingType.componentFlow  # Split each component independently
+    )
+    
+    # Add electricity consumption variable for centrifuge costing
+    # Based on typical centrifuge: 0.015 kWh/m³ (higher than belt filter press)
+    m.fs.centrifuge_dewatering.electricity_consumption = pyo.Var(
+        m.fs.time,
+        initialize=0.1,
+        units=pyunits.kW,
+        bounds=(0, None),
+        doc="Electricity consumption of centrifuge dewatering unit"
+    )
+    
+    m.fs.centrifuge_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+        m.fs.time,
+        initialize=0.015,
+        units=pyunits.kWh / pyunits.m**3,
+        mutable=True,
+        doc="Specific electricity intensity for centrifuge"
+    )
+    
+    @m.fs.centrifuge_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+    def centrifuge_eq_electricity_consumption(blk, t):
+        return blk.electricity_consumption[t] == pyunits.convert(
+            blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+            to_units=pyunits.kW,
+        )
+    
+    # Dewatering unit to separate Li2CO3 slurry into concentrated solids and clarified liquid
+    # Using IDAES Separator as a generic dewatering unit
+    # Note: WaterTAP DewateringUnit is designed for activated sludge (ASM) property packages
+    # and is not compatible with the MCAS property package used here
+    m.fs.li_dewatering = Separator(
+        property_package=m.fs.brine_props,
+        outlet_list=["overflow", "underflow"],
+        split_basis=SplittingType.componentFlow  # Split each component independently
+    )
+    
+    # Add electricity consumption variable for costing
+    # Based on typical belt filter press: 0.006 kWh/m³
+    m.fs.li_dewatering.electricity_consumption = pyo.Var(
+        m.fs.time,
+        initialize=0.1,
+        units=pyunits.kW,
+        bounds=(0, None),
+        doc="Electricity consumption of lithium dewatering unit"
+    )
+    
+    m.fs.li_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+        m.fs.time,
+        initialize=0.006,
+        units=pyunits.kWh / pyunits.m**3,
+        mutable=True,
+        doc="Specific electricity intensity for belt filter press"
+    )
+    
+    @m.fs.li_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+    def li_eq_electricity_consumption(blk, t):
+        return blk.electricity_consumption[t] == pyunits.convert(
+            blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+            to_units=pyunits.kW,
+        )
+    
+    # The dewatered Li2CO3 product will be available at the underflow outlet
+    # The overflow contains clarified brine effluent
     
     
     # ============================================================================
@@ -782,8 +1012,18 @@ def build_flowsheet():
     m.fs.storage_to_pump = Arc(source=m.fs.brine_storage.outlet, destination=m.fs.brine_pump.inlet)
     m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
     m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
+    m.fs.lime_to_softening_dewater = Arc(source=m.fs.lime_reactor.waste, destination=m.fs.softening_dewatering.inlet)
+    m.fs.softening_to_centrifuge = Arc(source=m.fs.softening_dewatering.underflow, destination=m.fs.centrifuge_dewatering.inlet)
     m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
-    # Note: lithium carbonate product is available at m.fs.lithium_carbonate_reactor.waste
+    m.fs.lithium_to_dewatering = Arc(source=m.fs.lithium_carbonate_reactor.waste, destination=m.fs.li_dewatering.inlet)
+    # Note: Mg(OH)2 and CaSO4 precipitate slurry from lime reactor waste stream goes to softening dewatering
+    # Note: Dewatered softening precipitates go to centrifuge dewatering for further concentration
+    # Note: Final concentrated softening precipitates are available at m.fs.centrifuge_dewatering.underflow
+    # Note: Clarified process water is available at m.fs.softening_dewatering.overflow and m.fs.centrifuge_dewatering.overflow
+    # Note: Li2CO3 precipitate slurry from reactor waste stream goes to lithium dewatering
+    # Note: Dewatered Li2CO3 product is available at m.fs.li_dewatering.underflow
+    # Note: Clarified process water is available at m.fs.li_dewatering.overflow
+    # Note: Treated brine (with Li removed) is available at m.fs.lithium_carbonate_reactor.outlet
     
     TransformationFactory("network.expand_arcs").apply_to(m)
     

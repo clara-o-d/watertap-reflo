@@ -23,6 +23,12 @@ def process_costing(m):
         m.fs.lime_reactor.costing.initialize()
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         m.fs.lithium_carbonate_reactor.costing.initialize()
+    if hasattr(m.fs.softening_dewatering, 'costing'):
+        m.fs.softening_dewatering.costing.initialize()
+    if hasattr(m.fs.centrifuge_dewatering, 'costing'):
+        m.fs.centrifuge_dewatering.costing.initialize()
+    if hasattr(m.fs.li_dewatering, 'costing'):
+        m.fs.li_dewatering.costing.initialize()
     
     m.fs.costing.cost_process()
     m.fs.costing.initialize()
