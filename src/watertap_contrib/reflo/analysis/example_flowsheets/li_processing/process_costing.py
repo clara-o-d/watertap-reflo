@@ -23,6 +23,10 @@ def process_costing(m):
         m.fs.lime_reactor.costing.initialize()
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         m.fs.lithium_carbonate_reactor.costing.initialize()
+    if hasattr(m.fs.soda_ash_dewatering, 'costing'):
+        m.fs.soda_ash_dewatering.costing.initialize()
+    if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
+        m.fs.soda_ash_centrifuge.costing.initialize()
     if hasattr(m.fs.softening_dewatering, 'costing'):
         m.fs.softening_dewatering.costing.initialize()
     if hasattr(m.fs.centrifuge_dewatering, 'costing'):
@@ -31,7 +35,7 @@ def process_costing(m):
         m.fs.li_dewatering.costing.initialize()
     
     m.fs.costing.cost_process()
-    m.fs.costing.initialize()
+    # m.fs.costing.initialize()
 
     # Calculate Li2CO3 production rate (kg/s)
     li2co3_production = m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3']
@@ -46,16 +50,12 @@ def process_costing(m):
     
     # Li production rate (kg/s)
     li_production = li2co3_production * li_content_fraction
-    
-    # Calculate volumetric flow rate of Li (m³/s) - using density of Li metal
-    li_density = 534 * pyunits.kg / pyunits.m**3  # density of Li metal at 20°C
-    vol_flow_li = li_production / li_density  # m³/s
 
     # Add LCOLi calculation (cost per m³ of Li)
-    m.fs.costing.add_LCOW(vol_flow_li, name="LCOLi")  # $/m³ Li
+    m.fs.costing.add_LCOW(li_production * pyunits.m**3 / pyunits.kg, name="LCOLi")  # $/m³ Li
     
     # Add specific energy consumption calculation (kWh per m³ of Li)
-    m.fs.costing.add_specific_energy_consumption(vol_flow_li, name="specific_energy_consumption")
+    m.fs.costing.add_specific_energy_consumption(li_production * pyunits.m**3 / pyunits.kg, name="specific_energy_consumption")
 
     # Add variable and constraint for $/kg Li
     m.fs.costing.LCOLi_mass = Var(

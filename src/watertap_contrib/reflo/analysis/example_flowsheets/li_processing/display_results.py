@@ -45,6 +45,12 @@ def display_costing_results(m):
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         print(f"  Lithium Carbonate Reactor Capital Cost: ${value(m.fs.lithium_carbonate_reactor.costing.capital_cost):,.0f}")
     
+    if hasattr(m.fs.soda_ash_dewatering, 'costing'):
+        print(f"  Soda Ash Dewatering Unit Capital Cost: ${value(m.fs.soda_ash_dewatering.costing.capital_cost):,.0f}")
+    
+    if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
+        print(f"  Soda Ash Centrifuge Dewatering Unit Capital Cost: ${value(m.fs.soda_ash_centrifuge.costing.capital_cost):,.0f}")
+    
     if hasattr(m.fs.softening_dewatering, 'costing'):
         print(f"  Softening Dewatering Unit Capital Cost: ${value(m.fs.softening_dewatering.costing.capital_cost):,.0f}")
     
@@ -70,6 +76,10 @@ def display_costing_results(m):
             total_capital_cost += value(m.fs.lime_reactor.costing.capital_cost)
         if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
             total_capital_cost += value(m.fs.lithium_carbonate_reactor.costing.capital_cost)
+        if hasattr(m.fs.soda_ash_dewatering, 'costing'):
+            total_capital_cost += value(m.fs.soda_ash_dewatering.costing.capital_cost)
+        if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
+            total_capital_cost += value(m.fs.soda_ash_centrifuge.costing.capital_cost)
         if hasattr(m.fs.softening_dewatering, 'costing'):
             total_capital_cost += value(m.fs.softening_dewatering.costing.capital_cost)
         if hasattr(m.fs.centrifuge_dewatering, 'costing'):
@@ -88,6 +98,14 @@ def display_costing_results(m):
         pump_power = value(m.fs.brine_pump.control_volume.work[0])  # W
         pump_power_kw = pump_power / 1000  # kW
         total_power_kw += pump_power_kw
+    
+    if hasattr(m.fs, 'soda_ash_dewatering') and hasattr(m.fs.soda_ash_dewatering, 'electricity_consumption'):
+        dewatering_power_kw = value(m.fs.soda_ash_dewatering.electricity_consumption[0])  # kW
+        total_power_kw += dewatering_power_kw
+    
+    if hasattr(m.fs, 'soda_ash_centrifuge') and hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
+        dewatering_power_kw = value(m.fs.soda_ash_centrifuge.electricity_consumption[0])  # kW
+        total_power_kw += dewatering_power_kw
     
     if hasattr(m.fs, 'softening_dewatering') and hasattr(m.fs.softening_dewatering, 'electricity_consumption'):
         dewatering_power_kw = value(m.fs.softening_dewatering.electricity_consumption[0])  # kW
@@ -162,26 +180,13 @@ def display_costing_results(m):
     total_annual_cost = total_opex + annual_capital_cost
     print(f"  TOTAL ANNUAL COST: ${total_annual_cost:,.0f}")
     
-    # Cost per unit production
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        try:
-            li2co3_production = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])  # kg/s
-            annual_li2co3_production = li2co3_production * 31536000  # kg/year
-            cost_per_kg_li2co3 = total_annual_cost / annual_li2co3_production
-            print(f"\n  COST PER KG Li2CO3: ${cost_per_kg_li2co3:.2f}/kg")
-            print(f"  Annual Li2CO3 production: {annual_li2co3_production:,.0f} kg/year")
-        except (AttributeError, TypeError, KeyError):
-            pass
-    
     # Display LCOLi and energy metrics if available
     if hasattr(m.fs.costing, 'LCOLi'):
         try:
-            lcoli_vol = value(m.fs.costing.LCOLi)  # $/m³ Li
             lcoli_mass = value(m.fs.costing.LCOLi_mass)  # $/kg Li
             lcoli2co3_mass = value(m.fs.costing.LCOLi2CO3_mass)  # $/kg Li2CO3
-            print(f"\n  LCOLi (per m³ Li): ${lcoli_vol:,.0f}/m³")
-            print(f"  LCOLi (per kg Li): ${lcoli_mass:,.2f}/kg")
-            print(f"  LCOLi2CO3 (per kg Li2CO3): ${lcoli2co3_mass:,.2f}/kg")
+            print(f"  LCOLi (per tonne Li): ${lcoli_mass:,.2f}/kg")
+            print(f"  LCOLi2CO3 (per tonne Li2CO3): ${lcoli2co3_mass:,.2f}/kg")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -317,6 +322,34 @@ def display_results(m, show_costing=False):
             pass
     
     # Dewatering units results
+    if hasattr(m.fs, 'soda_ash_dewatering'):
+        print(f"\nSODA ASH DEWATERING UNIT:")
+        try:
+            print(f"  Water to overflow (clarified liquid): {value(m.fs.soda_ash_dewatering.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
+            print(f"  All ions to overflow (liquid phase): {value(m.fs.soda_ash_dewatering.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
+            print(f"  All ions to underflow (entrapped in solids): {(1-value(m.fs.soda_ash_dewatering.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.soda_ash_dewatering, 'electricity_consumption'):
+                print(f"  Electricity consumption: {value(m.fs.soda_ash_dewatering.electricity_consumption[0]):.3f} kW")
+        except (AttributeError, TypeError, KeyError):
+            pass
+    
+    if hasattr(m.fs, 'soda_ash_centrifuge'):
+        print(f"\nSODA ASH CENTRIFUGE DEWATERING UNIT:")
+        try:
+            print(f"  Water to overflow (clarified liquid): {value(m.fs.soda_ash_centrifuge.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
+            print(f"  All ions to overflow (liquid phase): {value(m.fs.soda_ash_centrifuge.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
+            print(f"  All ions to underflow (entrapped in solids): {(1-value(m.fs.soda_ash_centrifuge.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
+                print(f"  Electricity consumption: {value(m.fs.soda_ash_centrifuge.electricity_consumption[0]):.3f} kW")
+        except (AttributeError, TypeError, KeyError):
+            pass
+    
     if hasattr(m.fs, 'softening_dewatering'):
         print(f"\nSOFTENING DEWATERING UNIT:")
         try:
@@ -416,6 +449,10 @@ def display_results(m, show_costing=False):
         total_power += value(m.fs.brine_pump.control_volume.work[0])
     if hasattr(m.fs, 'boron_pump') and hasattr(m.fs.boron_pump.control_volume, 'work'):
         total_power += value(m.fs.boron_pump.control_volume.work[0])
+    if hasattr(m.fs, 'soda_ash_dewatering') and hasattr(m.fs.soda_ash_dewatering, 'electricity_consumption'):
+        total_power += value(m.fs.soda_ash_dewatering.electricity_consumption[0]) * 1000  # Convert kW to W
+    if hasattr(m.fs, 'soda_ash_centrifuge') and hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
+        total_power += value(m.fs.soda_ash_centrifuge.electricity_consumption[0]) * 1000  # Convert kW to W
     if hasattr(m.fs, 'softening_dewatering') and hasattr(m.fs.softening_dewatering, 'electricity_consumption'):
         total_power += value(m.fs.softening_dewatering.electricity_consumption[0]) * 1000  # Convert kW to W
     if hasattr(m.fs, 'centrifuge_dewatering') and hasattr(m.fs.centrifuge_dewatering, 'electricity_consumption'):

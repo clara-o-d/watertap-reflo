@@ -74,11 +74,9 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
     """
     if input_params is None:
         input_params = [
-            'land_cost',
-            'pond_liner_cost',
-            'recovered_solids_revenue',
-            'dye_cost',
-            'shipping_cost',
+            'Inlet Li+ concentration',
+            'Soda ash dose',
+            'Li Dewatering Split Fraction',
         ]
     
     print(f"Analyzing sensitivity of '{target_col}' to {len(input_params)} input parameters:")
@@ -257,11 +255,11 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(sensitivity_df['display_name'], fontsize=16)
-    # ax.set_title(title, fontsize=20, fontweight='bold', pad=16)
+    ax.set_title(title, fontsize=20, fontweight='bold', pad=16)
     ax.set_xlabel(f'% change in {target_col}\nper % change in parameter', fontsize=18)
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
     ax.grid(True, alpha=0.3, axis='x')
-    ax.set_xlim(-0.5, 0.5)
+    ax.set_xlim(-0.05, 0.05)
     ax.tick_params(axis='x', labelsize=16)
     
     # Create custom legend
@@ -281,8 +279,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
 
 def main():
     """Main function to run the sensitivity analysis."""
-    target_col = 'LCOLi (USD/mt)'
-    possible_files = ['pond_sensitivity.csv', 'test_pond_sensitivity.csv']
+    target_col = 'LCOLi2CO3 (USD/kg)'
+    possible_files = ['processing_parameter_sweep.csv']
     df = None
     
     for filename in possible_files:
@@ -302,17 +300,9 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
-        'Government agreements cost',
-        'Pond liner cost',
-        'Recovered solids cost',
-        'Shipping cost',
-        'Electricity cost',
-        # 'Dike height',
-        # 'Pipeline length',
-        # 'Utilization factor',
-        # 'Inlet Li+ concentration',
-        # 'Inlet vapor temperature',
-        # 'Evaporation rate adjustment factor',
+        'Inlet Li+ concentration',
+        'Soda ash dose',
+        'Li Dewatering Split Fraction',
     ]
     
     # Confirm input/output match for each parameter
@@ -348,25 +338,17 @@ def main():
     if not sensitivity_df.empty:
         # Define custom parameter name mapping for display
         param_name_mapping = {
-            'Government agreements cost': 'Government\nagreements\ncost',
-            'Pond liner cost': 'Pond\nliner\ncost',
-            'Recovered solids cost': 'Recovered\nsolids\ncost',
-            'Shipping cost': 'Shipping\ncost',
-            'Electricity cost': 'Electricity\ncost',
-            # 'Dike height': 'Dike\nheight',
-            # 'Pipeline length': 'Pipeline\nlength',
-            # 'Utilization factor': 'Utilization\nfactor',
-            # 'Inlet Li+ concentration': 'Inlet\nLi+ concentration',
-            # 'Inlet vapor temperature': 'Inlet\nvapor\ntemperature',
-            # 'Evaporation rate adjustment factor': 'Evaporation\nrate\nadjustment\nfactor',
+            'Inlet Li+ concentration': 'Inlet\nLi+ concentration',
+            'Soda ash dose': 'Soda ash\ndose',
+            'Li Dewatering Split Fraction': 'Li\nDewatering\nSplit\nFraction',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
                                     title=f"Parameter sensitivity",
                                     param_name_mapping=param_name_mapping)
         if fig is not None:
-            plt.savefig('tornado_plot_pond_lcoli.png', dpi=300, bbox_inches='tight')
-            print("Tornado plot saved as 'tornado_plot_pond_lcoli.png'")
+            plt.savefig('tornado_plot_processing_lcoli2co3.png', dpi=300, bbox_inches='tight')
+            print("Tornado plot saved as 'tornado_plot_processing_lcoli2co3.png'")
             plt.show()
         
         # Save sensitivity data with additional info

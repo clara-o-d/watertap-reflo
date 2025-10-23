@@ -52,6 +52,16 @@ def add_flow_costs(m):
     # Pump electricity cost
     m.fs.costing.cost_flow(m.fs.brine_pump.control_volume.work[0], "electricity")
     
+    # Soda ash dewatering unit electricity cost
+    if hasattr(m.fs.soda_ash_dewatering, 'electricity_consumption'):
+        m.fs.soda_ash_dewatering.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.soda_ash_dewatering.electricity_consumption[0], "electricity")
+    
+    # Soda ash centrifuge dewatering unit electricity cost
+    if hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
+        m.fs.soda_ash_centrifuge.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.soda_ash_centrifuge.electricity_consumption[0], "electricity")
+    
     # Softening dewatering unit electricity cost
     if hasattr(m.fs.softening_dewatering, 'electricity_consumption'):
         m.fs.softening_dewatering.electricity_consumption[0].setlb(0)
@@ -117,13 +127,33 @@ def add_costing(m):
         flowsheet_costing_block=m.fs.costing,
         costing_method=cost_dewatering,
         costing_method_arguments={
-            "dewatering_type": DewateringType.filter_belt_press,
+            "dewatering_type": DewateringType.filter_plate_press,
             "cost_electricity_flow": True,
         },
     )
     
     # Add centrifuge dewatering unit costing with centrifuge configuration
     m.fs.centrifuge_dewatering.costing = UnitModelCostingBlock(
+        flowsheet_costing_block=m.fs.costing,
+        costing_method=cost_dewatering,
+        costing_method_arguments={
+            "dewatering_type": DewateringType.centrifuge,
+            "cost_electricity_flow": True,
+        },
+    )
+    
+    # Add soda ash dewatering unit costing with RDVF configuration
+    m.fs.soda_ash_dewatering.costing = UnitModelCostingBlock(
+        flowsheet_costing_block=m.fs.costing,
+        costing_method=cost_dewatering,
+        costing_method_arguments={
+            "dewatering_type": DewateringType.rdvf,
+            "cost_electricity_flow": True,
+        },
+    )
+    
+    # Add soda ash centrifuge dewatering unit costing with centrifuge configuration
+    m.fs.soda_ash_centrifuge.costing = UnitModelCostingBlock(
         flowsheet_costing_block=m.fs.costing,
         costing_method=cost_dewatering,
         costing_method_arguments={
