@@ -27,10 +27,10 @@ def process_costing(m):
         m.fs.soda_ash_dewatering.costing.initialize()
     if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
         m.fs.soda_ash_centrifuge.costing.initialize()
-    if hasattr(m.fs.softening_dewatering, 'costing'):
-        m.fs.softening_dewatering.costing.initialize()
-    if hasattr(m.fs.centrifuge_dewatering, 'costing'):
-        m.fs.centrifuge_dewatering.costing.initialize()
+    if hasattr(m.fs.lime_dewatering, 'costing'):
+        m.fs.lime_dewatering.costing.initialize()
+    if hasattr(m.fs.lime_centrifuge, 'costing'):
+        m.fs.lime_centrifuge.costing.initialize()
     if hasattr(m.fs.li_dewatering, 'costing'):
         m.fs.li_dewatering.costing.initialize()
     

@@ -6,8 +6,8 @@ Adds capital and operating costs for:
 - Soda ash reactor (first softening stage)
 - Lime reactor (second softening stage)
 - Lithium carbonate reactor
-- Softening dewatering unit (belt filter press)
-- Centrifuge dewatering unit (centrifuge)
+- Lime dewatering unit (belt filter press)
+- Lime centrifuge unit (centrifuge)
 - Lithium dewatering unit (belt filter press)
 """
 
@@ -63,14 +63,14 @@ def add_flow_costs(m):
         m.fs.costing.cost_flow(m.fs.soda_ash_centrifuge.electricity_consumption[0], "electricity")
     
     # Softening dewatering unit electricity cost
-    if hasattr(m.fs.softening_dewatering, 'electricity_consumption'):
-        m.fs.softening_dewatering.electricity_consumption[0].setlb(0)
-        m.fs.costing.cost_flow(m.fs.softening_dewatering.electricity_consumption[0], "electricity")
+    if hasattr(m.fs.lime_dewatering, 'electricity_consumption'):
+        m.fs.lime_dewatering.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.lime_dewatering.electricity_consumption[0], "electricity")
     
     # Centrifuge dewatering unit electricity cost
-    if hasattr(m.fs.centrifuge_dewatering, 'electricity_consumption'):
-        m.fs.centrifuge_dewatering.electricity_consumption[0].setlb(0)
-        m.fs.costing.cost_flow(m.fs.centrifuge_dewatering.electricity_consumption[0], "electricity")
+    if hasattr(m.fs.lime_centrifuge, 'electricity_consumption'):
+        m.fs.lime_centrifuge.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.lime_centrifuge.electricity_consumption[0], "electricity")
     
     # Lithium dewatering unit electricity cost
     if hasattr(m.fs.li_dewatering, 'electricity_consumption'):
@@ -122,8 +122,8 @@ def add_costing(m):
     m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
-    # Add softening dewatering unit costing with belt filter press configuration
-    m.fs.softening_dewatering.costing = UnitModelCostingBlock(
+    # Add lime dewatering unit costing with belt filter press configuration
+    m.fs.lime_dewatering.costing = UnitModelCostingBlock(
         flowsheet_costing_block=m.fs.costing,
         costing_method=cost_dewatering,
         costing_method_arguments={
@@ -132,8 +132,8 @@ def add_costing(m):
         },
     )
     
-    # Add centrifuge dewatering unit costing with centrifuge configuration
-    m.fs.centrifuge_dewatering.costing = UnitModelCostingBlock(
+    # Add lime centrifuge unit costing with centrifuge configuration
+    m.fs.lime_centrifuge.costing = UnitModelCostingBlock(
         flowsheet_costing_block=m.fs.costing,
         costing_method=cost_dewatering,
         costing_method_arguments={
