@@ -280,7 +280,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
 def main():
     """Main function to run the sensitivity analysis."""
     target_col = 'LCOLi2CO3 (USD/kg)'
-    possible_files = ['processing_parameter_sweep.csv']
+    possible_files = ['processing_parameter_sweep1.csv']
     df = None
     
     for filename in possible_files:
@@ -300,9 +300,9 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
-        'Inlet Li+ concentration',
-        'Soda ash dose',
-        'Li Dewatering Split Fraction',
+        'Water flow rate',
+        'Brine storage time',
+        'Pump efficiency',
     ]
     
     # Confirm input/output match for each parameter
@@ -338,9 +338,9 @@ def main():
     if not sensitivity_df.empty:
         # Define custom parameter name mapping for display
         param_name_mapping = {
-            'Inlet Li+ concentration': 'Inlet\nLi+ concentration',
-            'Soda ash dose': 'Soda ash\ndose',
-            'Li Dewatering Split Fraction': 'Li\nDewatering\nSplit\nFraction',
+            'Water flow rate': 'Water flow rate',
+            'Brine storage time': 'Brine storage time',
+            'Pump efficiency': 'Pump efficiency',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 

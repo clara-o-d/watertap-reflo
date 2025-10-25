@@ -899,7 +899,7 @@ def build_flowsheet():
         "Na2CO3": {
             "mw": 105.99 * pyunits.g / pyunits.mol,
             "dissolution_stoichiometric": {"Na": 2, "CO3": 1},
-            "density_reagent": 1.2 * pyunits.kg / pyunits.L,
+            "density_reagent": 2.52 * pyunits.kg / pyunits.L,
         },
     }
     

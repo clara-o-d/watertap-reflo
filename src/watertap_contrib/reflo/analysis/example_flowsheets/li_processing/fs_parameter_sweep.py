@@ -30,15 +30,16 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep."""
     sweep_params = dict()
 
-    sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"], 0.2, 0.3, 3
+    sweep_params['Water flow rate'] = LinearSample(
+        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"], 0.7, 0.9, 3
     )
-    sweep_params['Soda ash dose'] = LinearSample(
-        m.fs.soda_ash_reactor.reagent_dose["Na2CO3"], 1.0e-3, 1.5e-3, 3
+    sweep_params['Brine storage time'] = LinearSample(
+        m.fs.brine_storage.storage_time[0], 22, 26, 3
     )
-    sweep_params['Li Dewatering Split Fraction'] = LinearSample(
-        m.fs.li_dewatering.split_fraction[0, "overflow", "Li"], 0.1, 0.2, 3
+    sweep_params[f'Pump efficiency'] = LinearSample(
+        m.fs.brine_pump.efficiency_pump[0], 0.6, 0.8, 3
     )
+
 
     return sweep_params
 
@@ -54,9 +55,9 @@ def build_outputs(m, **kwargs):
     
     outputs['LCOLi2CO3 (USD/kg)'] = m.fs.costing.LCOLi2CO3_mass
 
-    outputs['Resultant inlet Li+ concentration'] = m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
-    outputs['Resultant soda ash dose'] = m.fs.soda_ash_reactor.reagent_dose["Na2CO3"]
-    outputs['Resultant Li Dewatering Split Fraction'] = m.fs.li_dewatering.split_fraction[0, "overflow", "Li"]
+    outputs['Resultant water flow rate'] = m.fs.brine_feed.properties[0].flow_mass_phase_comp["Liq", "H2O"]
+    outputs['Resultant brine storage time'] = m.fs.brine_storage.storage_time[0]
+    outputs['Resultant pump efficiency'] = m.fs.brine_pump.efficiency_pump[0]
     
     return outputs
 
@@ -116,9 +117,9 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='processing_parameter_sweep.csv', 
+        csv_results_file_name='processing_parameter_sweep1.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'processing_parameter_sweep.csv'") 
+    print("Results saved to 'processing_parameter_sweep1.csv'") 
