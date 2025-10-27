@@ -294,7 +294,7 @@ def create_heat_map(csv_file_path, flow_volume):
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
     FLOW_VOLUME = 1.280  # Flow volume for mass fraction conversion
-    CSV_FILE = "watertap-reflo/src/parameter_sweep1.csv"
+    CSV_FILE = "parameter_sweep1.csv"
     
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME)

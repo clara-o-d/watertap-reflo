@@ -6,6 +6,8 @@ Adds capital and operating costs for:
 - Soda ash reactor (first softening stage)
 - Lime reactor (second softening stage)
 - Lithium carbonate reactor
+- Soda ash dewatering unit (RDVF - custom implementation)
+- Soda ash centrifuge unit (centrifuge)
 - Lime dewatering unit (belt filter press)
 - Lime centrifuge unit (centrifuge)
 - Lithium dewatering unit (belt filter press)
@@ -14,10 +16,92 @@ Adds capital and operating costs for:
 from idaes.core import UnitModelCostingBlock
 from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
 from watertap.costing.unit_models.dewatering import cost_dewatering, DewateringType
-from pyomo.environ import Param, Var, Expression
+from watertap.costing.util import make_capital_cost_var
+from pyomo.environ import Param, Var, Expression, Constraint, Block
 from pyomo.environ import units as pyunits
 from pyomo.environ import value
 from idaes.core.util.model_statistics import degrees_of_freedom
+
+def build_rdvf_cost_params(costing_package):
+    """Build RDVF cost parameters on the costing package if they don't exist.
+    
+    Args:
+        costing_package: The flowsheet costing package
+    """
+    if not hasattr(costing_package, 'rdvf'):
+        costing_package.rdvf = Block()
+        
+        costing_package.rdvf.capital_a_parameter = Var(
+            initialize=2.31,
+            doc="A parameter for capital cost",
+            units=pyunits.dimensionless,
+        )
+        costing_package.rdvf.capital_a_parameter.fix()
+        
+        costing_package.rdvf.drum_unit_cost = Var(
+            initialize=27500,
+            doc="Unit cost per drum",
+            units=pyunits.USD_2007,
+        )
+        costing_package.rdvf.drum_unit_cost.fix()
+
+def cost_rdvf_custom(blk, number_of_drums=2, cost_electricity_flow=True):
+    """Custom RDVF costing method for soda ash dewatering.
+    
+    This function applies Rotary Drum Vacuum Filter (RDVF) costing methodology
+    directly to a dewatering unit's costing block without modifying the 
+    watertap dewatering.py file.
+    
+    Args:
+        blk: The unit model costing block (e.g., soda_ash_dewatering.costing)
+        number_of_drums: Number of drums for RDVF (default: 2)
+        cost_electricity_flow: Whether to cost electricity flow (default: True)
+    """
+    build_rdvf_cost_params(blk.costing_package)
+    
+    make_capital_cost_var(blk)
+    blk.costing_package.add_cost_factor(blk, "TIC")
+    cost_blk = blk.costing_package.rdvf
+    t0 = blk.flowsheet().time.first()
+    
+    blk.number_of_drums = Param(
+        initialize=number_of_drums,
+        mutable=True,
+        doc="Number of drums",
+        units=pyunits.dimensionless,
+    )
+    
+    blk.capital_cost_constraint = Constraint(
+        expr=blk.capital_cost
+        == blk.cost_factor
+        * pyunits.convert(
+            cost_blk.capital_a_parameter * blk.number_of_drums * cost_blk.drum_unit_cost,
+            to_units=blk.costing_package.base_currency,
+        )
+    )
+    
+    if cost_electricity_flow:
+        blk.costing_package.cost_flow(
+            pyunits.convert(
+                blk.unit_model.electricity_consumption[t0],
+                to_units=pyunits.kW,
+            ),
+            "electricity",
+        )
+
+def make_rdvf_costing_method(number_of_drums=2, cost_electricity_flow=True):
+    """Factory function to create an RDVF costing method with specific parameters.
+    
+    Args:
+        number_of_drums: Number of drums for RDVF (default: 2)
+        cost_electricity_flow: Whether to cost electricity flow (default: True)
+        
+    Returns:
+        A costing method function that can be passed to UnitModelCostingBlock
+    """
+    def costing_method(blk):
+        cost_rdvf_custom(blk, number_of_drums, cost_electricity_flow)
+    return costing_method
 
 def add_flow_costs(m):
     """Add flow costs to the lithium processing flowsheet.
@@ -142,14 +226,13 @@ def add_costing(m):
         },
     )
     
-    # Add soda ash dewatering unit costing with RDVF configuration
+    # Add soda ash dewatering unit costing with custom RDVF configuration
     m.fs.soda_ash_dewatering.costing = UnitModelCostingBlock(
         flowsheet_costing_block=m.fs.costing,
-        costing_method=cost_dewatering,
-        costing_method_arguments={
-            "dewatering_type": DewateringType.rdvf,
-            "cost_electricity_flow": True,
-        },
+        costing_method=make_rdvf_costing_method(
+            number_of_drums=2,
+            cost_electricity_flow=True,
+        ),
     )
     
     # Add soda ash centrifuge dewatering unit costing with centrifuge configuration
