@@ -317,153 +317,56 @@ def set_scaling_factors(m):
         m: The flowsheet model
     """
     
-    # # ============================================================================
-    # # PROPERTY PACKAGE SCALING
-    # # ============================================================================
-    
-    # m.fs.brine_props.set_default_scaling("flow_vol_phase", 1e-2, index=("Liq",))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-2, index=("Liq", "H2O"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Na"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "K"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Mg"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Li"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Ca"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "Cl"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "SO4"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "B"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-6, index=("Liq", "H"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "HCO3"))
-    # m.fs.brine_props.set_default_scaling("flow_mol_phase_comp", 1e-4, index=("Liq", "CO3"))
-    
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "H2O"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-1, index=("Liq", "Na"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "K"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-1, index=("Liq", "Mg"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-1, index=("Liq", "Li"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "Ca"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-1, index=("Liq", "Cl"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "SO4"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "B"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-3, index=("Liq", "H"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "HCO3"))
-    # m.fs.brine_props.set_default_scaling("conc_mass_phase_comp", 1e-2, index=("Liq", "CO3"))
-    
-    # m.fs.brine_props.set_default_scaling("temperature", 1e-2)
-    # m.fs.brine_props.set_default_scaling("pressure", 1e-5)
-    # m.fs.brine_props.set_default_scaling("dens_mass_phase", 1e-3, index=("Liq",))
-    
-    
-    
-    # # ============================================================================
-    # # UNIT MODEL SCALING
-    # # ============================================================================
-    
-    # iscale.set_scaling_factor(m.fs.brine_storage.storage_time[0], 1e-3)
-    # iscale.set_scaling_factor(m.fs.brine_storage.surge_capacity[0], 1.0)
-    # iscale.set_scaling_factor(m.fs.brine_storage.tank_volume[0], 1e-3)
-    
-    # iscale.set_scaling_factor(m.fs.brine_pump.deltaP[0], 1e-5)
-    # iscale.set_scaling_factor(m.fs.brine_pump.efficiency_pump[0], 1.0)
-    # iscale.set_scaling_factor(m.fs.brine_pump.control_volume.work[0], 1e-3)
-    
-    # # Soda ash reactor scaling factors
-    # iscale.set_scaling_factor(m.fs.soda_ash_reactor.reagent_dose["Na2CO3"], 1e3)
-    # iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"], 1e3)
-    # iscale.set_scaling_factor(m.fs.soda_ash_reactor.waste_mass_frac_precipitate, 10.0)
-    # iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"], 1e3)
-    
-    # # Soda ash dewatering unit scaling factors
-    # iscale.set_scaling_factor(m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "H2O"], 1.0)
-    # iscale.set_scaling_factor(m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "Mg"], 1.0)
-    # iscale.set_scaling_factor(m.fs.soda_ash_dewatering.electricity_consumption[0], 1e-3)
-    
-    # # Lime reactor scaling factors
-    # iscale.set_scaling_factor(m.fs.lime_reactor.reagent_dose["CaO"], 1e3)
-    # iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["Brucite"], 1e3)
-    # iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["Gypsum"], 1e3)
-    # iscale.set_scaling_factor(m.fs.lime_reactor.waste_mass_frac_precipitate, 10.0)
-    # iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_reagent["CaO"], 1e3)
-    
-    # # Lithium carbonate reactor scaling factors
-    # iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.reagent_dose["Na2CO3"], 1e3)
-    # iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"], 1e3)
-    # iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate, 10.0)
-    # iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], 1e3)
-    
-    # # Lime dewatering unit scaling factors
-    # iscale.set_scaling_factor(m.fs.lime_dewatering.split_fraction[0, "overflow", "H2O"], 1.0)
-    # iscale.set_scaling_factor(m.fs.lime_dewatering.split_fraction[0, "overflow", "Mg"], 1.0)
-    # iscale.set_scaling_factor(m.fs.lime_dewatering.split_fraction[0, "overflow", "Ca"], 1.0)
-    # iscale.set_scaling_factor(m.fs.lime_dewatering.electricity_consumption[0], 1e-3)
-    
-    # # Lime centrifuge unit scaling factors
-    # iscale.set_scaling_factor(m.fs.lime_centrifuge.split_fraction[0, "overflow", "H2O"], 1.0)
-    # iscale.set_scaling_factor(m.fs.lime_centrifuge.split_fraction[0, "overflow", "Na"], 1.0)
-    # iscale.set_scaling_factor(m.fs.lime_centrifuge.electricity_consumption[0], 1e-3)
-    
-    # # Lithium dewatering unit scaling factors
-    # iscale.set_scaling_factor(m.fs.li_dewatering.split_fraction[0, "overflow", "H2O"], 1.0)
-    # iscale.set_scaling_factor(m.fs.li_dewatering.split_fraction[0, "overflow", "Li"], 1.0)
-    # iscale.set_scaling_factor(m.fs.li_dewatering.electricity_consumption[0], 1e-3)
-    
-    
-    # # ============================================================================
-    # # FEED STREAM SCALING
-    # # ============================================================================
-    
-    # iscale.set_scaling_factor(m.fs.brine_feed.properties[0].flow_vol_phase["Liq"], 1e-2)
-    # iscale.set_scaling_factor(m.fs.brine_feed.properties[0].temperature, 1e-2)
-    # iscale.set_scaling_factor(m.fs.brine_feed.properties[0].pressure, 1e-5)
-    
-    
-    # # ============================================================================
-    # # CALCULATE SCALING FACTORS
-    # # ============================================================================
-    
-    
     AutoScaler().scale_variables_by_magnitude(m, descend_into=True)
     AutoScaler().scale_constraints_by_jacobian_norm(m, norm=2, descend_into=True)
     
+    iscale.set_scaling_factor(m.fs.brine_storage.electricity[0.0], 1.0e14)
+
     iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","H"], 1.88e12)
+    
     for comp in m.fs.brine_props.solute_set:
         if comp not in ["Ca", "SO4", "H"]:
             iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,comp], 7.59e14)
-    iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reaction_generation_comp[0.0,"H"], 1.52e11)
+            iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e13)
+        if comp not in ["Mg", "Ca", "SO4", "H"]:
+            iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reaction_generation_comp[0.0,comp], 7.59e14)
+            iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e13)
     
-    # iscale.set_scaling_factor(m.fs.brine_storage.energy_electric_flow_vol_inlet, 1.0)
-    # iscale.set_scaling_factor(m.fs.brine_storage.surge_capacity[0.0], 1.0)
-    # iscale.set_scaling_factor(m.fs.brine_storage.properties[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.brine_pump.control_volume.work[0.0], 1.0)
-    # iscale.set_scaling_factor(m.fs.brine_pump.control_volume.properties_out[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.soda_ash_reactor.dissolution_reactor.properties_in[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.soda_ash_reactor.precipitation_reactor.properties_out[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reactor.properties_in[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reactor.properties_out[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_out[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.soda_ash_dewatering.mixed_state[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.soda_ash_centrifuge.mixed_state[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.lime_dewatering.mixed_state[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.lime_centrifuge.mixed_state[0.0].flow_vol_phase["Liq"], 1.0e3)
-    # iscale.set_scaling_factor(m.fs.li_dewatering.mixed_state[0.0].flow_vol_phase["Liq"], 1.0e3)
+    iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"H2O"], 7.59e14)
+    iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"H"], 1.52e11)
+    iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reaction_generation_comp[0.0,"H"], 3.72e11)
+    iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","SO4"], 9.249E-11)
+    iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq","H2O"], 1.0e13)
+    iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","SO4"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","H"], 1.0e12)
 
-    # for comp in m.fs.brine_props.solute_set:
-    #     iscale.set_scaling_factor(m.fs.soda_ash_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.soda_ash_reactor.precipitation_reaction_generation_comp[0.0,comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.soda_ash_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.soda_ash_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0)
-
-    #     iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reaction_generation_comp[0.0,comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0)
-
-    #     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reaction_generation_comp[0.0,comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0)
-    #     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0)
+    for comp in m.fs.brine_props.solute_set:
+        if comp not in ["Na", "Li", "CO3"]:
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0e13)
+        if comp not in ["Na", "Cl", "CO3"]:
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0e2)
+        if comp not in ["Li", "CO3"]:
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reaction_generation_comp[0.0,comp], 1.0e13)
+        if comp in ["K", "Ca", "HCO3"]:
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e14)
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e14)
+        if comp in ["Mg", "Cl", "B"]:
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e12)
+        if comp in ["Na", "Mg", "Cl", "B"]:
+            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e12)
     
-    
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,"H2O"], 1.0e13)
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reaction_generation_comp[0.0,"H2O"], 1.0e13)
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq","H2O"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq","H2O"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","Li"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lime_dewatering.mixed_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lime_dewatering.overflow_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e14)
+    iscale.set_scaling_factor(m.fs.lime_dewatering.underflow_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lime_centrifuge.mixed_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e12)
+    iscale.set_scaling_factor(m.fs.lime_centrifuge.overflow_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e14)
+    iscale.set_scaling_factor(m.fs.lime_centrifuge.underflow_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e12)
+
     print("Scaling factors set successfully!")
 
 def initialize_flowsheet(m):
