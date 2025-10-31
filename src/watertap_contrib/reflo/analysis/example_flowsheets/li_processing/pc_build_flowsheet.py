@@ -335,7 +335,7 @@ def set_scaling_factors(m):
     iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"H2O"], 7.59e14)
     iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"H"], 1.52e11)
     iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reaction_generation_comp[0.0,"H"], 3.72e11)
-    iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","SO4"], 9.249E-11)
+    iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","SO4"], 1.0e12)
     iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq","H2O"], 1.0e13)
     iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","SO4"], 1.0e12)
     iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","H"], 1.0e12)
@@ -343,8 +343,6 @@ def set_scaling_factors(m):
     for comp in m.fs.brine_props.solute_set:
         if comp not in ["Na", "Li", "CO3"]:
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0e13)
-        if comp not in ["Na", "Cl", "CO3"]:
-            iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,comp], 1.0e2)
         if comp not in ["Li", "CO3"]:
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reaction_generation_comp[0.0,comp], 1.0e13)
         if comp in ["K", "Ca", "HCO3"]:
@@ -356,6 +354,7 @@ def set_scaling_factors(m):
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq",comp], 1.0e12)
     
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,"H2O"], 1.0e13)
+    iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reaction_generation_comp[0.0,"Li"], 1.0e6)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reaction_generation_comp[0.0,"H2O"], 1.0e13)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.dissolution_reactor.mass_transfer_term[0.0,"Liq","H2O"], 1.0e12)
     iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.precipitation_reactor.mass_transfer_term[0.0,"Liq","H2O"], 1.0e12)
@@ -434,28 +433,28 @@ def initialize_flowsheet(m):
     print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
     
     # Propagate state to lime dewatering unit
-    print("\n7. Propagating state to lime dewatering unit...")
+    print("\n8. Propagating state to lime dewatering unit...")
     propagate_state(m.fs.lime_to_lime_dewater)
     m.fs.lime_dewatering.initialize()
     print("Lime dewatering unit initialized successfully!")
     print(f"DOF after lime dewatering: {degrees_of_freedom(m)}")
     
     # Propagate state to lime centrifuge unit
-    print("\n8. Propagating state to lime centrifuge unit...")
+    print("\n9. Propagating state to lime centrifuge unit...")
     propagate_state(m.fs.lime_dewatering_to_lime_centrifuge)
     m.fs.lime_centrifuge.initialize()
     print("Lime centrifuge unit initialized successfully!")
     print(f"DOF after lime centrifuge: {degrees_of_freedom(m)}")
     
     # Propagate state to lithium carbonate reactor
-    print("\n9. Propagating state to lithium carbonate reactor...")
+    print("\n10. Propagating state to lithium carbonate reactor...")
     propagate_state(m.fs.lime_to_lithium)
     m.fs.lithium_carbonate_reactor.initialize()
     print("Lithium carbonate reactor initialized successfully!")
     print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
     
     # Propagate state to lithium dewatering unit
-    print("\n10. Propagating state to lithium dewatering unit...")
+    print("\n11. Propagating state to lithium dewatering unit...")
     propagate_state(m.fs.lithium_to_dewatering)
     m.fs.li_dewatering.initialize()
     print("Lithium dewatering unit initialized successfully!")
@@ -1116,7 +1115,7 @@ def build_flowsheet():
     initialize_flowsheet(m)
     set_scaling_factors(m)
 
-    run_diagnostics(m,report_scaling=True, analyze_jacobian=False, check_jacobian_quality=False)
+    run_diagnostics(m,report_scaling=False, analyze_jacobian=False, check_jacobian_quality=False)
 
     return m
 
@@ -1154,18 +1153,12 @@ def main():
     """
     print("Building lithium carbonate plant flowsheet...")
     
-    # Build the flowsheet
+    # Build the flowsheet (includes initialization, scaling, and diagnostics)
     m = build_flowsheet()
     
-    print("Flowsheet built successfully!")
+    print("\nFlowsheet built successfully!")
     print(f"Number of variables: {len(list(m.fs.component_data_objects(pyo.Var)))}")
     print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
-    
-    # Initialize the flowsheet
-    m = initialize_flowsheet(m)
-        
-    # Run diagnostics
-    run_diagnostics(m,report_scaling=False, analyze_jacobian=False, check_jacobian_quality=False)
     
     return m
 
