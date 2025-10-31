@@ -317,8 +317,8 @@ def set_scaling_factors(m):
         m: The flowsheet model
     """
     
-    AutoScaler().scale_variables_by_magnitude(m, descend_into=True)
-    AutoScaler().scale_constraints_by_jacobian_norm(m, norm=2, descend_into=True)
+    # AutoScaler().scale_variables_by_magnitude(m, descend_into=True)
+    # AutoScaler().scale_constraints_by_jacobian_norm(m, norm=2, descend_into=True)
     
     iscale.set_scaling_factor(m.fs.brine_storage.electricity[0.0], 1.0e14)
 
