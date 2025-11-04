@@ -6,11 +6,12 @@ Calculates LCOLi and specific energy consumption metrics based on precipitated L
 from pyomo.environ import Param, Var, Constraint
 from pyomo.environ import units as pyunits
 
-def process_costing(m):
+def process_costing(m, stage=3):
     """Initialize costing and add LCOLi calculations.
     
     Args:
         m: Pyomo model with costing block
+        stage: Stage of flowsheet (1, 2, or 3) - costing checks for existence of blocks
     """
     # Initialize costing blocks
     if hasattr(m.fs.brine_storage, 'costing'):

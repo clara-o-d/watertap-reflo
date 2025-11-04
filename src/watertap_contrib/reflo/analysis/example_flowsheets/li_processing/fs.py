@@ -8,24 +8,69 @@ from idaes.core.util import DiagnosticsToolbox
 
 
 def main():
-    m = build_flowsheet()
+    # ============================================================================
+    # STAGE 1: Build and solve feed, storage tank, and pump
+    # ============================================================================
+    print("\n" + "="*80)
+    print("STAGE 1: BUILDING FEED, STORAGE TANK, AND PUMP")
+    print("="*80)
+    m = build_flowsheet(stage=1)
     dt = DiagnosticsToolbox(m)
     dt.display_underconstrained_set()
-    input("Press enter to solve")
+    input("Press enter to solve Stage 1")
     results = solve(m)
     assert_optimal_termination(results)
-    print("\n=== INITIAL FLOWSHEET RESULTS (NO COSTING) ===")
+    print("\n=== STAGE 1 RESULTS ===")
     display_results(m)
-    
+    input("Press enter to continue to Stage 2")
 
+    # ============================================================================
+    # STAGE 2: Add stoichiometric reactors and solve
+    # ============================================================================
+    print("\n" + "="*80)
+    print("STAGE 2: ADDING STOICHIOMETRIC REACTORS")
+    print("="*80)
+    m = build_flowsheet(stage=2)
+    dt = DiagnosticsToolbox(m)
+    dt.display_underconstrained_set()
+    input("Press enter to solve Stage 2")
+    results = solve(m)
+    assert_optimal_termination(results)
+    print("\n=== STAGE 2 RESULTS ===")
+    display_results(m)
+    input("Press enter to continue to Stage 3")
+
+    # ============================================================================
+    # STAGE 3: Add dewaterers and solve complete flowsheet (no costing)
+    # ============================================================================
+    print("\n" + "="*80)
+    print("STAGE 3: ADDING DEWATERERS")
+    print("="*80)
+    m = build_flowsheet(stage=3)
+    dt = DiagnosticsToolbox(m)
+    dt.display_underconstrained_set()
+    input("Press enter to solve Stage 3 (complete flowsheet without costing)")
+    results = solve(m)
+    assert_optimal_termination(results)
+    print("\n=== STAGE 3 RESULTS (NO COSTING) ===")
+    display_results(m)
+
+    # ============================================================================
+    # FINAL: Add costing and solve
+    # ============================================================================
+    print("\n" + "="*80)
+    print("FINAL STAGE: ADDING COSTING TO COMPLETE FLOWSHEET")
+    print("="*80)
     input("Press enter to solve with costing")
-    add_costing(m)
-    process_costing(m)
+    add_costing(m, stage=3)
+    process_costing(m, stage=3)
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== FINAL FLOWSHEET RESULTS (WITH COSTING) ===")
     display_results(m, show_costing=True)
+    
+    return m
 
 
 if __name__ == "__main__":
-    main() 
+    m = main() 

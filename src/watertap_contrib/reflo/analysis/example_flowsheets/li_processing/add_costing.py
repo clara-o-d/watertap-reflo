@@ -189,71 +189,80 @@ def add_flow_costs(m):
     # Cost soda ash for lithium carbonate reactor
     m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
 
-def add_costing(m):
+def add_costing(m, stage=3):
     """Add costing components to the lithium processing flowsheet.
     
     Args:
         m: Pyomo model to add costing to
+        stage: Stage of flowsheet to add costing to
+            1 - Feed, storage tank, and pump only
+            2 - Stage 1 + stoichiometric reactors
+            3 - Stage 2 + dewaterers (complete flowsheet)
     """
     # Add global costing
     m.fs.costing = REFLOCosting()
     m.fs.costing.base_currency = pyunits.USD_2023
 
-    # Add unit model costing blocks
+    # Add unit model costing blocks for Stage 1
     m.fs.brine_storage.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.brine_pump.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
-    m.fs.soda_ash_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
-    m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
-    m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
-    # Add lime dewatering unit costing with belt filter press configuration
-    m.fs.lime_dewatering.costing = UnitModelCostingBlock(
-        flowsheet_costing_block=m.fs.costing,
-        costing_method=cost_dewatering,
-        costing_method_arguments={
-            "dewatering_type": DewateringType.filter_plate_press,
-            "cost_electricity_flow": True,
-        },
-    )
+    # Add unit model costing blocks for Stage 2
+    if stage >= 2:
+        m.fs.soda_ash_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+        m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+        m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
-    # Add lime centrifuge unit costing with centrifuge configuration
-    m.fs.lime_centrifuge.costing = UnitModelCostingBlock(
-        flowsheet_costing_block=m.fs.costing,
-        costing_method=cost_dewatering,
-        costing_method_arguments={
-            "dewatering_type": DewateringType.centrifuge,
-            "cost_electricity_flow": True,
-        },
-    )
-    
-    # Add soda ash dewatering unit costing with custom RDVF configuration
-    m.fs.soda_ash_dewatering.costing = UnitModelCostingBlock(
-        flowsheet_costing_block=m.fs.costing,
-        costing_method=make_rdvf_costing_method(
-            number_of_drums=2,
-            cost_electricity_flow=True,
-        ),
-    )
-    
-    # Add soda ash centrifuge dewatering unit costing with centrifuge configuration
-    m.fs.soda_ash_centrifuge.costing = UnitModelCostingBlock(
-        flowsheet_costing_block=m.fs.costing,
-        costing_method=cost_dewatering,
-        costing_method_arguments={
-            "dewatering_type": DewateringType.centrifuge,
-            "cost_electricity_flow": True,
-        },
-    )
-    
-    # Add lithium dewatering unit costing with belt filter press configuration
-    m.fs.li_dewatering.costing = UnitModelCostingBlock(
-        flowsheet_costing_block=m.fs.costing,
-        costing_method=cost_dewatering,
-        costing_method_arguments={
-            "dewatering_type": DewateringType.filter_belt_press,
-            "cost_electricity_flow": True,
-        },
-    )
+    # Add unit model costing blocks for Stage 3
+    if stage >= 3:
+        # Add lime dewatering unit costing with belt filter press configuration
+        m.fs.lime_dewatering.costing = UnitModelCostingBlock(
+            flowsheet_costing_block=m.fs.costing,
+            costing_method=cost_dewatering,
+            costing_method_arguments={
+                "dewatering_type": DewateringType.filter_plate_press,
+                "cost_electricity_flow": True,
+            },
+        )
+        
+        # Add lime centrifuge unit costing with centrifuge configuration
+        m.fs.lime_centrifuge.costing = UnitModelCostingBlock(
+            flowsheet_costing_block=m.fs.costing,
+            costing_method=cost_dewatering,
+            costing_method_arguments={
+                "dewatering_type": DewateringType.centrifuge,
+                "cost_electricity_flow": True,
+            },
+        )
+        
+        # Add soda ash dewatering unit costing with custom RDVF configuration
+        m.fs.soda_ash_dewatering.costing = UnitModelCostingBlock(
+            flowsheet_costing_block=m.fs.costing,
+            costing_method=make_rdvf_costing_method(
+                number_of_drums=2,
+                cost_electricity_flow=True,
+            ),
+        )
+        
+        # Add soda ash centrifuge dewatering unit costing with centrifuge configuration
+        m.fs.soda_ash_centrifuge.costing = UnitModelCostingBlock(
+            flowsheet_costing_block=m.fs.costing,
+            costing_method=cost_dewatering,
+            costing_method_arguments={
+                "dewatering_type": DewateringType.centrifuge,
+                "cost_electricity_flow": True,
+            },
+        )
+        
+        # Add lithium dewatering unit costing with belt filter press configuration
+        m.fs.li_dewatering.costing = UnitModelCostingBlock(
+            flowsheet_costing_block=m.fs.costing,
+            costing_method=cost_dewatering,
+            costing_method_arguments={
+                "dewatering_type": DewateringType.filter_belt_press,
+                "cost_electricity_flow": True,
+            },
+        )
     
     # Add flow costs
     add_flow_costs(m)
