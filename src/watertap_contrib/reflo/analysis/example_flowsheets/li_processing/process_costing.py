@@ -5,6 +5,7 @@ Calculates LCOLi and specific energy consumption metrics based on precipitated L
 
 from pyomo.environ import Param, Var, Constraint
 from pyomo.environ import units as pyunits
+from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_scaling_factors import set_scaling_factors
 
 def process_costing(m, stage=3):
     """Initialize costing and add LCOLi calculations.
@@ -113,3 +114,5 @@ def process_costing(m, stage=3):
             to_units=pyunits.kWh / pyunits.kg
         )
     )
+    set_scaling_factors(m, stage=stage)
+

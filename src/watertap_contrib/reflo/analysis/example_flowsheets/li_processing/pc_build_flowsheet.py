@@ -54,6 +54,140 @@ from watertap.core.wt_database import Database
 # Local imports
 from pc_scaling_factors import set_scaling_factors
 
+def modify_unit_models(m, stage=3):
+    """
+    Modify the unit models for the flowsheet.
+    """
+    if stage >= 3:
+        # SODA ASH DEWATERING UNIT
+        # Add electricity consumption variable for soda ash dewatering costing
+        # Based on typical belt filter press: 0.006 kWh/m³
+        m.fs.soda_ash_dewatering.electricity_consumption = pyo.Var(
+            m.fs.time,
+            initialize=0.1,
+            units=pyunits.kW,
+            bounds=(0, None),
+            doc="Electricity consumption of soda ash dewatering unit"
+        )
+        
+        m.fs.soda_ash_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+            m.fs.time,
+            initialize=0.006,
+            units=pyunits.kWh / pyunits.m**3,
+            mutable=True,
+            doc="Specific electricity intensity for belt filter press"
+        )
+        
+        @m.fs.soda_ash_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+        def soda_ash_eq_electricity_consumption(blk, t):
+            return blk.electricity_consumption[t] == pyunits.convert(
+                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+                to_units=pyunits.kW,
+            )
+        
+        # SODA ASH CENTRIFUGE DEWATERING UNIT
+        # Add electricity consumption variable for centrifuge costing
+        # Based on typical centrifuge: 0.015 kWh/m³ (higher than belt filter press)
+        m.fs.soda_ash_centrifuge.electricity_consumption = pyo.Var(
+            m.fs.time,
+            initialize=0.1,
+            units=pyunits.kW,
+            bounds=(0, None),
+            doc="Electricity consumption of soda ash centrifuge dewatering unit"
+        )
+        
+        m.fs.soda_ash_centrifuge.energy_electric_flow_vol_inlet = pyo.Param(
+            m.fs.time,
+            initialize=0.015,
+            units=pyunits.kWh / pyunits.m**3,
+            mutable=True,
+            doc="Specific electricity intensity for centrifuge"
+        )
+        
+        @m.fs.soda_ash_centrifuge.Constraint(m.fs.time, doc="Electricity consumption equation")
+        def soda_ash_centrifuge_eq_electricity_consumption(blk, t):
+            return blk.electricity_consumption[t] == pyunits.convert(
+                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+                to_units=pyunits.kW,
+            )
+        
+        # LIME DEWATERING UNIT
+        # Add electricity consumption variable for costing
+        m.fs.lime_dewatering.electricity_consumption = pyo.Var(
+            m.fs.time,
+            initialize=0.1,
+            units=pyunits.kW,
+            bounds=(0, None),
+            doc="Electricity consumption of softening dewatering unit"
+        )
+        
+        m.fs.lime_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+            m.fs.time,
+            initialize=0.006,
+            units=pyunits.kWh / pyunits.m**3,
+            mutable=True,
+            doc="Specific electricity intensity for belt filter press"
+        )
+        
+        @m.fs.lime_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+        def lime_dewatering_eq_electricity_consumption(blk, t):
+            return blk.electricity_consumption[t] == pyunits.convert(
+                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+                to_units=pyunits.kW,
+            )
+        
+        # LIME CENTRIFUGE UNIT
+        # Add electricity consumption variable for centrifuge costing
+        # Based on typical centrifuge: 0.015 kWh/m³ (higher than belt filter press)
+        m.fs.lime_centrifuge.electricity_consumption = pyo.Var(
+            m.fs.time,
+            initialize=0.1,
+            units=pyunits.kW,
+            bounds=(0, None),
+            doc="Electricity consumption of centrifuge dewatering unit"
+        )
+        
+        m.fs.lime_centrifuge.energy_electric_flow_vol_inlet = pyo.Param(
+            m.fs.time,
+            initialize=0.015,
+            units=pyunits.kWh / pyunits.m**3,
+            mutable=True,
+            doc="Specific electricity intensity for centrifuge"
+        )
+        
+        @m.fs.lime_centrifuge.Constraint(m.fs.time, doc="Electricity consumption equation")
+        def lime_centrifuge_eq_electricity_consumption(blk, t):
+            return blk.electricity_consumption[t] == pyunits.convert(
+                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+                to_units=pyunits.kW,
+            )
+        
+        # LITHIUM DEWATERING UNIT
+        # Add electricity consumption variable for costing
+        # Based on typical belt filter press: 0.006 kWh/m³
+        m.fs.li_dewatering.electricity_consumption = pyo.Var(
+            m.fs.time,
+            initialize=0.1,
+            units=pyunits.kW,
+            bounds=(0, None),
+            doc="Electricity consumption of lithium dewatering unit"
+        )
+        
+        m.fs.li_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+            m.fs.time,
+            initialize=0.006,
+            units=pyunits.kWh / pyunits.m**3,
+            mutable=True,
+            doc="Specific electricity intensity for belt filter press"
+        )
+        
+        @m.fs.li_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+        def li_eq_electricity_consumption(blk, t):
+            return blk.electricity_consumption[t] == pyunits.convert(
+                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
+                to_units=pyunits.kW,
+            )
+
 def set_brine_feed_conditions(m):
     """
     Set the brine feed conditions.
@@ -68,7 +202,7 @@ def set_brine_feed_conditions(m):
     m.fs.brine_feed.properties[0].pressure.fix(P_ref)
     
     # Total mass flow rate: 27.93 kg/s
-    total_flow_mass = 27.93 * pyunits.kg / pyunits.s
+    total_flow_mass = 27930 * pyunits.kg / pyunits.s
     
     # Density = 1.252 kg/L = 1252 g/L
     density = 1252 * pyunits.g / pyunits.L
@@ -128,6 +262,88 @@ def set_brine_feed_conditions(m):
     water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
 
+def modify_flowsheet(m, stage=3):
+    """
+    Modify the flowsheet for the flowsheet.
+    """
+    
+    # Annual reagent inputs
+    m.fs.annual_soda_ash_input = pyo.Var(
+        initialize=381600000,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual soda ash input (381,600 tonnes/year)"
+    )
+    m.fs.annual_soda_ash_input.fix(381600000)
+    
+    m.fs.annual_lime_input = pyo.Var(
+        initialize=15300000,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual lime input (15,300 tonnes/year)"
+    )
+    m.fs.annual_lime_input.fix(15300000)
+    
+    # Maximum total impurity concentration in Li2CO3 product (underflow from li_dewatering)
+    # Sum of Na, Mg, and Ca mass fractions must be <= 0.05%
+    m.fs.max_total_impurity_mass_fraction_li_product = pyo.Var(
+        initialize=0.0005,
+        bounds=(0, 1.0),
+        units=pyunits.dimensionless,
+        doc="Maximum total mass fraction of Na, Mg, and Ca in Li2CO3 product (0.05%)"
+    )
+    m.fs.max_total_impurity_mass_fraction_li_product.fix(0.0005)
+    
+    if stage >= 2:
+        # Soda ash split fraction - proportion going to soda ash reactor vs lithium reactor
+        m.fs.soda_ash_split_fraction = pyo.Var(
+            initialize=0.5,
+            bounds=(0, 1.0),
+            units=pyunits.dimensionless,
+            doc="Fraction of total soda ash going to soda ash reactor (vs lithium carbonate reactor)"
+        )
+        m.fs.soda_ash_split_fraction.fix(0.5)
+        
+        # Constraint: Total soda ash usage across both reactors
+        # annual_soda_ash_input = soda_ash_to_soda_ash_reactor + soda_ash_to_lithium_reactor
+        @m.fs.Constraint(doc="Total soda ash annual input constraint")
+        def soda_ash_annual_input_constraint(fs):
+            soda_ash_reactor_usage = (
+                fs.soda_ash_reactor.reagent_dose["Na2CO3"]
+                * fs.soda_ash_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+            )
+            
+            lithium_reactor_usage = (
+                fs.lithium_carbonate_reactor.reagent_dose["Na2CO3"]
+                * fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+            )
+            
+            return fs.annual_soda_ash_input == pyunits.convert(
+                soda_ash_reactor_usage + lithium_reactor_usage,
+                to_units=pyunits.kg / pyunits.year
+            )
+        
+        # Constraint: Relate soda ash doses through split fraction
+        @m.fs.Constraint(doc="Soda ash split fraction constraint")
+        def soda_ash_split_constraint(fs):
+            soda_ash_reactor_usage = (
+                fs.soda_ash_reactor.reagent_dose["Na2CO3"]
+                * fs.soda_ash_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+            )
+            
+            total_usage = pyunits.convert(fs.annual_soda_ash_input, to_units=pyunits.kg / pyunits.s)
+            
+            return soda_ash_reactor_usage == fs.soda_ash_split_fraction * total_usage
+        
+        # Constraint: Lime reactor reagent dose to match annual input
+        @m.fs.Constraint(doc="Lime annual input constraint")
+        def lime_annual_input_constraint(fs):
+            return fs.annual_lime_input == pyunits.convert(
+                fs.lime_reactor.reagent_dose["CaO"]
+                * fs.lime_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"],
+                to_units=pyunits.kg / pyunits.year
+            )
+    
 def fix_unit_model_variables(m, stage=3):
     """
     Fix the required variables for each unit model in the flowsheet.
@@ -157,7 +373,7 @@ def fix_unit_model_variables(m, stage=3):
         # SODA ASH REACTOR (First softening stage)
         # Minimize reagent to reduce volumetric flow disturbances
         # Feed Mg: 0.022068 mol/s (0.536 g/s), precipitate minimal amount
-        m.fs.soda_ash_reactor.reagent_dose["Na2CO3"].fix(0.5e-3 * units.kg / units.L)  # 0.5 g/L (minimal)
+        # Note: reagent_dose is now constrained by annual_soda_ash_input in modify_flowsheet
         
         # Fix precipitate formation - very small to minimize flow disturbance
         # Target: 1% of Mg → 0.00022 mol/s Mg × 84.3 g/mol MgCO3 = 0.0185 g/s
@@ -167,8 +383,7 @@ def fix_unit_model_variables(m, stage=3):
         m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.05)  # 5% solids in waste stream
         
         # LIME REACTOR (Second softening stage)
-        # Minimal reagent dose for lime
-        m.fs.lime_reactor.reagent_dose["CaO"].fix(0.3e-3 * units.kg / units.L)  # 0.3 g/L (minimal)
+        # Note: reagent_dose is now constrained by annual_lime_input in modify_flowsheet
         
         # Fix precipitate formation rates - very small amounts
         # Brucite: Target 0.1% of Mg → 0.000022 mol/s × 58.32 g/mol = 0.0013 g/s
@@ -182,9 +397,7 @@ def fix_unit_model_variables(m, stage=3):
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.02)  # 2% solids (very low)
         
         # LITHIUM CARBONATE REACTOR
-        # Minimal soda ash dose - this is the main product but keep it small for feasibility
-        # Target: 1% Li recovery → 0.0024147 mol/s Li × 73.89 g/mol Li2CO3 = 0.178 g/s
-        m.fs.lithium_carbonate_reactor.reagent_dose["Na2CO3"].fix(0.5e-3 * units.kg / units.L)  # 0.5 g/L (minimal)
+        # Note: reagent_dose is now constrained by annual_soda_ash_input and soda_ash_split_fraction in modify_flowsheet
         
         # Fix lithium carbonate formation - 1% of available lithium
         # 0.0024147 mol/s Li → 0.0012074 mol/s Li2CO3 × 73.89 g/mol = 0.0892 g/s
@@ -432,83 +645,7 @@ def initialize_flowsheet(m, stage=3):
         print(f"⚠ Warning: {dof} degrees of freedom remaining")
         check_unfixed_variables(m, "entire flowsheet")
     
-    # Print feed conditions summary
-    print("\nBrine Feed Conditions:")
-    print(f"Temperature: {pyo.value(m.fs.brine_feed.properties[0].temperature)} K")
-    print(f"Pressure: {pyo.value(m.fs.brine_feed.properties[0].pressure)} Pa")
-    print(f"Flow rate: {pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq'])} m³/s ({pyo.value(m.fs.brine_feed.properties[0].flow_vol_phase['Liq']) * 60000:.0f} L/min)")
-    print(f"pH: 6.50")
-    print(f"Density: 1.252 kg/L")
-    
-    
-    print("\n" + "="*60)
-    print("UNIT MODEL FIXED VARIABLES SUMMARY")
-    print("="*60)
-    print("Storage Tank:")
-    print(f"  - Storage time: {pyo.value(m.fs.brine_storage.storage_time[0])} hours")
-    print(f"  - Surge capacity: {pyo.value(m.fs.brine_storage.surge_capacity[0])*100:.1f}%")
-    
-    print("\nPump:")
-    print(f"  - Pressure increase: {pyo.value(m.fs.brine_pump.deltaP[0])/1e5:.1f} bar")
-    print(f"  - Efficiency: {pyo.value(m.fs.brine_pump.efficiency_pump[0])*100:.1f}%")
-    
-    if stage >= 2:
-        print("\nSoda Ash Reactor (First Softening Stage):")
-        print(f"  - Na2CO3 dose: {pyo.value(m.fs.soda_ash_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
-        print(f"  - MgCO3 formation: {pyo.value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])*1e3:.3f} g/s")
-        print(f"  - Waste solids fraction: {pyo.value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)*100:.1f}%")
-        
-        print("\nLime Reactor (Second Softening Stage):")
-        print(f"  - CaO dose: {pyo.value(m.fs.lime_reactor.reagent_dose['CaO'])*1e3:.1f} g/L")
-        print(f"  - Brucite formation: {pyo.value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])*1e3:.3f} g/s")
-        print(f"  - Gypsum formation: {pyo.value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])*1e3:.3f} g/s")
-        print(f"  - Waste solids fraction: {pyo.value(m.fs.lime_reactor.waste_mass_frac_precipitate)*100:.1f}%")
-        
-        print("\nLithium Carbonate Reactor:")
-        print(f"  - Na2CO3 dose: {pyo.value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])*1e3:.1f} g/L")
-        print(f"  - Li2CO3 formation: {pyo.value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])*1e3:.3f} g/s")
-        print(f"  - Waste solids fraction: {pyo.value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.1f}%")
-    
-    if stage >= 3:
-        print("\nLime Dewatering Unit (Water removal from Mg(OH)2 and CaSO4 slurry):")
-        print(f"  - Water to overflow (clarified liquid): {pyo.value(m.fs.lime_dewatering.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
-        print(f"  - All ions to overflow (liquid phase): {pyo.value(m.fs.lime_dewatering.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
-        print(f"  - All ions to underflow (entrapped in solids): {(1-pyo.value(m.fs.lime_dewatering.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
-        
-        print("\nLime Centrifuge Unit (Further dewatering of lime precipitates):")
-        print(f"  - Water to overflow (clarified liquid): {pyo.value(m.fs.lime_centrifuge.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
-        print(f"  - All ions to overflow (liquid phase): {pyo.value(m.fs.lime_centrifuge.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
-        print(f"  - All ions to underflow (entrapped in solids): {(1-pyo.value(m.fs.lime_centrifuge.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
-        
-        print("\nLithium Dewatering Unit (Water removal from Li2CO3 slurry):")
-        print(f"  - Water to overflow (clarified liquid): {pyo.value(m.fs.li_dewatering.split_fraction[0, 'overflow', 'H2O'])*100:.1f}%")
-        print(f"  - All ions to overflow (liquid phase): {pyo.value(m.fs.li_dewatering.split_fraction[0, 'overflow', 'Na'])*100:.1f}%")
-        print(f"  - All ions to underflow (entrapped in solids): {(1-pyo.value(m.fs.li_dewatering.split_fraction[0, 'overflow', 'Na']))*100:.1f}%")
-    
-    print("\n" + "="*60)
-    print("SCALING FACTORS SUMMARY")
-    print("="*60)
-    print("Property Package Scaling:")
-    print(f"  - Flow rates: 1e-2 (m³/s)")
-    print(f"  - Concentrations: 1e-1 to 1e-9 (g/L)")
-    print(f"  - Temperature: 1e-2 (K)")
-    print(f"  - Pressure: 1e-5 (Pa)")
-    print(f"  - Density: 1e-3 (kg/m³)")
-    
-    
-    print("\nUnit Model Scaling:")
-    print(f"  - Storage time: 1e-4 (s)")
-    print(f"  - Pump work: 1e-3 (W)")
-    print(f"  - Tank volumes: 1e-2 (m³)")
-    print(f"  - Cross-sectional areas: 1e-1 (m²)")
-    print(f"  - Reagent doses: 1e3 (kg/m³)")
-    print(f"  - Precipitate flows: 1e3 (kg/s)")
-    print(f"  - Lithium carbonate formation: 1e3 (kg/s)")
-    
-    print("\nFeed Stream Scaling:")
-    print(f"  - All flow rates: 1e-2 (m³/s)")
-    print(f"  - All temperatures: 1e-2 (K)")
-    print(f"  - All pressures: 1e-5 (Pa)")
+
     
     return m
 
@@ -800,7 +937,7 @@ def build_flowsheet(stage=3):
         property_package=m.fs.brine_props,
         database=m.db,
     )
-    
+    # m.fs.brine_pump_list = RangeSet(1,2 )
     m.fs.brine_pump = Pump(
         property_package=m.fs.brine_props,
     )
@@ -897,31 +1034,6 @@ def build_flowsheet(stage=3):
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
         
-        # Add electricity consumption variable for soda ash dewatering costing
-        # Based on typical belt filter press: 0.006 kWh/m³
-        m.fs.soda_ash_dewatering.electricity_consumption = pyo.Var(
-            m.fs.time,
-            initialize=0.1,
-            units=pyunits.kW,
-            bounds=(0, None),
-            doc="Electricity consumption of soda ash dewatering unit"
-        )
-        
-        m.fs.soda_ash_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
-            m.fs.time,
-            initialize=0.006,
-            units=pyunits.kWh / pyunits.m**3,
-            mutable=True,
-            doc="Specific electricity intensity for belt filter press"
-        )
-        
-        @m.fs.soda_ash_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
-        def soda_ash_eq_electricity_consumption(blk, t):
-            return blk.electricity_consumption[t] == pyunits.convert(
-                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
-                to_units=pyunits.kW,
-            )
-        
         # Additional dewatering unit after soda ash dewatering (centrifuge type)
         # Further concentrates solids from soda ash dewatering underflow
         m.fs.soda_ash_centrifuge = Separator(
@@ -929,31 +1041,6 @@ def build_flowsheet(stage=3):
             outlet_list=["overflow", "underflow"],
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
-        
-        # Add electricity consumption variable for centrifuge costing
-        # Based on typical centrifuge: 0.015 kWh/m³ (higher than belt filter press)
-        m.fs.soda_ash_centrifuge.electricity_consumption = pyo.Var(
-            m.fs.time,
-            initialize=0.1,
-            units=pyunits.kW,
-            bounds=(0, None),
-            doc="Electricity consumption of soda ash centrifuge dewatering unit"
-        )
-        
-        m.fs.soda_ash_centrifuge.energy_electric_flow_vol_inlet = pyo.Param(
-            m.fs.time,
-            initialize=0.015,
-            units=pyunits.kWh / pyunits.m**3,
-            mutable=True,
-            doc="Specific electricity intensity for centrifuge"
-        )
-        
-        @m.fs.soda_ash_centrifuge.Constraint(m.fs.time, doc="Electricity consumption equation")
-        def soda_ash_centrifuge_eq_electricity_consumption(blk, t):
-            return blk.electricity_consumption[t] == pyunits.convert(
-                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
-                to_units=pyunits.kW,
-            )
         
         # Dewatering unit for lime precipitates (Mg(OH)2 and CaSO4)
         # Separates waste stream from lime reactor into concentrated solids and clarified liquid
@@ -963,30 +1050,6 @@ def build_flowsheet(stage=3):
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
         
-        # Add electricity consumption variable for costing
-        m.fs.lime_dewatering.electricity_consumption = pyo.Var(
-            m.fs.time,
-            initialize=0.1,
-            units=pyunits.kW,
-            bounds=(0, None),
-            doc="Electricity consumption of softening dewatering unit"
-        )
-        
-        m.fs.lime_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
-            m.fs.time,
-            initialize=0.006,
-            units=pyunits.kWh / pyunits.m**3,
-            mutable=True,
-            doc="Specific electricity intensity for belt filter press"
-        )
-        
-        @m.fs.lime_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
-        def lime_dewatering_eq_electricity_consumption(blk, t):
-            return blk.electricity_consumption[t] == pyunits.convert(
-                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
-                to_units=pyunits.kW,
-            )
-        
         # Lime centrifuge unit for further dewatering of lime precipitates
         # Takes underflow from lime dewatering and further concentrates the solids
         m.fs.lime_centrifuge = Separator(
@@ -995,31 +1058,6 @@ def build_flowsheet(stage=3):
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
         
-        # Add electricity consumption variable for centrifuge costing
-        # Based on typical centrifuge: 0.015 kWh/m³ (higher than belt filter press)
-        m.fs.lime_centrifuge.electricity_consumption = pyo.Var(
-            m.fs.time,
-            initialize=0.1,
-            units=pyunits.kW,
-            bounds=(0, None),
-            doc="Electricity consumption of centrifuge dewatering unit"
-        )
-        
-        m.fs.lime_centrifuge.energy_electric_flow_vol_inlet = pyo.Param(
-            m.fs.time,
-            initialize=0.015,
-            units=pyunits.kWh / pyunits.m**3,
-            mutable=True,
-            doc="Specific electricity intensity for centrifuge"
-        )
-        
-        @m.fs.lime_centrifuge.Constraint(m.fs.time, doc="Electricity consumption equation")
-        def lime_centrifuge_eq_electricity_consumption(blk, t):
-            return blk.electricity_consumption[t] == pyunits.convert(
-                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
-                to_units=pyunits.kW,
-            )
-        
         # Dewatering unit to separate Li2CO3 slurry into concentrated solids and clarified liquid
         # Using IDAES Separator as a generic dewatering unit
         m.fs.li_dewatering = Separator(
@@ -1027,34 +1065,6 @@ def build_flowsheet(stage=3):
             outlet_list=["overflow", "underflow"],
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
-        
-        # Add electricity consumption variable for costing
-        # Based on typical belt filter press: 0.006 kWh/m³
-        m.fs.li_dewatering.electricity_consumption = pyo.Var(
-            m.fs.time,
-            initialize=0.1,
-            units=pyunits.kW,
-            bounds=(0, None),
-            doc="Electricity consumption of lithium dewatering unit"
-        )
-        
-        m.fs.li_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
-            m.fs.time,
-            initialize=0.006,
-            units=pyunits.kWh / pyunits.m**3,
-            mutable=True,
-            doc="Specific electricity intensity for belt filter press"
-        )
-        
-        @m.fs.li_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
-        def li_eq_electricity_consumption(blk, t):
-            return blk.electricity_consumption[t] == pyunits.convert(
-                blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
-                to_units=pyunits.kW,
-            )
-        
-        # The dewatered Li2CO3 product will be available at the underflow outlet
-        # The overflow contains clarified brine effluent
     
     
     # ============================================================================
@@ -1093,7 +1103,9 @@ def build_flowsheet(stage=3):
     # SET CONDITIONS
     # ============================================================================
     
+    modify_unit_models(m, stage=stage)
     set_brine_feed_conditions(m)
+    modify_flowsheet(m, stage=stage)
     fix_unit_model_variables(m, stage=stage)
     initialize_flowsheet(m, stage=stage)
     set_scaling_factors(m, stage=stage)

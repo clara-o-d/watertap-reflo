@@ -215,11 +215,54 @@ def display_results(m, show_costing=False):
     print("LITHIUM CARBONATE PROCESSING PLANT RESULTS")
     print("="*60)
     
+    # Flowsheet-level parameters
+    if hasattr(m.fs, 'annual_soda_ash_input') or hasattr(m.fs, 'annual_lime_input') or hasattr(m.fs, 'max_total_impurity_mass_fraction_li_product'):
+        print(f"\nFLOWSHEET-LEVEL PARAMETERS:")
+        
+        if hasattr(m.fs, 'annual_soda_ash_input'):
+            annual_soda_ash_tonnes = value(pyunits.convert(m.fs.annual_soda_ash_input, to_units=pyunits.tonne/pyunits.year))
+            print(f"  Annual Soda Ash (Na2CO3) Input: {annual_soda_ash_tonnes:.1f} tonnes/year")
+        
+        if hasattr(m.fs, 'annual_lime_input'):
+            annual_lime_tonnes = value(pyunits.convert(m.fs.annual_lime_input, to_units=pyunits.tonne/pyunits.year))
+            print(f"  Annual Lime (CaO) Input: {annual_lime_tonnes:.1f} tonnes/year")
+        
+        if hasattr(m.fs, 'soda_ash_split_fraction'):
+            split_fraction = value(m.fs.soda_ash_split_fraction)
+            print(f"  Soda Ash Split Fraction (to Soda Ash Reactor): {split_fraction*100:.1f}%")
+            print(f"  Soda Ash to Lithium Reactor: {(1-split_fraction)*100:.1f}%")
+        
+        if hasattr(m.fs, 'max_total_impurity_mass_fraction_li_product'):
+            max_impurity = value(m.fs.max_total_impurity_mass_fraction_li_product)
+            print(f"  Max Total Impurity (Na+Mg+Ca) in Li2CO3 Product: {max_impurity*100:.3f}% mass fraction")
+    
     # Feed conditions
     print(f"\nBRINE FEED CONDITIONS:")
-    print(f"  Temperature: {value(m.fs.brine_feed.properties[0].temperature):.1f} K")
-    print(f"  Pressure: {value(m.fs.brine_feed.properties[0].pressure):.0f} Pa")
-    print(f"  Total flow rate: {value(m.fs.brine_feed.properties[0].flow_vol):.2f} L/s")
+    temp_K = value(m.fs.brine_feed.properties[0].temperature)
+    print(f"  Temperature: {temp_K:.1f} K")
+    
+    press_Pa = value(m.fs.brine_feed.properties[0].pressure)
+    press_atm = value(pyunits.convert(m.fs.brine_feed.properties[0].pressure, to_units=pyunits.atm))
+    print(f"  Pressure: {press_Pa:.0f} Pa ({press_atm:.2f} atm)")
+    
+    flow_m3_s = value(m.fs.brine_feed.properties[0].flow_vol)
+    flow_L_s = value(pyunits.convert(m.fs.brine_feed.properties[0].flow_vol, to_units=pyunits.L/pyunits.s))
+    flow_m3_h = value(pyunits.convert(m.fs.brine_feed.properties[0].flow_vol, to_units=pyunits.m**3/pyunits.hour))
+    print(f"  Volumetric flow rate: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
+    
+    # Calculate mass flow rate
+    try:
+        total_mass_flow_mol = 0 * pyunits.kg / pyunits.s
+        for comp in m.fs.brine_props.component_list:
+            comp_flow_mol = m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp]
+            comp_mw = m.fs.brine_props.mw_comp[comp]  # kg/mol
+            total_mass_flow_mol += comp_flow_mol * comp_mw
+        
+        mass_flow_kg_s = value(pyunits.convert(total_mass_flow_mol, to_units=pyunits.kg/pyunits.s))
+        mass_flow_kg_h = value(pyunits.convert(total_mass_flow_mol, to_units=pyunits.kg/pyunits.hour))
+        print(f"  Mass flow rate: {mass_flow_kg_s:.2f} kg/s ({mass_flow_kg_h:.1f} kg/h)")
+    except (AttributeError, TypeError, KeyError):
+        pass
     
     # Component flow rates
     print(f"\nCOMPONENT FLOW RATES (mol/s):")
@@ -263,15 +306,34 @@ def display_results(m, show_costing=False):
     if hasattr(m.fs, 'soda_ash_reactor'):
         print(f"\nSODA ASH REACTOR (FIRST SOFTENING STAGE):")
         try:
-            print(f"  Na2CO3 dose: {value(m.fs.soda_ash_reactor.reagent_dose['Na2CO3']):.4f} kg/L")
+            dose_kg_L = value(m.fs.soda_ash_reactor.reagent_dose['Na2CO3'])
+            dose_g_L = value(pyunits.convert(m.fs.soda_ash_reactor.reagent_dose['Na2CO3'], to_units=pyunits.g/pyunits.L))
+            print(f"  Na2CO3 dose: {dose_g_L:.3f} g/L ({dose_kg_L:.6f} kg/L)")
+            
+            # Calculate flow rates
+            if hasattr(m.fs.soda_ash_reactor, 'dissolution_reactor'):
+                flow_vol_in = m.fs.soda_ash_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+                flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
+                flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
+                print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
+                
+                # Reagent flow rate
+                reagent_flow = m.fs.soda_ash_reactor.reagent_dose['Na2CO3'] * flow_vol_in
+                flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
+                flow_kg_h = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.hour))
+                flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
+                print(f"  Na2CO3 flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
+                print(f"  Na2CO3 annual consumption: {flow_tonne_yr:.1f} tonnes/year")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  MgCO3 formation: {value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3']):.4f} kg/s")
+            mgco3_flow_kg_s = value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])
+            mgco3_flow_g_s = value(pyunits.convert(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'], to_units=pyunits.g/pyunits.s))
+            print(f"  MgCO3 formation: {mgco3_flow_g_s:.3f} g/s ({mgco3_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Waste solids fraction: {value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate):.1%}")
+            print(f"  Waste solids fraction: {value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)*100:.1f}%")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -279,19 +341,40 @@ def display_results(m, show_costing=False):
     if hasattr(m.fs, 'lime_reactor'):
         print(f"\nLIME REACTOR (SECOND SOFTENING STAGE):")
         try:
-            print(f"  CaO dose: {value(m.fs.lime_reactor.reagent_dose['CaO']):.4f} kg/L")
+            dose_kg_L = value(m.fs.lime_reactor.reagent_dose['CaO'])
+            dose_g_L = value(pyunits.convert(m.fs.lime_reactor.reagent_dose['CaO'], to_units=pyunits.g/pyunits.L))
+            print(f"  CaO dose: {dose_g_L:.3f} g/L ({dose_kg_L:.6f} kg/L)")
+            
+            # Calculate flow rates
+            if hasattr(m.fs.lime_reactor, 'dissolution_reactor'):
+                flow_vol_in = m.fs.lime_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+                flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
+                flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
+                print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
+                
+                # Reagent flow rate
+                reagent_flow = m.fs.lime_reactor.reagent_dose['CaO'] * flow_vol_in
+                flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
+                flow_kg_h = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.hour))
+                flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
+                print(f"  CaO flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
+                print(f"  CaO annual consumption: {flow_tonne_yr:.1f} tonnes/year")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Brucite formation: {value(m.fs.lime_reactor.flow_mass_precipitate['Brucite']):.4f} kg/s")
+            brucite_flow_kg_s = value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])
+            brucite_flow_g_s = value(pyunits.convert(m.fs.lime_reactor.flow_mass_precipitate['Brucite'], to_units=pyunits.g/pyunits.s))
+            print(f"  Brucite formation: {brucite_flow_g_s:.3f} g/s ({brucite_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Gypsum formation: {value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum']):.4f} kg/s")
+            gypsum_flow_kg_s = value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])
+            gypsum_flow_g_s = value(pyunits.convert(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'], to_units=pyunits.g/pyunits.s))
+            print(f"  Gypsum formation: {gypsum_flow_g_s:.3f} g/s ({gypsum_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Waste solids fraction: {value(m.fs.lime_reactor.waste_mass_frac_precipitate):.1%}")
+            print(f"  Waste solids fraction: {value(m.fs.lime_reactor.waste_mass_frac_precipitate)*100:.1f}%")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -299,25 +382,42 @@ def display_results(m, show_costing=False):
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         print(f"\nLITHIUM CARBONATE PRECIPITATION REACTOR:")
         try:
-            print(f"  Na2CO3 dose: {value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3']):.4f} kg/L")
+            dose_kg_L = value(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'])
+            dose_g_L = value(pyunits.convert(m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'], to_units=pyunits.g/pyunits.L))
+            print(f"  Na2CO3 dose: {dose_g_L:.3f} g/L ({dose_kg_L:.6f} kg/L)")
+            
+            # Calculate flow rates
+            if hasattr(m.fs.lithium_carbonate_reactor, 'dissolution_reactor'):
+                flow_vol_in = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+                flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
+                flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
+                print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
+                
+                # Reagent flow rate
+                reagent_flow = m.fs.lithium_carbonate_reactor.reagent_dose['Na2CO3'] * flow_vol_in
+                flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
+                flow_kg_h = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.hour))
+                flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
+                print(f"  Na2CO3 flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
+                print(f"  Na2CO3 annual consumption: {flow_tonne_yr:.1f} tonnes/year")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Li2CO3 formation: {value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3']):.4f} kg/s")
+            li2co3_flow_kg_s = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
+            li2co3_flow_g_s = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.g/pyunits.s))
+            print(f"  Li2CO3 formation: {li2co3_flow_g_s:.3f} g/s ({li2co3_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Waste solids fraction: {value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate):.1%}")
+            print(f"  Waste solids fraction: {value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.1f}%")
         except (AttributeError, TypeError, KeyError):
             pass
         
         # Calculate annual production
         try:
-            annual_li2co3 = value(pyunits.convert(
-                m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], 
-                to_units=pyunits.kg/pyunits.year
-            ))
-            print(f"  Annual Li2CO3 production: {annual_li2co3:,.0f} kg/year")
+            li2co3_flow_kg_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.kg/pyunits.year))
+            li2co3_flow_tonne_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.tonne/pyunits.year))
+            print(f"  Annual Li2CO3 production: {li2co3_flow_tonne_yr:.1f} tonnes/year ({li2co3_flow_kg_yr:,.0f} kg/year)")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -473,11 +573,15 @@ def display_results(m, show_costing=False):
     
     # Process summary
     print(f"\nPROCESS SUMMARY:")
-    print(f"  Feed flow rate: {value(m.fs.brine_feed.properties[0].flow_vol):.2f} L/s")
+    feed_flow_L_s = value(pyunits.convert(m.fs.brine_feed.properties[0].flow_vol, to_units=pyunits.L/pyunits.s))
+    print(f"  Feed flow rate: {feed_flow_L_s:.2f} L/s")
     print(f"  Feed Li concentration: {value(m.fs.brine_feed.properties[0].flow_mol_phase_comp['Liq', 'Li']):.4f} mol/s")
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        print(f"  Li2CO3 production: {value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3']):.4f} kg/s")
-        print(f"  Annual Li2CO3 production: {annual_li2co3:,.0f} kg/year")
+        li2co3_flow_kg_s = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
+        print(f"  Li2CO3 production: {li2co3_flow_kg_s:.4f} kg/s")
+        li2co3_flow_kg_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.kg/pyunits.year))
+        li2co3_flow_tonne_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.tonne/pyunits.year))
+        print(f"  Annual Li2CO3 production: {li2co3_flow_tonne_yr:.1f} tonnes/year ({li2co3_flow_kg_yr:,.0f} kg/year)")
     
     print(f"\n" + "="*60)
     print("END OF RESULTS")

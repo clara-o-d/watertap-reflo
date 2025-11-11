@@ -1137,6 +1137,33 @@ def set_scaling_factors(m, stage=3):
                 iscale.set_scaling_factor(m.fs.li_dewatering.electricity_consumption[0.0], 1E+01 / reference_li * mol_flow_li)
                 iscale.set_scaling_factor(m.fs.li_dewatering.mixed_state[0.0].flow_vol_phase["Liq"], 1E+03 / reference_li * mol_flow_li)
                 iscale.set_scaling_factor(m.fs.li_dewatering.mixed_state[0.0].dens_mass_phase["Liq"], 1E-03 / reference_li * mol_flow_li)
+                
+                if hasattr(m.fs, 'costing'):
+                    # ============================================================================
+                    # COSTING SCALING FACTORS
+                    # ============================================================================
+                        iscale.set_scaling_factor(m.fs.brine_storage.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.brine_pump.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.soda_ash_reactor.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.lime_reactor.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.soda_ash_dewatering.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.soda_ash_centrifuge.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.lime_dewatering.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.lime_centrifuge.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.li_dewatering.costing.capital_cost, 1e-6)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_capital_cost, 1e-7)
+                        iscale.set_scaling_factor(m.fs.costing.total_capital_cost, 1e-7)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_flow_electricity, 1e-2)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_flow_soda_ash, 1e-7)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_flow_lime, 1e-6)
+                        iscale.set_scaling_factor(m.fs.costing.capital_recovery_factor, 1e-2)
+
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_capital_cost_constraint, 1e-6)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_flow_soda_ash_constraint, 1e5)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_flow_lime_constraint, 1e5)
+                        iscale.set_scaling_factor(m.fs.costing.aggregate_flow_costs_constraint["lime"], 1e4)
+                        iscale.set_scaling_factor(m.fs.costing.total_operating_cost_constraint, 1e-4)
 
 
     finally:
