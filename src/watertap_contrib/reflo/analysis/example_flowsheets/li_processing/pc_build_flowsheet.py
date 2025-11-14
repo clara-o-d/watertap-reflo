@@ -201,8 +201,8 @@ def set_brine_feed_conditions(m):
     m.fs.brine_feed.properties[0].temperature.fix(T_ref)
     m.fs.brine_feed.properties[0].pressure.fix(P_ref)
     
-    # Total mass flow rate: 27.93 kg/s
-    total_flow_mass = 27930 * pyunits.kg / pyunits.s
+    # Total mass flow rate
+    total_flow_mass = 13.568 * pyunits.kg / pyunits.s
     
     # Density = 1.252 kg/L = 1252 g/L
     density = 1252 * pyunits.g / pyunits.L
@@ -245,9 +245,9 @@ def set_brine_feed_conditions(m):
         # Convert ppm to mass fraction (kg/kg)
         mass_fraction = ppm[comp] / 1e6  # dimensionless
         # Calculate mass flow rate of component (kg/s)
-        comp_mass_flow = mass_fraction * total_flow_mass  # kg/s
+        comp_mass_flow = mass_fraction * total_flow_mass # kg/s
         # Convert to molar flow rate (mol/s)
-        comp_molar_flow = comp_mass_flow / MW[comp]  # mol/s
+        comp_molar_flow = comp_mass_flow * 1000 / MW[comp]  # mol/s
         m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp].fix(pyo.value(comp_molar_flow))
     
     # H+ from pH (assuming pH = 6.5)
@@ -257,7 +257,7 @@ def set_brine_feed_conditions(m):
     
     # Water: Calculate water mass flow rate as difference from total
     total_solute_mass_fraction = sum(ppm[c] / 1e6 for c in ppm) + (H_conc_mol_L * MW["H"] / density)
-    water_mass_fraction = 1.0 - total_solute_mass_fraction  # dimensionless
+    water_mass_fraction = 1.0 - total_solute_mass_fraction + 3.0 * total_flow_mass  # dimensionless
     water_mass_flow = water_mass_fraction * total_flow_mass  # kg/s
     water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
@@ -286,18 +286,18 @@ def modify_flowsheet(m, stage=3):
     
     # Maximum total impurity concentration in Li2CO3 product (underflow from li_dewatering)
     # Sum of Na, Mg, and Ca mass fractions must be <= 0.05%
-    m.fs.max_total_impurity_mass_fraction_li_product = pyo.Var(
+    m.fs.max_total_product_impurity = pyo.Var(
         initialize=0.0005,
         bounds=(0, 1.0),
         units=pyunits.dimensionless,
         doc="Maximum total mass fraction of Na, Mg, and Ca in Li2CO3 product (0.05%)"
     )
-    m.fs.max_total_impurity_mass_fraction_li_product.fix(0.0005)
+    m.fs.max_total_product_impurity.fix(0.0005)
     
     if stage >= 2:
         # Soda ash split fraction - proportion going to soda ash reactor vs lithium reactor
         m.fs.soda_ash_split_fraction = pyo.Var(
-            initialize=0.5,
+            initialize=0.9,
             bounds=(0, 1.0),
             units=pyunits.dimensionless,
             doc="Fraction of total soda ash going to soda ash reactor (vs lithium carbonate reactor)"
@@ -308,41 +308,55 @@ def modify_flowsheet(m, stage=3):
         # annual_soda_ash_input = soda_ash_to_soda_ash_reactor + soda_ash_to_lithium_reactor
         @m.fs.Constraint(doc="Total soda ash annual input constraint")
         def soda_ash_annual_input_constraint(fs):
-            soda_ash_reactor_usage = (
-                fs.soda_ash_reactor.reagent_dose["Na2CO3"]
-                * fs.soda_ash_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
-            )
-            
-            lithium_reactor_usage = (
-                fs.lithium_carbonate_reactor.reagent_dose["Na2CO3"]
-                * fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
-            )
+            total_usage = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] + fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"]
             
             return fs.annual_soda_ash_input == pyunits.convert(
-                soda_ash_reactor_usage + lithium_reactor_usage,
+                total_usage,
                 to_units=pyunits.kg / pyunits.year
             )
         
-        # Constraint: Relate soda ash doses through split fraction
+        # Constraint: Relate soda ash flows through split fraction
         @m.fs.Constraint(doc="Soda ash split fraction constraint")
         def soda_ash_split_constraint(fs):
-            soda_ash_reactor_usage = (
-                fs.soda_ash_reactor.reagent_dose["Na2CO3"]
-                * fs.soda_ash_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
-            )
-            
             total_usage = pyunits.convert(fs.annual_soda_ash_input, to_units=pyunits.kg / pyunits.s)
             
-            return soda_ash_reactor_usage == fs.soda_ash_split_fraction * total_usage
+            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == fs.soda_ash_split_fraction * total_usage
         
-        # Constraint: Lime reactor reagent dose to match annual input
+        # Constraint: Lime reactor reagent flow to match annual input
         @m.fs.Constraint(doc="Lime annual input constraint")
         def lime_annual_input_constraint(fs):
             return fs.annual_lime_input == pyunits.convert(
-                fs.lime_reactor.reagent_dose["CaO"]
-                * fs.lime_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"],
+                fs.lime_reactor.flow_mass_reagent["CaO"],
                 to_units=pyunits.kg / pyunits.year
             )
+        
+        # Lithium recovery target
+        m.fs.target_li_recovery = pyo.Var(
+            initialize=0.80,
+            bounds=(0, 1.0),
+            units=pyunits.dimensionless,
+            doc="Target lithium recovery fraction (80%)"
+        )
+        m.fs.target_li_recovery.fix(0.80)
+        
+        # Constraint: Lithium recovery - Li2CO3 production based on feed and target recovery
+        @m.fs.Constraint(doc="Lithium recovery constraint")
+        def li_recovery_constraint(fs):
+            # Li mass flow in feed (kg/s)
+            li_in_mass = (
+                fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
+                * fs.brine_props.mw_comp["Li"]
+            )
+            
+            # Li mass flow in Li2CO3 product (kg/s)
+            li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
+            li_mw = fs.brine_props.mw_comp["Li"]
+            li_in_li2co3 = (
+                fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"]
+                * (2 * li_mw / li2co3_mw)
+            )
+            
+            return li_in_li2co3 == fs.target_li_recovery * li_in_mass
     
 def fix_unit_model_variables(m, stage=3):
     """
@@ -373,17 +387,14 @@ def fix_unit_model_variables(m, stage=3):
         # SODA ASH REACTOR (First softening stage)
         # Minimize reagent to reduce volumetric flow disturbances
         # Feed Mg: 0.022068 mol/s (0.536 g/s), precipitate minimal amount
-        # Note: reagent_dose is now constrained by annual_soda_ash_input in modify_flowsheet
         
         # Fix precipitate formation - very small to minimize flow disturbance
-        # Target: 1% of Mg → 0.00022 mol/s Mg × 84.3 g/mol MgCO3 = 0.0185 g/s
         m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"].fix(0.0185e-3 * units.kg / units.s)  # 0.0185 g/s MgCO3
         
         # Fix waste stream solids fraction to define separator behavior
         m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.05)  # 5% solids in waste stream
         
         # LIME REACTOR (Second softening stage)
-        # Note: reagent_dose is now constrained by annual_lime_input in modify_flowsheet
         
         # Fix precipitate formation rates - very small amounts
         # Brucite: Target 0.1% of Mg → 0.000022 mol/s × 58.32 g/mol = 0.0013 g/s
@@ -397,14 +408,10 @@ def fix_unit_model_variables(m, stage=3):
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.02)  # 2% solids (very low)
         
         # LITHIUM CARBONATE REACTOR
-        # Note: reagent_dose is now constrained by annual_soda_ash_input and soda_ash_split_fraction in modify_flowsheet
-        
-        # Fix lithium carbonate formation - 1% of available lithium
-        # 0.0024147 mol/s Li → 0.0012074 mol/s Li2CO3 × 73.89 g/mol = 0.0892 g/s
-        m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"].fix(0.0892e-3 * units.kg / units.s)  # 0.0892 g/s Li2CO3
+        # Note: Li2CO3 precipitation is now determined by the li_recovery_constraint in modify_flowsheet
         
         # Fix waste stream solids fraction to define separator behavior  
-        m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.10)  # 10% solids in waste stream
+        m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.20)  # 20% solids in waste stream
     
     if stage >= 3:
         # SODA ASH DEWATERING UNIT (Separator for MgCO3 precipitates)
@@ -574,6 +581,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n4. Propagating state to soda ash reactor...")
         propagate_state(m.fs.pump_to_soda_ash)
         m.fs.soda_ash_reactor.initialize()
+        m.fs.soda_ash_reactor.report()
         print("Soda ash reactor initialized successfully!")
         print(f"DOF after soda ash reactor: {degrees_of_freedom(m)}")
         
@@ -581,6 +589,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n5. Propagating state to lime reactor...")
         propagate_state(m.fs.soda_ash_to_lime)
         m.fs.lime_reactor.initialize()
+        m.fs.lime_reactor.report()
         print("Lime reactor initialized successfully!")
         print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
         
@@ -588,6 +597,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n6. Propagating state to lithium carbonate reactor...")
         propagate_state(m.fs.lime_to_lithium)
         m.fs.lithium_carbonate_reactor.initialize()
+        m.fs.lithium_carbonate_reactor.report()
         print("Lithium carbonate reactor initialized successfully!")
         print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
     
@@ -600,6 +610,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n7. Propagating state to soda ash dewatering unit...")
         propagate_state(m.fs.soda_ash_to_dewatering)
         m.fs.soda_ash_dewatering.initialize()
+        m.fs.soda_ash_dewatering.report()
         print("Soda ash dewatering unit initialized successfully!")
         print(f"DOF after soda ash dewatering: {degrees_of_freedom(m)}")
         
@@ -607,6 +618,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n8. Propagating state to soda ash centrifuge dewatering unit...")
         propagate_state(m.fs.soda_ash_dewatering_to_centrifuge)
         m.fs.soda_ash_centrifuge.initialize()
+        m.fs.soda_ash_centrifuge.report()
         print("Soda ash centrifuge dewatering unit initialized successfully!")
         print(f"DOF after soda ash centrifuge: {degrees_of_freedom(m)}")
         
@@ -614,6 +626,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n9. Propagating state to lime dewatering unit...")
         propagate_state(m.fs.lime_to_lime_dewater)
         m.fs.lime_dewatering.initialize()
+        m.fs.lime_dewatering.report()
         print("Lime dewatering unit initialized successfully!")
         print(f"DOF after lime dewatering: {degrees_of_freedom(m)}")
         
@@ -621,6 +634,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n10. Propagating state to lime centrifuge unit...")
         propagate_state(m.fs.lime_dewatering_to_lime_centrifuge)
         m.fs.lime_centrifuge.initialize()
+        m.fs.lime_centrifuge.report()
         print("Lime centrifuge unit initialized successfully!")
         print(f"DOF after lime centrifuge: {degrees_of_freedom(m)}")
         
@@ -628,6 +642,7 @@ def initialize_flowsheet(m, stage=3):
         print("\n11. Propagating state to lithium dewatering unit...")
         propagate_state(m.fs.lithium_to_dewatering)
         m.fs.li_dewatering.initialize()
+        m.fs.li_dewatering.report()
         print("Lithium dewatering unit initialized successfully!")
         print(f"DOF after lithium dewatering: {degrees_of_freedom(m)}")
     

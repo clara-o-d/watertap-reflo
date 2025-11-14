@@ -32,10 +32,10 @@ def solve(m, solver=None):
     if (results is None or tc != TerminationCondition.optimal):
         #input("Default solve failed. Press Enter to try with improved settings...")
         solver.options = {
-            "tol": 1e-4,  # Relaxed from 1e-5 to accept small violations
-            "constr_viol_tol": 5e-5,  # Relaxed to accept ~2e-5 violations  
-            "acceptable_constr_viol_tol": 1e-4,  # Acceptable solution tolerance
-            "acceptable_tol": 1e-4,  # Accept if we get close
+            "tol": 1e-4,
+            "constr_viol_tol": 5e-5,  
+            "acceptable_constr_viol_tol": 1e-4,
+            "acceptable_tol": 1e-4,
             "bound_push": 1e-5,
             "bound_frac": 1e-5,
             "max_iter": 5000,
