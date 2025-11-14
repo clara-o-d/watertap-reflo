@@ -357,6 +357,39 @@ def modify_flowsheet(m, stage=3):
             )
             
             return li_in_li2co3 == fs.target_li_recovery * li_in_mass
+        
+        # Constraint: Gypsum precipitation based on feed SO4
+        @m.fs.Constraint(doc="Gypsum precipitation constraint (90% of feed SO4)")
+        def gypsum_precipitation_constraint(fs):
+            # Gypsum molecular weight (kg/mol)
+            gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
+            
+            # Convert gypsum mass flow to molar flow
+            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
+            
+            # Feed SO4 molar flow (mol/s)
+            feed_so4_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"]
+            
+            # Gypsum contains 1 SO4 per molecule, so gypsum molar flow = SO4 removed
+            return gypsum_molar_flow == 0.90 * feed_so4_molar_flow
+        
+        # Constraint: Brucite precipitation equal to gypsum precipitation
+        @m.fs.Constraint(doc="Brucite precipitation constraint (equal to gypsum molar rate)")
+        def brucite_precipitation_constraint(fs):
+            # Brucite molecular weight (kg/mol)
+            brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
+            
+            # Gypsum molecular weight (kg/mol)
+            gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
+            
+            # Convert brucite mass flow to molar flow
+            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
+            
+            # Convert gypsum mass flow to molar flow
+            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
+            
+            # Set brucite molar rate equal to gypsum molar rate
+            return brucite_molar_flow == gypsum_molar_flow
     
 def fix_unit_model_variables(m, stage=3):
     """
@@ -396,13 +429,9 @@ def fix_unit_model_variables(m, stage=3):
         
         # LIME REACTOR (Second softening stage)
         
-        # Fix precipitate formation rates - very small amounts
-        # Brucite: Target 0.1% of Mg → 0.000022 mol/s × 58.32 g/mol = 0.0013 g/s
-        m.fs.lime_reactor.flow_mass_precipitate["Brucite"].fix(1.3e-6 * units.kg / units.s)  # 0.0013 g/s Mg(OH)2
-        
-        # Gypsum: Use only 10% of available SO4 to minimize disturbance
-        # 0.1 × 6.14 mg/s SO4 → 0.00061 g/s SO4 → 0.0011 g/s CaSO4·2H2O
-        m.fs.lime_reactor.flow_mass_precipitate["Gypsum"].fix(1.1e-6 * units.kg / units.s)  # 0.0011 g/s CaSO4·2H2O
+        # Precipitate formation rates determined by constraints in modify_flowsheet:
+        # - Brucite: Set equal to gypsum molar rate via brucite_precipitation_constraint
+        # - Gypsum: Set to 90% of feed SO4 via gypsum_precipitation_constraint
         
         # Fix waste stream solids fraction to define separator behavior
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.02)  # 2% solids (very low)
@@ -1125,7 +1154,7 @@ def build_flowsheet(stage=3):
     initialize_flowsheet(m, stage=stage)
     set_scaling_factors(m, stage=stage)
 
-    run_diagnostics(m, report_scaling=False, analyze_jacobian=False, check_jacobian_quality=False)
+    run_diagnostics(m, report_scaling=True, analyze_jacobian=False, check_jacobian_quality=False)
 
     return m
 
