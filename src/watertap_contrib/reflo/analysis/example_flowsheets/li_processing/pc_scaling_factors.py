@@ -274,7 +274,7 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","B"], 1E-01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","H"], 1E+13 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","HCO3"], 1E+02 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","CO3"], 1E+06 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mol_phase_comp["Liq","CO3"], 1E-03 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].temperature, 1E-03 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].pressure, 1E-06 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","H"], 1E+16 / reference_li * mol_flow_li)

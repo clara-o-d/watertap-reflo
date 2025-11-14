@@ -390,6 +390,28 @@ def modify_flowsheet(m, stage=3):
             
             # Set brucite molar rate equal to gypsum molar rate
             return brucite_molar_flow == gypsum_molar_flow
+        
+        # Constraint: MgCO3 precipitation based on available Mg after lime reactor
+        @m.fs.Constraint(doc="MgCO3 precipitation constraint (90% of available Mg)")
+        def mgco3_precipitation_constraint(fs):
+            # MgCO3 molecular weight (kg/mol)
+            mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
+            
+            # Brucite molecular weight (kg/mol)
+            brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
+            
+            # Convert MgCO3 mass flow to molar flow
+            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
+            
+            # Convert brucite mass flow to molar flow (Brucite has 1 Mg per molecule)
+            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
+            
+            # Feed Mg molar flow (mol/s)
+            feed_mg_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Mg"]
+            
+            # Available Mg = Feed Mg - Mg removed as Brucite in lime reactor
+            # MgCO3 has 1 Mg per molecule, so MgCO3 molar flow = Mg removed
+            return mgco3_molar_flow == 0.90 * (feed_mg_molar_flow - brucite_molar_flow)
     
 def fix_unit_model_variables(m, stage=3):
     """
@@ -418,11 +440,8 @@ def fix_unit_model_variables(m, stage=3):
     
     if stage >= 2:
         # SODA ASH REACTOR (First softening stage)
-        # Minimize reagent to reduce volumetric flow disturbances
-        # Feed Mg: 0.022068 mol/s (0.536 g/s), precipitate minimal amount
-        
-        # Fix precipitate formation - very small to minimize flow disturbance
-        m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"].fix(0.0185e-3 * units.kg / units.s)  # 0.0185 g/s MgCO3
+        # MgCO3 precipitation rate determined by mgco3_precipitation_constraint in modify_flowsheet
+        # Constraint sets it to 90% of (feed Mg - Mg removed as Brucite in lime reactor)
         
         # Fix waste stream solids fraction to define separator behavior
         m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.05)  # 5% solids in waste stream
