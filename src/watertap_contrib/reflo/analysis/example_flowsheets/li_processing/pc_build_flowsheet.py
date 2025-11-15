@@ -26,6 +26,7 @@ import idaes.core.util.scaling as iscale
 from idaes.core.scaling import AutoScaler
 import idaes.logger as idaeslog
 from io import StringIO
+from pyomo.core.base.param import Param
 
 # IDAES imports
 from idaes.core import FlowsheetBlock
@@ -52,7 +53,7 @@ from watertap.unit_models.stoichiometric_reactor import StoichiometricReactor
 from watertap.core.wt_database import Database
 
 # Local imports
-from pc_scaling_factors import set_scaling_factors
+from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_scaling_factors import set_scaling_factors
 
 def modify_unit_models(m, stage=3):
     """
@@ -339,6 +340,14 @@ def modify_flowsheet(m, stage=3):
         )
         m.fs.target_li_recovery.fix(0.80)
         
+        # Magnesium removal fraction
+        m.fs.mg_removal_fraction = Param(
+            initialize=0.90,
+            units=pyunits.dimensionless,
+            doc="Fraction of available Mg removed as MgCO3 (90%)"
+        )
+        m.fs.mg_removal_fraction.set_value(0.70)
+        
         # Constraint: Lithium recovery - Li2CO3 production based on feed and target recovery
         @m.fs.Constraint(doc="Lithium recovery constraint")
         def li_recovery_constraint(fs):
@@ -392,7 +401,7 @@ def modify_flowsheet(m, stage=3):
             return brucite_molar_flow == gypsum_molar_flow
         
         # Constraint: MgCO3 precipitation based on available Mg after lime reactor
-        @m.fs.Constraint(doc="MgCO3 precipitation constraint (90% of available Mg)")
+        @m.fs.Constraint(doc="MgCO3 precipitation constraint (fraction of available Mg)")
         def mgco3_precipitation_constraint(fs):
             # MgCO3 molecular weight (kg/mol)
             mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
@@ -411,7 +420,7 @@ def modify_flowsheet(m, stage=3):
             
             # Available Mg = Feed Mg - Mg removed as Brucite in lime reactor
             # MgCO3 has 1 Mg per molecule, so MgCO3 molar flow = Mg removed
-            return mgco3_molar_flow == 0.90 * (feed_mg_molar_flow - brucite_molar_flow)
+            return mgco3_molar_flow == fs.mg_removal_fraction * (feed_mg_molar_flow - brucite_molar_flow)
     
 def fix_unit_model_variables(m, stage=3):
     """
@@ -444,7 +453,7 @@ def fix_unit_model_variables(m, stage=3):
         # Constraint sets it to 90% of (feed Mg - Mg removed as Brucite in lime reactor)
         
         # Fix waste stream solids fraction to define separator behavior
-        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.05)  # 5% solids in waste stream
+        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)  # 50% solids in waste stream
         
         # LIME REACTOR (Second softening stage)
         
@@ -453,13 +462,13 @@ def fix_unit_model_variables(m, stage=3):
         # - Gypsum: Set to 90% of feed SO4 via gypsum_precipitation_constraint
         
         # Fix waste stream solids fraction to define separator behavior
-        m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.02)  # 2% solids (very low)
+        m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.5)  # 20% solids (very low)
         
         # LITHIUM CARBONATE REACTOR
         # Note: Li2CO3 precipitation is now determined by the li_recovery_constraint in modify_flowsheet
         
         # Fix waste stream solids fraction to define separator behavior  
-        m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.20)  # 20% solids in waste stream
+        m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.5)  # 20% solids in waste stream
     
     if stage >= 3:
         # SODA ASH DEWATERING UNIT (Separator for MgCO3 precipitates)
@@ -747,7 +756,7 @@ def run_diagnostics(m, report_scaling=False, analyze_jacobian=False,
         print("\n" + "="*80)
         print("END OF SCALING FACTORS REPORT")
         print("="*80 + "\n")
-        input("Press enter to continue")
+        # input("Press enter to continue")
     
     # ============================================================================
     # SVD ANALYSIS OF JACOBIAN (if requested)
@@ -873,7 +882,7 @@ def run_diagnostics(m, report_scaling=False, analyze_jacobian=False,
             print("This may occur due to Jacobian evaluation issues.")
             print("Consider running this analysis after model initialization.")
             print("="*80 + "\n")
-        input("Press enter to continue")
+        # input("Press enter to continue")
     # ============================================================================
     # JACOBIAN QUALITY DIAGNOSTICS (if requested)
     # ============================================================================
@@ -945,7 +954,7 @@ def run_diagnostics(m, report_scaling=False, analyze_jacobian=False,
             print("This may occur if the model structure doesn't support these diagnostics")
             print("or if there are issues evaluating the Jacobian.")
             print("="*80 + "\n")
-        input("Press enter to continue")
+        # input("Press enter to continue")
         
 def build_flowsheet(stage=3):
     """

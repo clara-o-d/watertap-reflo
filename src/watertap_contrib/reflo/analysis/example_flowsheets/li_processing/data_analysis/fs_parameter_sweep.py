@@ -15,30 +15,23 @@ import os
 def build_model(**kwargs): 
     """Build the lithium extraction flowsheet model with parameter sweep capability."""
     
-    m = build_flowsheet()
+    m = build_flowsheet(stage=2)
 
     # Solve the base flowsheet
     results = solve(m)
-    
-    # Add costing
-    add_costing(m)
-    process_costing(m)
-    
+
     return m
 
 def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep."""
     sweep_params = dict()
 
-    sweep_params['Water flow rate'] = LinearSample(
-        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"], 0.7, 0.9, 3
+    sweep_params['Mg removal fraction'] = LinearSample(
+        m.fs.mg_removal_fraction, 0.01, 0.99, 10
     )
-    sweep_params['Brine storage time'] = LinearSample(
-        m.fs.brine_storage.storage_time[0], 22, 26, 3
-    )
-    sweep_params[f'Pump efficiency'] = LinearSample(
-        m.fs.brine_pump.efficiency_pump[0], 0.6, 0.8, 3
-    )
+    # sweep_params['SO4 concentration'] = LinearSample(
+    #     m.fs.brine_feed.properties[0].conc_mass_phase_comp["Liq", "SO4"], 0.03107391213824693, 0.03107391213824693, 1
+    # )
 
 
     return sweep_params
@@ -53,11 +46,10 @@ def build_outputs(m, **kwargs):
     
     outputs = dict()
     
-    outputs['LCOLi2CO3 (USD/kg)'] = m.fs.costing.LCOLi2CO3_mass
+    outputs['MgCO3 production (kg/s)'] = m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"]
 
-    outputs['Resultant water flow rate'] = m.fs.brine_feed.properties[0].flow_mass_phase_comp["Liq", "H2O"]
-    outputs['Resultant brine storage time'] = m.fs.brine_storage.storage_time[0]
-    outputs['Resultant pump efficiency'] = m.fs.brine_pump.efficiency_pump[0]
+    outputs['Resultant Mg removal fraction'] = m.fs.mg_removal_fraction
+    outputs['Resultant SO4 concentration'] = m.fs.brine_feed.properties[0].flow_mass_phase_comp["Liq", "SO4"]
     
     return outputs
 
