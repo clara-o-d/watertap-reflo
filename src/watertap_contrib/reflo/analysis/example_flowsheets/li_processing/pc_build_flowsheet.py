@@ -250,7 +250,7 @@ def set_brine_feed_conditions(m):
         # Convert to molar flow rate (mol/s)
         comp_molar_flow = comp_mass_flow * 1000 / MW[comp]  # mol/s
         m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp].fix(pyo.value(comp_molar_flow))
-    
+
     # H+ from pH (assuming pH = 6.5)
     H_conc_mol_L = 3.16e-7 * pyunits.mol / pyunits.L
     H_flow_mol_s = H_conc_mol_L * total_flow_vol
@@ -298,12 +298,12 @@ def modify_flowsheet(m, stage=3):
     if stage >= 2:
         # Soda ash split fraction - proportion going to soda ash reactor vs lithium reactor
         m.fs.soda_ash_split_fraction = pyo.Var(
-            initialize=0.9,
+            initialize=0.02,
             bounds=(0, 1.0),
             units=pyunits.dimensionless,
             doc="Fraction of total soda ash going to soda ash reactor (vs lithium carbonate reactor)"
         )
-        m.fs.soda_ash_split_fraction.fix(0.5)
+        # m.fs.soda_ash_split_fraction.fix(0.02)
         
         # Constraint: Total soda ash usage across both reactors
         # annual_soda_ash_input = soda_ash_to_soda_ash_reactor + soda_ash_to_lithium_reactor
@@ -339,14 +339,7 @@ def modify_flowsheet(m, stage=3):
             doc="Target lithium recovery fraction (80%)"
         )
         m.fs.target_li_recovery.fix(0.80)
-        
-        # Magnesium removal fraction
-        m.fs.mg_removal_fraction = Param(
-            initialize=0.90,
-            units=pyunits.dimensionless,
-            doc="Fraction of available Mg removed as MgCO3 (90%)"
-        )
-        m.fs.mg_removal_fraction.set_value(0.70)
+    
         
         # Constraint: Lithium recovery - Li2CO3 production based on feed and target recovery
         @m.fs.Constraint(doc="Lithium recovery constraint")
@@ -382,45 +375,61 @@ def modify_flowsheet(m, stage=3):
             # Gypsum contains 1 SO4 per molecule, so gypsum molar flow = SO4 removed
             return gypsum_molar_flow == 0.90 * feed_so4_molar_flow
         
-        # Constraint: Brucite precipitation equal to gypsum precipitation
-        @m.fs.Constraint(doc="Brucite precipitation constraint (equal to gypsum molar rate)")
+        # Constraint: Brucite precipitation (95% of Mg entering lime reactor)
+        @m.fs.Constraint(doc="Brucite precipitation constraint (95% of Mg entering lime reactor)")
         def brucite_precipitation_constraint(fs):
             # Brucite molecular weight (kg/mol)
             brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
             
-            # Gypsum molecular weight (kg/mol)
-            gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
+            # MgCO3 molecular weight (kg/mol)
+            mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
             
             # Convert brucite mass flow to molar flow
             brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
             
-            # Convert gypsum mass flow to molar flow
-            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
+            # Convert MgCO3 mass flow to molar flow
+            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
             
-            # Set brucite molar rate equal to gypsum molar rate
-            return brucite_molar_flow == gypsum_molar_flow
+            # Feed Mg molar flow (mol/s)
+            feed_mg_molar_flow = fs.soda_ash_reactor.dissolution_reactor.properties_in[0.0].flow_mol_phase_comp["Liq","Mg"]
+            
+            # Mg entering lime reactor = Feed Mg - MgCO3 removed in soda ash reactor
+            # Brucite precipitates 95% of this Mg (Brucite has 1 Mg per molecule)
+            return brucite_molar_flow == 0.90 * (feed_mg_molar_flow)
+
+        @m.fs.Constraint(doc="Second brucite precipitation constraint (lime input constraint)")
+        def second_brucite_precipitation_constraint(fs):
+            # Brucite molecular weight (kg/mol)
+            brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
+
+            # CaO molecular weight (kg/mol)
+            cao_mw = 56.0774e-3 * pyunits.kg / pyunits.mol
+
+            # Convert brucite mass flow to molar flow
+            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
+
+            # Convert CaO mass flow to molar flow
+            cao_molar_flow = fs.lime_reactor.flow_mass_reagent["CaO"] / cao_mw
+            
+            return brucite_molar_flow == 0.95 * (cao_molar_flow)
         
-        # Constraint: MgCO3 precipitation based on available Mg after lime reactor
-        @m.fs.Constraint(doc="MgCO3 precipitation constraint (fraction of available Mg)")
+        # Constraint: MgCO3 precipitation equal to soda ash addition (molar basis)
+        @m.fs.Constraint(doc="MgCO3 precipitation constraint (equal to soda ash addition)")
         def mgco3_precipitation_constraint(fs):
             # MgCO3 molecular weight (kg/mol)
             mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
             
-            # Brucite molecular weight (kg/mol)
-            brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
+            # Na2CO3 (soda ash) molecular weight (kg/mol)
+            na2co3_mw = 105.99e-3 * pyunits.kg / pyunits.mol
             
             # Convert MgCO3 mass flow to molar flow
             mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
             
-            # Convert brucite mass flow to molar flow (Brucite has 1 Mg per molecule)
-            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
+            # Convert soda ash mass flow to molar flow
+            na2co3_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
             
-            # Feed Mg molar flow (mol/s)
-            feed_mg_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Mg"]
-            
-            # Available Mg = Feed Mg - Mg removed as Brucite in lime reactor
-            # MgCO3 has 1 Mg per molecule, so MgCO3 molar flow = Mg removed
-            return mgco3_molar_flow == fs.mg_removal_fraction * (feed_mg_molar_flow - brucite_molar_flow)
+            # MgCO3 precipitation equals soda ash addition (1:1 molar ratio)
+            return mgco3_molar_flow == na2co3_molar_flow
     
 def fix_unit_model_variables(m, stage=3):
     """
@@ -450,7 +459,7 @@ def fix_unit_model_variables(m, stage=3):
     if stage >= 2:
         # SODA ASH REACTOR (First softening stage)
         # MgCO3 precipitation rate determined by mgco3_precipitation_constraint in modify_flowsheet
-        # Constraint sets it to 90% of (feed Mg - Mg removed as Brucite in lime reactor)
+        # Constraint sets MgCO3 precipitation equal to soda ash (Na2CO3) addition on a molar basis
         
         # Fix waste stream solids fraction to define separator behavior
         m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)  # 50% solids in waste stream
@@ -458,7 +467,7 @@ def fix_unit_model_variables(m, stage=3):
         # LIME REACTOR (Second softening stage)
         
         # Precipitate formation rates determined by constraints in modify_flowsheet:
-        # - Brucite: Set equal to gypsum molar rate via brucite_precipitation_constraint
+        # - Brucite: Set to 95% of Mg entering lime reactor via brucite_precipitation_constraint
         # - Gypsum: Set to 90% of feed SO4 via gypsum_precipitation_constraint
         
         # Fix waste stream solids fraction to define separator behavior
