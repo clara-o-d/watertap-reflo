@@ -295,7 +295,7 @@ def modify_flowsheet(m, stage=3):
     )
     m.fs.max_total_product_impurity.fix(0.0005)
     
-    if stage >= 2:
+    if stage >= 2: 
         # Soda ash split fraction - proportion going to soda ash reactor vs lithium reactor
         m.fs.soda_ash_split_fraction = pyo.Var(
             initialize=0.02,
