@@ -1075,6 +1075,11 @@ def build_flowsheet(stage=3):
                 "dissolution_stoichiometric": {"Na": 2, "CO3": 1},
                 "density_reagent": 2.52 * pyunits.kg / pyunits.L,
             },
+            "H2O": {
+                "mw": 18.015 * pyunits.g / pyunits.mol,
+                "dissolution_stoichiometric": {"H2O": 1},
+                "density_reagent": 1.0 * pyunits.kg / pyunits.L,
+            },
         }
         
         # Define precipitates for soda ash reactor
@@ -1101,6 +1106,11 @@ def build_flowsheet(stage=3):
                 "mw": 74.093 * pyunits.g / pyunits.mol,
                 "dissolution_stoichiometric": {"Ca": 1, "H2O": 2},
                 "density_reagent": 2.24 * pyunits.kg / pyunits.L,
+            },
+            "H2O": {
+                "mw": 18.015 * pyunits.g / pyunits.mol,
+                "dissolution_stoichiometric": {"H2O": 1},
+                "density_reagent": 1.0 * pyunits.kg / pyunits.L,
             },
         }
         
@@ -1132,6 +1142,11 @@ def build_flowsheet(stage=3):
                 "mw": 105.99 * pyunits.g / pyunits.mol,
                 "dissolution_stoichiometric": {"Na": 2, "CO3": 1},
                 "density_reagent": 1.2 * pyunits.kg / pyunits.L,
+            },
+            "H2O": {
+                "mw": 18.015 * pyunits.g / pyunits.mol,
+                "dissolution_stoichiometric": {"H2O": 1},
+                "density_reagent": 1.0 * pyunits.kg / pyunits.L,
             },
         }
         

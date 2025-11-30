@@ -176,18 +176,32 @@ def add_flow_costs(m):
         doc="Lime (CaO) cost per kg"
     )
     
+    m.fs.process_water_cost = Param(
+        initialize=0.001,  # USD_2023/kg (approximately $1/m³)
+        mutable=True,
+        units=pyunits.USD_2023/pyunits.kg,
+        doc="Process water cost per kg"
+    )
+    
     # Register reagent flow types
     m.fs.costing.register_flow_type("soda_ash", m.fs.soda_ash_cost)
     m.fs.costing.register_flow_type("lime", m.fs.lime_cost)
+    m.fs.costing.register_flow_type("process_water", m.fs.process_water_cost)
     
     # Cost reagent flows for soda ash reactor
     m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
+    if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
+        m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"], "process_water")
     
     # Cost reagent flows for lime reactor
-    m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["CaO"], "lime")
+    m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"], "lime")
+    if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
+        m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["H2O"], "process_water")
     
     # Cost soda ash for lithium carbonate reactor
     m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
+    if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
+        m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"], "process_water")
 
 def add_costing(m, stage=3):
     """Add costing components to the lithium processing flowsheet.

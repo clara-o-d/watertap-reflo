@@ -131,6 +131,13 @@ def display_costing_results(m):
             print(f"  Annual Na2CO3 cost (soda ash reactor): ${annual_na2co3_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
+        try:
+            if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
+                h2o_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"])  # kg/s
+                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)  # kg/year * $/kg
+                print(f"  Annual process water cost (soda ash reactor): ${annual_h2o_cost:,.0f}")
+        except (AttributeError, TypeError, KeyError):
+            pass
     
     if hasattr(m.fs, 'lime_reactor'):
         try:
@@ -139,12 +146,26 @@ def display_costing_results(m):
             print(f"  Annual Ca(OH)2 cost (lime reactor): ${annual_cao_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
+        try:
+            if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
+                h2o_flow = value(m.fs.lime_reactor.flow_mass_reagent["H2O"])  # kg/s
+                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)  # kg/year * $/kg
+                print(f"  Annual process water cost (lime reactor): ${annual_h2o_cost:,.0f}")
+        except (AttributeError, TypeError, KeyError):
+            pass
     
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         try:
             na2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"])  # kg/s
             annual_na2co3_cost = na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)  # kg/year * $/kg
             print(f"  Annual Na2CO3 cost (Li2CO3): ${annual_na2co3_cost:,.0f}")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
+                h2o_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"])  # kg/s
+                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)  # kg/year * $/kg
+                print(f"  Annual process water cost (lithium reactor): ${annual_h2o_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -158,14 +179,23 @@ def display_costing_results(m):
         if hasattr(m.fs, 'soda_ash_reactor'):
             na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"])
             total_opex += na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)
+            if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
+                h2o_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"])
+                total_opex += h2o_flow * 31536000 * value(m.fs.process_water_cost)
         
         if hasattr(m.fs, 'lime_reactor'):
             cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"])
             total_opex += cao_flow * 31536000 * value(m.fs.lime_cost)
+            if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
+                h2o_flow = value(m.fs.lime_reactor.flow_mass_reagent["H2O"])
+                total_opex += h2o_flow * 31536000 * value(m.fs.process_water_cost)
         
         if hasattr(m.fs, 'lithium_carbonate_reactor'):
             na2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"])
             total_opex += na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)
+            if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
+                h2o_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"])
+                total_opex += h2o_flow * 31536000 * value(m.fs.process_water_cost)
     except (AttributeError, TypeError, KeyError):
         pass
     
@@ -340,6 +370,16 @@ def display_results(m, show_costing=False):
                 flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
                 print(f"  Na2CO3 flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
                 print(f"  Na2CO3 annual consumption: {flow_tonne_yr:.1f} tonnes/year")
+                
+                if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
+                    h2o_flow = m.fs.soda_ash_reactor.flow_mass_reagent['H2O']
+                    flow_kg_s = value(pyunits.convert(h2o_flow, to_units=pyunits.kg/pyunits.s))
+                    # Convert mass flow to volumetric flow using water density (1000 kg/m³)
+                    water_density = 1000 * pyunits.kg / pyunits.m**3
+                    flow_m3_h = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.hour))
+                    flow_m3_yr = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
+                    print(f"  Process water flow rate: {flow_kg_s:.4f} kg/s ({flow_m3_h:.2f} m³/h)")
+                    print(f"  Process water annual consumption: {flow_m3_yr:,.0f} m³/year")
 
         except (AttributeError, TypeError, KeyError):
             pass
@@ -379,6 +419,16 @@ def display_results(m, show_costing=False):
                 flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
                 print(f"  Ca(OH)2 flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
                 print(f"  Ca(OH)2 annual consumption: {flow_tonne_yr:.1f} tonnes/year")
+                
+                if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
+                    h2o_flow = m.fs.lime_reactor.flow_mass_reagent['H2O']
+                    flow_kg_s = value(pyunits.convert(h2o_flow, to_units=pyunits.kg/pyunits.s))
+                    # Convert mass flow to volumetric flow using water density (1000 kg/m³)
+                    water_density = 1000 * pyunits.kg / pyunits.m**3
+                    flow_m3_h = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.hour))
+                    flow_m3_yr = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
+                    print(f"  Process water flow rate: {flow_kg_s:.4f} kg/s ({flow_m3_h:.2f} m³/h)")
+                    print(f"  Process water annual consumption: {flow_m3_yr:,.0f} m³/year")
 
         except (AttributeError, TypeError, KeyError):
             pass
@@ -424,6 +474,16 @@ def display_results(m, show_costing=False):
                 flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
                 print(f"  Na2CO3 flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
                 print(f"  Na2CO3 annual consumption: {flow_tonne_yr:.1f} tonnes/year")
+                
+                if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
+                    h2o_flow = m.fs.lithium_carbonate_reactor.flow_mass_reagent['H2O']
+                    flow_kg_s = value(pyunits.convert(h2o_flow, to_units=pyunits.kg/pyunits.s))
+                    # Convert mass flow to volumetric flow using water density (1000 kg/m³)
+                    water_density = 1000 * pyunits.kg / pyunits.m**3
+                    flow_m3_h = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.hour))
+                    flow_m3_yr = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
+                    print(f"  Process water flow rate: {flow_kg_s:.4f} kg/s ({flow_m3_h:.2f} m³/h)")
+                    print(f"  Process water annual consumption: {flow_m3_yr:,.0f} m³/year")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
@@ -571,6 +631,24 @@ def display_results(m, show_costing=False):
         flow_kg_s = value(pyunits.convert(lime_flow, to_units=pyunits.kg/pyunits.s))
         flow_tonne_yr = value(pyunits.convert(lime_flow, to_units=pyunits.tonne/pyunits.year))
         print(f"  Ca(OH)2 consumption: {flow_kg_s:.4f} kg/s ({flow_tonne_yr:.1f} tonnes/year)")
+    
+    # Total process water consumption
+    total_h2o_flow = 0 * pyunits.kg / pyunits.s
+    if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
+        if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
+            total_h2o_flow += m.fs.soda_ash_reactor.flow_mass_reagent['H2O']
+    if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'flow_mass_reagent'):
+        if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
+            total_h2o_flow += m.fs.lime_reactor.flow_mass_reagent['H2O']
+    if hasattr(m.fs, 'lithium_carbonate_reactor') and hasattr(m.fs.lithium_carbonate_reactor, 'flow_mass_reagent'):
+        if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
+            total_h2o_flow += m.fs.lithium_carbonate_reactor.flow_mass_reagent['H2O']
+    if value(total_h2o_flow) > 0:
+        flow_kg_s = value(pyunits.convert(total_h2o_flow, to_units=pyunits.kg/pyunits.s))
+        # Convert mass flow to volumetric flow using water density (1000 kg/m³)
+        water_density = 1000 * pyunits.kg / pyunits.m**3
+        flow_m3_yr = value(pyunits.convert(total_h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
+        print(f"  Total process water consumption: {flow_kg_s:.4f} kg/s ({flow_m3_yr:,.0f} m³/year)")
     
     # Energy consumption
     total_power = 0
