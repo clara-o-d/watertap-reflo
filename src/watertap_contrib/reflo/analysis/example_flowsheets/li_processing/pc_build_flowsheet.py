@@ -5,7 +5,7 @@
     # Process Flow:
     ## 1. Brine feed -> Storage tank -> Pump
     ## 2. Soda ash reactor (Na2CO3 -> precipitates MgCO3)
-    ## 3. Lime reactor (CaO -> precipitates Mg(OH)2 and CaSO4)
+    ## 3. Lime reactor (Ca(OH)2 -> precipitates Mg(OH)2 and CaSO4)
     ## 4. Lime dewatering (separates Mg(OH)2 and CaSO4 precipitates)
     ## 5. Lime centrifuge (further concentrates lime precipitates)
     ## 6. Lithium carbonate reactor (Na2CO3 -> precipitates Li2CO3)
@@ -296,140 +296,180 @@ def modify_flowsheet(m, stage=3):
     m.fs.max_total_product_impurity.fix(0.0005)
     
     if stage >= 2: 
-        # Soda ash split fraction - proportion going to soda ash reactor vs lithium reactor
-        m.fs.soda_ash_split_fraction = pyo.Var(
-            initialize=0.02,
-            bounds=(0, 1.0),
+        # Stoichiometric coefficients (a-k) - define as unfixed variables
+        m.fs.stoich_coeff_a = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
             units=pyunits.dimensionless,
-            doc="Fraction of total soda ash going to soda ash reactor (vs lithium carbonate reactor)"
+            doc="Stoichiometric coefficient a: Na2CO3 to MgCO3 ratio in soda ash reactor"
         )
-        # m.fs.soda_ash_split_fraction.fix(0.02)
         
-        # Constraint: Total soda ash usage across both reactors
-        # annual_soda_ash_input = soda_ash_to_soda_ash_reactor + soda_ash_to_lithium_reactor
-        @m.fs.Constraint(doc="Total soda ash annual input constraint")
-        def soda_ash_annual_input_constraint(fs):
-            total_usage = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] + fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"]
+        m.fs.stoich_coeff_b = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient b: Na2CO3 to CaCO3 ratio in soda ash reactor"
+        )
+        
+        m.fs.stoich_coeff_c = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient c: Ca(OH)2 to Mg(OH)2 ratio"
+        )
+        
+        m.fs.stoich_coeff_d = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient d: Ca(OH)2 to CaCO3 ratio"
+        )
+        
+        m.fs.stoich_coeff_e = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient e: Ca(OH)2 to CaSO4 ratio"
+        )
+        
+        m.fs.stoich_coeff_f = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient f: SO4 to CaSO4 ratio"
+        )
+        m.fs.stoich_coeff_f.fix(0.9)
+
+        m.fs.stoich_coeff_g = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient g: Mg feed to Mg precipitate ratio"
+        )
+        m.fs.stoich_coeff_g.fix(0.95)
+        
+        m.fs.stoich_coeff_h = pyo.Var(
+            initialize=0.435,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient h: Li feed to Li2CO3 ratio"
+        )
+        m.fs.stoich_coeff_h.fix(0.435)
+
+        m.fs.stoich_coeff_i = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient i: Na2CO3 to Li2CO3 ratio in lithium reactor"
+        )
+        m.fs.stoich_coeff_i.fix(1.1)
+        
+        m.fs.stoich_coeff_j = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient j: total soda ash to soda ash reactor ratio"
+        )
+        
+        m.fs.stoich_coeff_k = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient k: total soda ash to lithium reactor ratio"
+        )
+        
+        # Molecular weights
+        mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
+        caco3_mw = 100.09e-3 * pyunits.kg / pyunits.mol
+        na2co3_mw = 105.99e-3 * pyunits.kg / pyunits.mol
+        caoh2_mw = 74.093e-3 * pyunits.kg / pyunits.mol
+        brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
+        gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
+        li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
+        
+        # Constraint 1: Soda ash reagent in soda ash reactor = a * MgCO3 precipitated + b * CaCO3 precipitated
+        @m.fs.Constraint(doc="Soda ash reactor stoichiometry")
+        def soda_ash_reactor_stoichiometry(fs):
+            na2co3_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
+            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
+            caco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
             
-            return fs.annual_soda_ash_input == pyunits.convert(
-                total_usage,
-                to_units=pyunits.kg / pyunits.year
+            return na2co3_molar_flow == (
+                fs.stoich_coeff_a * mgco3_molar_flow + 
+                fs.stoich_coeff_b * caco3_molar_flow
             )
         
-        # Constraint: Relate soda ash flows through split fraction
-        @m.fs.Constraint(doc="Soda ash split fraction constraint")
-        def soda_ash_split_constraint(fs):
-            total_usage = pyunits.convert(fs.annual_soda_ash_input, to_units=pyunits.kg / pyunits.s)
+        # Constraint 2: Ca(OH)2 = c * Mg(OH)2 + d * CaCO3 + e * CaSO4
+        @m.fs.Constraint(doc="Lime reactor stoichiometry")
+        def lime_reactor_stoichiometry(fs):
+            caoh2_molar_flow = fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] / caoh2_mw
+            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
+            caco3_molar_flow = fs.lime_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
+            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
             
-            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == fs.soda_ash_split_fraction * total_usage
+            return caoh2_molar_flow == (
+                fs.stoich_coeff_c * brucite_molar_flow + 
+                fs.stoich_coeff_d * caco3_molar_flow + 
+                fs.stoich_coeff_e * gypsum_molar_flow
+            )
         
-        # Constraint: Lime reactor reagent flow to match annual input
+        # Constraint 3: CaSO4 = f * SO4 into the lime reactor
+        @m.fs.Constraint(doc="Gypsum precipitation from SO4")
+        def gypsum_from_so4(fs):
+            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
+            so4_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"]
+            
+            return gypsum_molar_flow == fs.stoich_coeff_f * so4_feed_molar_flow
+        
+        # Constraint 4: Mg(OH)2 + MgCO3 = g * Mg into the soda ash reactor
+        @m.fs.Constraint(doc="Total Mg precipitated from feed Mg")
+        def total_mg_precipitation(fs):
+            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
+            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
+            mg_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Mg"]
+            
+            return (brucite_molar_flow + mgco3_molar_flow) == fs.stoich_coeff_g * mg_feed_molar_flow
+        
+        # Constraint 5: Li2CO3 = h * Li in the feed
+        @m.fs.Constraint(doc="Li2CO3 from feed Li")
+        def li2co3_from_feed_li(fs):
+            li2co3_molar_flow = fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] / li2co3_mw
+            li_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
+            
+            return li2co3_molar_flow == fs.stoich_coeff_h * li_feed_molar_flow
+        
+        # Constraint 6: Soda ash reagent in lithium reactor = i * Li2CO3
+        @m.fs.Constraint(doc="Lithium reactor stoichiometry")
+        def lithium_reactor_stoichiometry(fs):
+            na2co3_lithium_molar_flow = fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
+            li2co3_molar_flow = fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] / li2co3_mw
+            
+            return na2co3_lithium_molar_flow == fs.stoich_coeff_i * li2co3_molar_flow
+        
+        # Constraint 7: Total soda ash supplied = j * soda ash into soda ash reactor + k * soda ash into lithium reactor
+        @m.fs.Constraint(doc="Total soda ash balance")
+        def total_soda_ash_balance(fs):
+            total_soda_ash_molar_flow = pyunits.convert(fs.annual_soda_ash_input, to_units=pyunits.kg / pyunits.s) / na2co3_mw
+            na2co3_soda_ash_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
+            na2co3_lithium_molar_flow = fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
+            
+            return total_soda_ash_molar_flow == (
+                fs.stoich_coeff_j * na2co3_soda_ash_molar_flow + 
+                fs.stoich_coeff_k * na2co3_lithium_molar_flow
+            )
+
+        # Constraint 8: j + k = 1
+        @m.fs.Constraint(doc="Total soda ash balance")
+        def total_soda_ash_balance(fs):
+            return fs.stoich_coeff_j + fs.stoich_coeff_k == 1
+        
+        # Lime annual input constraint
         @m.fs.Constraint(doc="Lime annual input constraint")
         def lime_annual_input_constraint(fs):
             return fs.annual_lime_input == pyunits.convert(
-                fs.lime_reactor.flow_mass_reagent["CaO"],
+                fs.lime_reactor.flow_mass_reagent["Ca(OH)2"],
                 to_units=pyunits.kg / pyunits.year
             )
-        
-        # Lithium recovery target
-        m.fs.target_li_recovery = pyo.Var(
-            initialize=0.80,
-            bounds=(0, 1.0),
-            units=pyunits.dimensionless,
-            doc="Target lithium recovery fraction (80%)"
-        )
-        m.fs.target_li_recovery.fix(0.80)
-    
-        
-        # Constraint: Lithium recovery - Li2CO3 production based on feed and target recovery
-        @m.fs.Constraint(doc="Lithium recovery constraint")
-        def li_recovery_constraint(fs):
-            # Li mass flow in feed (kg/s)
-            li_in_mass = (
-                fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
-                * fs.brine_props.mw_comp["Li"]
-            )
-            
-            # Li mass flow in Li2CO3 product (kg/s)
-            li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
-            li_mw = fs.brine_props.mw_comp["Li"]
-            li_in_li2co3 = (
-                fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"]
-                * (2 * li_mw / li2co3_mw)
-            )
-            
-            return li_in_li2co3 == fs.target_li_recovery * li_in_mass
-        
-        # Constraint: Gypsum precipitation based on feed SO4
-        @m.fs.Constraint(doc="Gypsum precipitation constraint (90% of feed SO4)")
-        def gypsum_precipitation_constraint(fs):
-            # Gypsum molecular weight (kg/mol)
-            gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
-            
-            # Convert gypsum mass flow to molar flow
-            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
-            
-            # Feed SO4 molar flow (mol/s)
-            feed_so4_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"]
-            
-            # Gypsum contains 1 SO4 per molecule, so gypsum molar flow = SO4 removed
-            return gypsum_molar_flow == 0.90 * feed_so4_molar_flow
-        
-        # Constraint: Brucite precipitation (95% of Mg entering lime reactor)
-        @m.fs.Constraint(doc="Brucite precipitation constraint (95% of Mg entering lime reactor)")
-        def brucite_precipitation_constraint(fs):
-            # Brucite molecular weight (kg/mol)
-            brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
-            
-            # MgCO3 molecular weight (kg/mol)
-            mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
-            
-            # Convert brucite mass flow to molar flow
-            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
-            
-            # Convert MgCO3 mass flow to molar flow
-            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
-            
-            # Feed Mg molar flow (mol/s)
-            feed_mg_molar_flow = fs.soda_ash_reactor.dissolution_reactor.properties_in[0.0].flow_mol_phase_comp["Liq","Mg"]
-            
-            # Mg entering lime reactor = Feed Mg - MgCO3 removed in soda ash reactor
-            # Brucite precipitates 95% of this Mg (Brucite has 1 Mg per molecule)
-            return brucite_molar_flow == 0.90 * (feed_mg_molar_flow)
-
-        @m.fs.Constraint(doc="Second brucite precipitation constraint (lime input constraint)")
-        def second_brucite_precipitation_constraint(fs):
-            # Brucite molecular weight (kg/mol)
-            brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
-
-            # CaO molecular weight (kg/mol)
-            cao_mw = 56.0774e-3 * pyunits.kg / pyunits.mol
-
-            # Convert brucite mass flow to molar flow
-            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
-
-            # Convert CaO mass flow to molar flow
-            cao_molar_flow = fs.lime_reactor.flow_mass_reagent["CaO"] / cao_mw
-            
-            return brucite_molar_flow == 0.95 * (cao_molar_flow)
-        
-        # Constraint: MgCO3 precipitation equal to soda ash addition (molar basis)
-        @m.fs.Constraint(doc="MgCO3 precipitation constraint (equal to soda ash addition)")
-        def mgco3_precipitation_constraint(fs):
-            # MgCO3 molecular weight (kg/mol)
-            mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
-            
-            # Na2CO3 (soda ash) molecular weight (kg/mol)
-            na2co3_mw = 105.99e-3 * pyunits.kg / pyunits.mol
-            
-            # Convert MgCO3 mass flow to molar flow
-            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
-            
-            # Convert soda ash mass flow to molar flow
-            na2co3_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
-            
-            # MgCO3 precipitation equals soda ash addition (1:1 molar ratio)
-            return mgco3_molar_flow == na2co3_molar_flow
     
 def fix_unit_model_variables(m, stage=3):
     """
@@ -1043,6 +1083,10 @@ def build_flowsheet(stage=3):
                 "mw": 84.3139 * pyunits.g / pyunits.mol,
                 "precipitation_stoichiometric": {"Mg": 1, "CO3": 1},
             },
+            "CaCO3": {
+                "mw": 100.09 * pyunits.g / pyunits.mol,
+                "precipitation_stoichiometric": {"Ca": 1, "CO3": 1},
+            },
         }
         
         m.fs.soda_ash_reactor = StoichiometricReactor(
@@ -1053,10 +1097,10 @@ def build_flowsheet(stage=3):
         
         # Define reagents for lime reactor (second softening stage)
         lime_reagents = {
-            "CaO": {
-                "mw": 56.0774 * pyunits.g / pyunits.mol,
-                "dissolution_stoichiometric": {"Ca": 1},
-                "density_reagent": 3.34 * pyunits.kg / pyunits.L,
+            "Ca(OH)2": {
+                "mw": 74.093 * pyunits.g / pyunits.mol,
+                "dissolution_stoichiometric": {"Ca": 1, "H2O": 2},
+                "density_reagent": 2.24 * pyunits.kg / pyunits.L,
             },
         }
         
@@ -1069,6 +1113,10 @@ def build_flowsheet(stage=3):
             "Gypsum": {
                 "mw": 136.14 * pyunits.g / pyunits.mol,
                 "precipitation_stoichiometric": {"Ca": 1, "SO4": 1},
+            },
+            "CaCO3": {
+                "mw": 100.09 * pyunits.g / pyunits.mol,
+                "precipitation_stoichiometric": {"Ca": 1, "CO3": 1},
             },
         }
         

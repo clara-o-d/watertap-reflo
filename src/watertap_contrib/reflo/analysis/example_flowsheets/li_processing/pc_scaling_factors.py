@@ -149,8 +149,17 @@ def set_scaling_factors(m, stage=3):
         
         if stage >= 2:
             # Flowsheet variable scaling factors
-            iscale.set_scaling_factor(m.fs.soda_ash_split_fraction, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.target_li_recovery, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_a, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_b, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_c, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_d, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_e, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_f, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_g, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_h, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_i, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_j, 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.stoich_coeff_k, 1E+00 / reference_li * mol_flow_li)
 
             # Soda ash reactor variables
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.reagent_dose["Na2CO3"], 1E-04 / reference_li * mol_flow_li)
@@ -171,8 +180,11 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.dissolution_reaction_generation_comp[0.0,"CO3"], 1E-01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.waste_mass_frac_precipitate, 1E+01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"], 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"], 1E+00 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mol_precipitate["MgCO3"], 1E-01 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.soda_ash_reactor.flow_mol_precipitate["CaCO3"], 1E-01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.conc_mass_precipitate["MgCO3"], 1E-02 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.soda_ash_reactor.conc_mass_precipitate["CaCO3"], 1E-02 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.precipitation_reaction_generation_comp[0.0,"H2O"], 1E+11 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.precipitation_reaction_generation_comp[0.0,"Na"], 1E+11 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.precipitation_reaction_generation_comp[0.0,"K"], 1E+11 / reference_li * mol_flow_li)
@@ -345,10 +357,10 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","CO3"], 1E+03 / reference_li * mol_flow_li)
             
             # Lime reactor variables
-            iscale.set_scaling_factor(m.fs.lime_reactor.reagent_dose["CaO"], 1E-04 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_reagent["CaO"], 1E-02 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.lime_reactor.flow_mol_reagent["CaO"], 1E-03 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.lime_reactor.flow_vol_reagent["CaO"], 1E+02 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.reagent_dose["Ca(OH)2"], 1E-04 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"], 1E-02 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.flow_mol_reagent["Ca(OH)2"], 1E-03 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.flow_vol_reagent["Ca(OH)2"], 1E+02 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"H2O"], 1E+14 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"Na"], 1E+14 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.dissolution_reaction_generation_comp[0.0,"K"], 1E+14 / reference_li * mol_flow_li)
@@ -364,10 +376,13 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.lime_reactor.waste_mass_frac_precipitate, 1E+01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["Brucite"], 1E+00 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["Gypsum"], 1E+00 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_precipitate["CaCO3"], 1E+00 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.flow_mol_precipitate["Brucite"], 1E-01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.flow_mol_precipitate["Gypsum"], 1E-01 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.flow_mol_precipitate["CaCO3"], 1E-01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.conc_mass_precipitate["Brucite"], 1E-02 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.conc_mass_precipitate["Gypsum"], 1E-01 / reference_li * mol_flow_li)
+            iscale.set_scaling_factor(m.fs.lime_reactor.conc_mass_precipitate["CaCO3"], 1E-01 / reference_li * mol_flow_li)
             
             # Lime reactor precipitation_reaction_generation_comp
             iscale.set_scaling_factor(m.fs.lime_reactor.precipitation_reaction_generation_comp[0.0,"H2O"], 1E+03 / reference_li * mol_flow_li)

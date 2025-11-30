@@ -134,9 +134,9 @@ def display_costing_results(m):
     
     if hasattr(m.fs, 'lime_reactor'):
         try:
-            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["CaO"])  # kg/s
+            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"])  # kg/s
             annual_cao_cost = cao_flow * 31536000 * value(m.fs.lime_cost)  # kg/year * $/kg
-            print(f"  Annual CaO cost (lime reactor): ${annual_cao_cost:,.0f}")
+            print(f"  Annual Ca(OH)2 cost (lime reactor): ${annual_cao_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -160,7 +160,7 @@ def display_costing_results(m):
             total_opex += na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)
         
         if hasattr(m.fs, 'lime_reactor'):
-            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["CaO"])
+            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"])
             total_opex += cao_flow * 31536000 * value(m.fs.lime_cost)
         
         if hasattr(m.fs, 'lithium_carbonate_reactor'):
@@ -225,7 +225,7 @@ def display_results(m, show_costing=False):
         
         if hasattr(m.fs, 'annual_lime_input'):
             annual_lime_tonnes = value(pyunits.convert(m.fs.annual_lime_input, to_units=pyunits.tonne/pyunits.year))
-            print(f"  Annual Lime (CaO) Input: {annual_lime_tonnes:.1f} tonnes/year")
+            print(f"  Annual Lime (Ca(OH)2) Input: {annual_lime_tonnes:.1f} tonnes/year")
         
         if hasattr(m.fs, 'soda_ash_split_fraction'):
             split_fraction = value(m.fs.soda_ash_split_fraction)
@@ -239,6 +239,21 @@ def display_results(m, show_costing=False):
         if hasattr(m.fs, 'max_total_product_impurity'):
             max_impurity = value(m.fs.max_total_product_impurity)
             print(f"  Max Total Impurity (Na+Mg+Ca) in Li2CO3 Product: {max_impurity*100:.3f}% mass fraction")
+    
+    # Stoichiometric coefficients
+    if hasattr(m.fs, 'stoich_coeff_a'):
+        print(f"\nSTOICHIOMETRIC COEFFICIENTS:")
+        print(f"  a (Na2CO3 to MgCO3 in soda ash reactor): {value(m.fs.stoich_coeff_a):.6f}")
+        print(f"  b (Na2CO3 to CaCO3 in soda ash reactor): {value(m.fs.stoich_coeff_b):.6f}")
+        print(f"  c (Ca(OH)2 to Mg(OH)2): {value(m.fs.stoich_coeff_c):.6f}")
+        print(f"  d (Ca(OH)2 to CaCO3): {value(m.fs.stoich_coeff_d):.6f}")
+        print(f"  e (Ca(OH)2 to CaSO4): {value(m.fs.stoich_coeff_e):.6f}")
+        print(f"  f (SO4 to CaSO4): {value(m.fs.stoich_coeff_f):.6f}")
+        print(f"  g (Mg feed to total Mg precipitates): {value(m.fs.stoich_coeff_g):.6f}")
+        print(f"  h (Li feed to Li2CO3): {value(m.fs.stoich_coeff_h):.6f}")
+        print(f"  i (Na2CO3 to Li2CO3 in lithium reactor): {value(m.fs.stoich_coeff_i):.6f}")
+        print(f"  j (Total Na2CO3 to soda ash reactor): {value(m.fs.stoich_coeff_j):.6f}")
+        print(f"  k (Total Na2CO3 to lithium reactor): {value(m.fs.stoich_coeff_k):.6f}")
     
     # Feed conditions
     print(f"\nBRINE FEED CONDITIONS:")
@@ -335,6 +350,12 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
         try:
+            caco3_flow_kg_s = value(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'])
+            caco3_flow_g_s = value(pyunits.convert(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'], to_units=pyunits.g/pyunits.s))
+            print(f"  CaCO3 formation: {caco3_flow_g_s:.3f} g/s ({caco3_flow_kg_s:.6f} kg/s)")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
             print(f"  Waste solids fraction: {value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)*100:.1f}%")
         except (AttributeError, TypeError, KeyError):
             pass
@@ -352,12 +373,12 @@ def display_results(m, show_costing=False):
             
             # Reagent mass flow rate
             if hasattr(m.fs.lime_reactor, 'flow_mass_reagent'):
-                reagent_flow = m.fs.lime_reactor.flow_mass_reagent['CaO']
+                reagent_flow = m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2']
                 flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
                 flow_kg_h = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.hour))
                 flow_tonne_yr = value(pyunits.convert(reagent_flow, to_units=pyunits.tonne/pyunits.year))
-                print(f"  CaO flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
-                print(f"  CaO annual consumption: {flow_tonne_yr:.1f} tonnes/year")
+                print(f"  Ca(OH)2 flow rate: {flow_kg_s:.4f} kg/s ({flow_kg_h:.2f} kg/h)")
+                print(f"  Ca(OH)2 annual consumption: {flow_tonne_yr:.1f} tonnes/year")
 
         except (AttributeError, TypeError, KeyError):
             pass
@@ -371,6 +392,12 @@ def display_results(m, show_costing=False):
             gypsum_flow_kg_s = value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])
             gypsum_flow_g_s = value(pyunits.convert(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'], to_units=pyunits.g/pyunits.s))
             print(f"  Gypsum formation: {gypsum_flow_g_s:.3f} g/s ({gypsum_flow_kg_s:.6f} kg/s)")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            caco3_flow_kg_s = value(m.fs.lime_reactor.flow_mass_precipitate['CaCO3'])
+            caco3_flow_g_s = value(pyunits.convert(m.fs.lime_reactor.flow_mass_precipitate['CaCO3'], to_units=pyunits.g/pyunits.s))
+            print(f"  CaCO3 formation: {caco3_flow_g_s:.3f} g/s ({caco3_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
@@ -540,10 +567,10 @@ def display_results(m, show_costing=False):
         flow_tonne_yr = value(pyunits.convert(total_na2co3_flow, to_units=pyunits.tonne/pyunits.year))
         print(f"  Total Na2CO3 consumption: {flow_kg_s:.4f} kg/s ({flow_tonne_yr:.1f} tonnes/year)")
     if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'flow_mass_reagent'):
-        lime_flow = m.fs.lime_reactor.flow_mass_reagent['CaO']
+        lime_flow = m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2']
         flow_kg_s = value(pyunits.convert(lime_flow, to_units=pyunits.kg/pyunits.s))
         flow_tonne_yr = value(pyunits.convert(lime_flow, to_units=pyunits.tonne/pyunits.year))
-        print(f"  CaO consumption: {flow_kg_s:.4f} kg/s ({flow_tonne_yr:.1f} tonnes/year)")
+        print(f"  Ca(OH)2 consumption: {flow_kg_s:.4f} kg/s ({flow_tonne_yr:.1f} tonnes/year)")
     
     # Energy consumption
     total_power = 0
