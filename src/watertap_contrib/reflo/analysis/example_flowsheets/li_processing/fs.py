@@ -8,9 +8,6 @@ from idaes.core.util import DiagnosticsToolbox
 
 
 def main():
-    # ============================================================================
-    # STAGE 1: Build and solve feed, storage tank, and pump
-    # ============================================================================
     print("\n" + "="*80)
     print("STAGE 1: BUILDING FEED, STORAGE TANK, AND PUMP")
     print("="*80)
@@ -24,9 +21,6 @@ def main():
     display_results(m)
     input("Press enter to continue to Stage 2")
 
-    # ============================================================================
-    # STAGE 2: Add stoichiometric reactors and solve
-    # ============================================================================
     print("\n" + "="*80)
     print("STAGE 2: ADDING STOICHIOMETRIC REACTORS")
     print("="*80)
@@ -40,9 +34,6 @@ def main():
     display_results(m)
     input("Press enter to continue to Stage 3")
 
-    # ============================================================================
-    # STAGE 3: Add dewaterers and solve complete flowsheet (no costing)
-    # ============================================================================
     print("\n" + "="*80)
     print("STAGE 3: ADDING DEWATERERS")
     print("="*80)
@@ -55,9 +46,6 @@ def main():
     print("\n=== STAGE 3 RESULTS (NO COSTING) ===")
     display_results(m)
 
-    # ============================================================================
-    # FINAL: Add costing and solve
-    # ============================================================================
     print("\n" + "="*80)
     print("FINAL STAGE: ADDING COSTING TO COMPLETE FLOWSHEET")
     print("="*80)

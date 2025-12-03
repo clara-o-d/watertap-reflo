@@ -6,11 +6,7 @@ Prints comprehensive results from the lithium carbonate processing flowsheet sim
 from pyomo.environ import units as pyunits, value
 
 def display_costing_results(m):
-    """Display costing results from the lithium processing flowsheet.
-    
-    Args:
-        m: Pyomo model with solved flowsheet and costing
-    """
+    """Display costing results including capital costs, operating costs, and LCOLi metrics."""
     if not hasattr(m.fs, 'costing'):
         print("\nNo costing information available. Run add_costing() first.")
         return
@@ -19,7 +15,6 @@ def display_costing_results(m):
     print("LITHIUM CARBONATE PROCESSING PLANT COSTING RESULTS")
     print("="*60)
     
-    # Global costing parameters
     print(f"\nGLOBAL COSTING PARAMETERS:")
     print(f"  Plant lifetime: {value(m.fs.costing.plant_lifetime):.0f} years")
     print(f"  WACC: {value(m.fs.costing.wacc):.1%}")
@@ -27,7 +22,6 @@ def display_costing_results(m):
     print(f"  Utilization factor: {value(m.fs.costing.utilization_factor):.1%}")
     print(f"  Base currency: {m.fs.costing.base_currency}")
     
-    # Unit model capital costs
     print(f"\nUNIT MODEL CAPITAL COSTS:")
     
     if hasattr(m.fs.brine_storage, 'costing'):
@@ -89,92 +83,87 @@ def display_costing_results(m):
         
         print(f"\n  TOTAL CAPITAL COST: ${total_capital_cost:,.0f}")
     
-    # Operating costs
     print(f"\nOPERATING COSTS:")
     
-    # Electricity costs
     total_power_kw = 0
     if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump.control_volume, 'work'):
-        pump_power = value(m.fs.brine_pump.control_volume.work[0])  # W
-        pump_power_kw = pump_power / 1000  # kW
+        pump_power = value(m.fs.brine_pump.control_volume.work[0])
+        pump_power_kw = pump_power / 1000
         total_power_kw += pump_power_kw
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter') and hasattr(m.fs.soda_ash_vacuum_filter, 'electricity_consumption'):
-        dewatering_power_kw = value(m.fs.soda_ash_vacuum_filter.electricity_consumption[0])  # kW
+        dewatering_power_kw = value(m.fs.soda_ash_vacuum_filter.electricity_consumption[0])
         total_power_kw += dewatering_power_kw
     
     if hasattr(m.fs, 'soda_ash_centrifuge') and hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
-        dewatering_power_kw = value(m.fs.soda_ash_centrifuge.electricity_consumption[0])  # kW
+        dewatering_power_kw = value(m.fs.soda_ash_centrifuge.electricity_consumption[0])
         total_power_kw += dewatering_power_kw
     
     if hasattr(m.fs, 'lime_press_filter') and hasattr(m.fs.lime_press_filter, 'electricity_consumption'):
-        dewatering_power_kw = value(m.fs.lime_press_filter.electricity_consumption[0])  # kW
+        dewatering_power_kw = value(m.fs.lime_press_filter.electricity_consumption[0])
         total_power_kw += dewatering_power_kw
     
     if hasattr(m.fs, 'lime_centrifuge') and hasattr(m.fs.lime_centrifuge, 'electricity_consumption'):
-        dewatering_power_kw = value(m.fs.lime_centrifuge.electricity_consumption[0])  # kW
+        dewatering_power_kw = value(m.fs.lime_centrifuge.electricity_consumption[0])
         total_power_kw += dewatering_power_kw
     
     if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'electricity_consumption'):
-        dewatering_power_kw = value(m.fs.li_dewatering.electricity_consumption[0])  # kW
+        dewatering_power_kw = value(m.fs.li_dewatering.electricity_consumption[0])
         total_power_kw += dewatering_power_kw
     
     if total_power_kw > 0:
         annual_electricity_cost = total_power_kw * value(m.fs.costing.electricity_cost) * 8760 * value(m.fs.costing.utilization_factor)
         print(f"  Annual electricity cost: ${annual_electricity_cost:,.0f}")
     
-    # Reagent costs
     if hasattr(m.fs, 'soda_ash_reactor'):
         try:
-            na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"])  # kg/s
-            annual_na2co3_cost = na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)  # kg/year * $/kg
+            na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"])
+            annual_na2co3_cost = na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)
             print(f"  Annual Na2CO3 cost (soda ash reactor): ${annual_na2co3_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
             if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
-                h2o_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"])  # kg/s
-                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)  # kg/year * $/kg
+                h2o_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"])
+                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)
                 print(f"  Annual process water cost (soda ash reactor): ${annual_h2o_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
     
     if hasattr(m.fs, 'lime_reactor'):
         try:
-            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"])  # kg/s
-            annual_cao_cost = cao_flow * 31536000 * value(m.fs.lime_cost)  # kg/year * $/kg
+            cao_flow = value(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"])
+            annual_cao_cost = cao_flow * 31536000 * value(m.fs.lime_cost)
             print(f"  Annual Ca(OH)2 cost (lime reactor): ${annual_cao_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
             if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
-                h2o_flow = value(m.fs.lime_reactor.flow_mass_reagent["H2O"])  # kg/s
-                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)  # kg/year * $/kg
+                h2o_flow = value(m.fs.lime_reactor.flow_mass_reagent["H2O"])
+                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)
                 print(f"  Annual process water cost (lime reactor): ${annual_h2o_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
     
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         try:
-            na2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"])  # kg/s
-            annual_na2co3_cost = na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)  # kg/year * $/kg
+            na2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"])
+            annual_na2co3_cost = na2co3_flow * 31536000 * value(m.fs.soda_ash_cost)
             print(f"  Annual Na2CO3 cost (Li2CO3): ${annual_na2co3_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
             if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
-                h2o_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"])  # kg/s
-                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)  # kg/year * $/kg
+                h2o_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"])
+                annual_h2o_cost = h2o_flow * 31536000 * value(m.fs.process_water_cost)
                 print(f"  Annual process water cost (lithium reactor): ${annual_h2o_cost:,.0f}")
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Annual operating cost (excluding capital recovery)
     total_opex = 0
     if total_power_kw > 0:
         total_opex += annual_electricity_cost
     
-    # Add reagent costs if available
     try:
         if hasattr(m.fs, 'soda_ash_reactor'):
             na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"])
@@ -201,20 +190,17 @@ def display_costing_results(m):
     
     print(f"\n  TOTAL ANNUAL OPERATING COST: ${total_opex:,.0f}")
     
-    # Capital recovery cost
     capital_recovery_factor = value(m.fs.costing.wacc) * (1 + value(m.fs.costing.wacc))**value(m.fs.costing.plant_lifetime) / ((1 + value(m.fs.costing.wacc))**value(m.fs.costing.plant_lifetime) - 1)
     annual_capital_cost = total_capital_cost * capital_recovery_factor
     print(f"  Annual capital cost: ${annual_capital_cost:,.0f}")
     
-    # Total annual cost
     total_annual_cost = total_opex + annual_capital_cost
     print(f"  TOTAL ANNUAL COST: ${total_annual_cost:,.0f}")
     
-    # Display LCOLi and energy metrics if available
     if hasattr(m.fs.costing, 'LCOLi'):
         try:
-            lcoli_mass = value(pyunits.convert(m.fs.costing.LCOLi_mass, to_units=m.fs.costing.base_currency/pyunits.t))  # $/t Li
-            lcoli2co3_mass = value(pyunits.convert(m.fs.costing.LCOLi2CO3_mass, to_units=m.fs.costing.base_currency/pyunits.t))  # $/t Li2CO3
+            lcoli_mass = value(pyunits.convert(m.fs.costing.LCOLi_mass, to_units=m.fs.costing.base_currency/pyunits.t))
+            lcoli2co3_mass = value(pyunits.convert(m.fs.costing.LCOLi2CO3_mass, to_units=m.fs.costing.base_currency/pyunits.t))
             print(f"  LCOLi (per tonne Li): ${lcoli_mass:,.2f}/tonne")
             print(f"  LCOLi2CO3 (per tonne Li2CO3): ${lcoli2co3_mass:,.2f}/tonne")
         except (AttributeError, TypeError, KeyError):
@@ -222,9 +208,9 @@ def display_costing_results(m):
     
     if hasattr(m.fs.costing, 'specific_energy_consumption'):
         try:
-            spec_energy_vol = value(m.fs.costing.specific_energy_consumption)  # kWh/m³ Li
-            spec_energy_mass = value(m.fs.costing.specific_energy_consumption_mass)  # kWh/kg Li
-            spec_energy_li2co3 = value(m.fs.costing.specific_energy_consumption_Li2CO3_mass)  # kWh/kg Li2CO3
+            spec_energy_vol = value(m.fs.costing.specific_energy_consumption)
+            spec_energy_mass = value(m.fs.costing.specific_energy_consumption_mass)
+            spec_energy_li2co3 = value(m.fs.costing.specific_energy_consumption_Li2CO3_mass)
             print(f"\n  Specific Energy (per m³ Li): {spec_energy_vol:.2f} kWh/m³")
             print(f"  Specific Energy (per kg Li): {spec_energy_mass:.2f} kWh/kg")
             print(f"  Specific Energy (per kg Li2CO3): {spec_energy_li2co3:.2f} kWh/kg")
@@ -236,16 +222,11 @@ def display_costing_results(m):
     print("="*60)
 
 def display_results(m, show_costing=False):
-    """Display comprehensive results from the lithium processing flowsheet.
-    
-    Args:
-        m: Pyomo model with solved flowsheet
-    """
+    """Display comprehensive flowsheet results including feed conditions, reactor outputs, and process metrics."""
     print("\n" + "="*60)
     print("LITHIUM CARBONATE PROCESSING PLANT RESULTS")
     print("="*60)
     
-    # Flowsheet-level variables
     if hasattr(m.fs, 'annual_soda_ash_input') or hasattr(m.fs, 'annual_lime_input') or hasattr(m.fs, 'max_total_impurity_mass_fraction_li_product'):
         print(f"\nFLOWSHEET-LEVEL VARIABLES:")
         
@@ -270,7 +251,6 @@ def display_results(m, show_costing=False):
             max_impurity = value(m.fs.max_total_product_impurity)
             print(f"  Max Total Impurity (Na+Mg+Ca) in Li2CO3 Product: {max_impurity*100:.3f}% mass fraction")
     
-    # Stoichiometric coefficients
     if hasattr(m.fs, 'stoich_coeff_a'):
         print(f"\nSTOICHIOMETRIC COEFFICIENTS:")
         print(f"  a (Na2CO3 to MgCO3 in soda ash reactor): {value(m.fs.stoich_coeff_a):.6f}")
@@ -285,7 +265,6 @@ def display_results(m, show_costing=False):
         print(f"  j (Total Na2CO3 to soda ash reactor): {value(m.fs.stoich_coeff_j):.6f}")
         print(f"  k (Total Na2CO3 to lithium reactor): {value(m.fs.stoich_coeff_k):.6f}")
     
-    # Feed conditions
     print(f"\nBRINE FEED CONDITIONS:")
     temp_K = value(m.fs.brine_feed.properties[0].temperature)
     print(f"  Temperature: {temp_K:.1f} K")
@@ -299,12 +278,11 @@ def display_results(m, show_costing=False):
     flow_m3_h = value(pyunits.convert(m.fs.brine_feed.properties[0].flow_vol, to_units=pyunits.m**3/pyunits.hour))
     print(f"  Volumetric flow rate: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
     
-    # Calculate mass flow rate
     try:
         total_mass_flow_mol = 0 * pyunits.kg / pyunits.s
         for comp in m.fs.brine_props.component_list:
             comp_flow_mol = m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp]
-            comp_mw = m.fs.brine_props.mw_comp[comp]  # kg/mol
+            comp_mw = m.fs.brine_props.mw_comp[comp]
             total_mass_flow_mol += comp_flow_mol * comp_mw
         
         mass_flow_kg_s = value(pyunits.convert(total_mass_flow_mol, to_units=pyunits.kg/pyunits.s))
@@ -313,14 +291,12 @@ def display_results(m, show_costing=False):
     except (AttributeError, TypeError, KeyError):
         pass
     
-    # Component flow rates
     print(f"\nCOMPONENT FLOW RATES (mol/s):")
     for comp in ["Li", "Na", "K", "Mg", "Ca", "Cl", "SO4", "B", "H2O"]:
         if comp in m.fs.brine_props.solute_set:
             flow = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp])
             print(f"  {comp}: {flow:.4f}")
     
-    # Storage tank results
     if hasattr(m.fs, 'brine_storage'):
         print(f"\nBRINE STORAGE TANK:")
         try:
@@ -334,7 +310,6 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Pump results
     if hasattr(m.fs, 'brine_pump'):
         print(f"\nBRINE PUMP:")
         try:
@@ -351,18 +326,15 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Soda ash reactor results
     if hasattr(m.fs, 'soda_ash_reactor'):
         print(f"\nSODA ASH REACTOR (FIRST SOFTENING STAGE):")
         try:
-            # Inlet flow rates
             if hasattr(m.fs.soda_ash_reactor, 'dissolution_reactor'):
                 flow_vol_in = m.fs.soda_ash_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
                 flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
                 flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
                 print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
             
-            # Reagent mass flow rate
             if hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
                 reagent_flow = m.fs.soda_ash_reactor.flow_mass_reagent['Na2CO3']
                 flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
@@ -374,7 +346,6 @@ def display_results(m, show_costing=False):
                 if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
                     h2o_flow = m.fs.soda_ash_reactor.flow_mass_reagent['H2O']
                     flow_kg_s = value(pyunits.convert(h2o_flow, to_units=pyunits.kg/pyunits.s))
-                    # Convert mass flow to volumetric flow using water density (1000 kg/m³)
                     water_density = 1000 * pyunits.kg / pyunits.m**3
                     flow_m3_h = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.hour))
                     flow_m3_yr = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
@@ -400,18 +371,15 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Lime reactor results
     if hasattr(m.fs, 'lime_reactor'):
         print(f"\nLIME REACTOR (SECOND SOFTENING STAGE):")
         try:
-            # Inlet flow rates
             if hasattr(m.fs.lime_reactor, 'dissolution_reactor'):
                 flow_vol_in = m.fs.lime_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
                 flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
                 flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
                 print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
             
-            # Reagent mass flow rate
             if hasattr(m.fs.lime_reactor, 'flow_mass_reagent'):
                 reagent_flow = m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2']
                 flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
@@ -423,7 +391,6 @@ def display_results(m, show_costing=False):
                 if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
                     h2o_flow = m.fs.lime_reactor.flow_mass_reagent['H2O']
                     flow_kg_s = value(pyunits.convert(h2o_flow, to_units=pyunits.kg/pyunits.s))
-                    # Convert mass flow to volumetric flow using water density (1000 kg/m³)
                     water_density = 1000 * pyunits.kg / pyunits.m**3
                     flow_m3_h = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.hour))
                     flow_m3_yr = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
@@ -455,18 +422,15 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Lithium carbonate reactor results
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         print(f"\nLITHIUM CARBONATE PRECIPITATION REACTOR:")
         try:
-            # Inlet flow rates
             if hasattr(m.fs.lithium_carbonate_reactor, 'dissolution_reactor'):
                 flow_vol_in = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
                 flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
                 flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
                 print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
             
-            # Reagent mass flow rate
             if hasattr(m.fs.lithium_carbonate_reactor, 'flow_mass_reagent'):
                 reagent_flow = m.fs.lithium_carbonate_reactor.flow_mass_reagent['Na2CO3']
                 flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
@@ -478,7 +442,6 @@ def display_results(m, show_costing=False):
                 if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
                     h2o_flow = m.fs.lithium_carbonate_reactor.flow_mass_reagent['H2O']
                     flow_kg_s = value(pyunits.convert(h2o_flow, to_units=pyunits.kg/pyunits.s))
-                    # Convert mass flow to volumetric flow using water density (1000 kg/m³)
                     water_density = 1000 * pyunits.kg / pyunits.m**3
                     flow_m3_h = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.hour))
                     flow_m3_yr = value(pyunits.convert(h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
@@ -497,7 +460,6 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
         
-        # Calculate annual production
         try:
             li2co3_flow_kg_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.kg/pyunits.year))
             li2co3_flow_tonne_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.tonne/pyunits.year))
@@ -505,7 +467,6 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
-    # Dewatering units results
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         print(f"\nSODA ASH VACUUM FILTER UNIT:")
         try:
@@ -576,14 +537,12 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            # Li concentration in concentrated solids (underflow)
-            # Separator unit creates state blocks with naming pattern: {outlet_name}_state
             if hasattr(m.fs.li_dewatering, 'underflow_state'):
                 li_flow_underflow = value(m.fs.li_dewatering.underflow_state[0].flow_mol_phase_comp["Liq", "Li"])
                 total_flow_underflow = value(m.fs.li_dewatering.underflow_state[0].flow_vol)
                 
                 if total_flow_underflow > 0:
-                    li_concentration_underflow = li_flow_underflow / total_flow_underflow  # mol/L
+                    li_concentration_underflow = li_flow_underflow / total_flow_underflow
                     print(f"  Li concentration in concentrated solids: {li_concentration_underflow:.4f} mol/L")
                     print(f"  Li mass flow in concentrated solids: {li_flow_underflow * 6.94e-3:.4f} kg/s")
                 else:
@@ -593,7 +552,6 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError) as e:
             print(f"  Li concentration in concentrated solids: Error accessing properties - {type(e).__name__}")
     
-    # Boron extraction results (if present)
     if hasattr(m.fs, 'boron_extraction'):
         print(f"\nBORON EXTRACTION:")
         print(f"  Number of stages: {m.fs.boron_extraction.config.number_of_finite_elements}")
@@ -602,21 +560,18 @@ def display_results(m, show_costing=False):
         if hasattr(m.fs.boron_extraction, 'organic_inlet'):
             print(f"  Organic inlet flow: {value(m.fs.boron_extraction.organic_inlet.flow_vol[0]):.2f} L/s")
     
-    # Process efficiency metrics
     print(f"\nPROCESS EFFICIENCY METRICS:")
     
-    # Lithium recovery calculation
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         li_in = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"])
         li2co3_out = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
-        li_mw = 6.94e-3  # kg/mol
-        li2co3_mw = 73.89e-3  # kg/mol
-        li_in_mass = li_in * li_mw  # kg/s
-        li_out_mass = li2co3_out * (2 * li_mw / li2co3_mw)  # kg/s
+        li_mw = 6.94e-3
+        li2co3_mw = 73.89e-3
+        li_in_mass = li_in * li_mw
+        li_out_mass = li2co3_out * (2 * li_mw / li2co3_mw)
         li_recovery = (li_out_mass / li_in_mass) * 100 if li_in_mass > 0 else 0
         print(f"  Lithium recovery: {li_recovery:.1f}%")
     
-    # Chemical consumption mass flow rates
     total_na2co3_flow = 0 * pyunits.kg / pyunits.s
     if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
         total_na2co3_flow += m.fs.soda_ash_reactor.flow_mass_reagent['Na2CO3']
@@ -632,7 +587,6 @@ def display_results(m, show_costing=False):
         flow_tonne_yr = value(pyunits.convert(lime_flow, to_units=pyunits.tonne/pyunits.year))
         print(f"  Ca(OH)2 consumption: {flow_kg_s:.4f} kg/s ({flow_tonne_yr:.1f} tonnes/year)")
     
-    # Total process water consumption
     total_h2o_flow = 0 * pyunits.kg / pyunits.s
     if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
         if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
@@ -645,40 +599,36 @@ def display_results(m, show_costing=False):
             total_h2o_flow += m.fs.lithium_carbonate_reactor.flow_mass_reagent['H2O']
     if value(total_h2o_flow) > 0:
         flow_kg_s = value(pyunits.convert(total_h2o_flow, to_units=pyunits.kg/pyunits.s))
-        # Convert mass flow to volumetric flow using water density (1000 kg/m³)
         water_density = 1000 * pyunits.kg / pyunits.m**3
         flow_m3_yr = value(pyunits.convert(total_h2o_flow / water_density, to_units=pyunits.m**3/pyunits.year))
         print(f"  Total process water consumption: {flow_kg_s:.4f} kg/s ({flow_m3_yr:,.0f} m³/year)")
     
-    # Energy consumption
     total_power = 0
     if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump.control_volume, 'work'):
         total_power += value(m.fs.brine_pump.control_volume.work[0])
     if hasattr(m.fs, 'boron_pump') and hasattr(m.fs.boron_pump.control_volume, 'work'):
         total_power += value(m.fs.boron_pump.control_volume.work[0])
     if hasattr(m.fs, 'soda_ash_vacuum_filter') and hasattr(m.fs.soda_ash_vacuum_filter, 'electricity_consumption'):
-        total_power += value(m.fs.soda_ash_vacuum_filter.electricity_consumption[0]) * 1000  # Convert kW to W
+        total_power += value(m.fs.soda_ash_vacuum_filter.electricity_consumption[0]) * 1000
     if hasattr(m.fs, 'soda_ash_centrifuge') and hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
-        total_power += value(m.fs.soda_ash_centrifuge.electricity_consumption[0]) * 1000  # Convert kW to W
+        total_power += value(m.fs.soda_ash_centrifuge.electricity_consumption[0]) * 1000
     if hasattr(m.fs, 'lime_press_filter') and hasattr(m.fs.lime_press_filter, 'electricity_consumption'):
-        total_power += value(m.fs.lime_press_filter.electricity_consumption[0]) * 1000  # Convert kW to W
+        total_power += value(m.fs.lime_press_filter.electricity_consumption[0]) * 1000
     if hasattr(m.fs, 'lime_centrifuge') and hasattr(m.fs.lime_centrifuge, 'electricity_consumption'):
-        total_power += value(m.fs.lime_centrifuge.electricity_consumption[0]) * 1000  # Convert kW to W
+        total_power += value(m.fs.lime_centrifuge.electricity_consumption[0]) * 1000
     if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'electricity_consumption'):
-        total_power += value(m.fs.li_dewatering.electricity_consumption[0]) * 1000  # Convert kW to W
+        total_power += value(m.fs.li_dewatering.electricity_consumption[0]) * 1000
     
     if total_power > 0:
         print(f"  Total power consumption: {total_power:.2f} W")
         print(f"  Specific energy consumption: {total_power/value(m.fs.brine_feed.properties[0].flow_vol):.2f} W/(L/s)")
     
-    # Product quality
     print(f"\nPRODUCT QUALITY:")
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        li2co3_purity = 100.0  # Assuming pure Li2CO3 precipitate
+        li2co3_purity = 100.0
         print(f"  Li2CO3 purity: {li2co3_purity:.1f}%")
         print(f"  Li2CO3 production rate: {value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3']):.4f} kg/s")
     
-    # Process summary
     print(f"\nPROCESS SUMMARY:")
     feed_flow_L_s = value(pyunits.convert(m.fs.brine_feed.properties[0].flow_vol, to_units=pyunits.L/pyunits.s))
     print(f"  Feed flow rate: {feed_flow_L_s:.2f} L/s")
@@ -694,7 +644,6 @@ def display_results(m, show_costing=False):
     print("END OF RESULTS")
     print("="*60)
     
-    # Display costing results if requested
     if show_costing:
         display_costing_results(m)
 

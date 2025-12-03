@@ -8,13 +8,7 @@ from pyomo.environ import units as pyunits
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_scaling_factors import set_scaling_factors
 
 def process_costing(m):
-    """Initialize costing and add LCOLi calculations.
-    
-    Args:
-        m: Pyomo model with costing block
-        stage: Stage of flowsheet (1, 2, or 3) - costing checks for existence of blocks
-    """
-    # Initialize costing blocks
+    """Initialize costing blocks and add LCOLi calculations based on Li2CO3 production."""
     if hasattr(m.fs.brine_storage, 'costing'):
         m.fs.brine_storage.costing.initialize()
     if hasattr(m.fs.brine_pump, 'costing'):
@@ -37,29 +31,18 @@ def process_costing(m):
         m.fs.li_dewatering.costing.initialize()
     
     m.fs.costing.cost_process()
-    # m.fs.costing.initialize()
 
-    # Calculate Li2CO3 production rate (kg/s)
+    # Calculate Li production from Li2CO3 production
     li2co3_production = m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3']
     
-    # Convert Li2CO3 to equivalent Li mass flow rate
-    # Li2CO3 molecular weight: 73.89 g/mol
-    # Li atomic weight: 6.94 g/mol  
-    # Li content in Li2CO3: 2 * 6.94 / 73.89 = 0.188
     li_mw = 6.94 * pyunits.g / pyunits.mol
     li2co3_mw = 73.89 * pyunits.g / pyunits.mol
-    li_content_fraction = (2 * li_mw) / li2co3_mw  # fraction of Li in Li2CO3
+    li_content_fraction = (2 * li_mw) / li2co3_mw  # Li2CO3 contains 2 Li atoms
     
-    # Li production rate (kg/s)
     li_production = li2co3_production * li_content_fraction
 
-    # Add LCOLi calculation (cost per m³ of Li)
-    m.fs.costing.add_LCOW(li_production * pyunits.m**3 / pyunits.kg, name="LCOLi")  # $/m³ Li
-    
-    # Add specific energy consumption calculation (kWh per m³ of Li)
+    m.fs.costing.add_LCOW(li_production * pyunits.m**3 / pyunits.kg, name="LCOLi")
     m.fs.costing.add_specific_energy_consumption(li_production * pyunits.m**3 / pyunits.kg, name="specific_energy_consumption")
-
-    # Add variable and constraint for $/kg Li
     m.fs.costing.LCOLi_mass = Var(
         initialize=1000,
         units=m.fs.costing.base_currency / pyunits.kg,
@@ -73,7 +56,6 @@ def process_costing(m):
         )
     )
 
-    # Add variable and constraint for kWh/kg Li
     m.fs.costing.specific_energy_consumption_mass = Var(
         initialize=1000,
         units=pyunits.kWh / pyunits.kg,
@@ -87,7 +69,6 @@ def process_costing(m):
         )
     )
 
-    # Add variable and constraint for $/kg Li2CO3
     m.fs.costing.LCOLi2CO3_mass = Var(
         initialize=1000,
         units=m.fs.costing.base_currency / pyunits.kg,
@@ -101,7 +82,6 @@ def process_costing(m):
         )
     )
 
-    # Add variable and constraint for kWh/kg Li2CO3
     m.fs.costing.specific_energy_consumption_Li2CO3_mass = Var(
         initialize=1000,
         units=pyunits.kWh / pyunits.kg,
