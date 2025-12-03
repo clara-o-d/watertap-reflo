@@ -8,7 +8,7 @@ Adds capital and operating costs for:
 - Lithium carbonate reactor
 - Soda ash dewatering unit (RDVF - custom implementation)
 - Soda ash centrifuge unit (centrifuge)
-- Lime dewatering unit (belt filter press)
+- Lime press filter unit (belt filter press)
 - Lime centrifuge unit (centrifuge)
 - Lithium dewatering unit (belt filter press)
 """
@@ -53,7 +53,7 @@ def cost_rdvf_custom(blk, number_of_drums=2, cost_electricity_flow=True):
     watertap dewatering.py file.
     
     Args:
-        blk: The unit model costing block (e.g., soda_ash_dewatering.costing)
+        blk: The unit model costing block (e.g., soda_ash_vacuum_filter.costing)
         number_of_drums: Number of drums for RDVF (default: 2)
         cost_electricity_flow: Whether to cost electricity flow (default: True)
     """
@@ -137,9 +137,9 @@ def add_flow_costs(m):
     m.fs.costing.cost_flow(m.fs.brine_pump.control_volume.work[0], "electricity")
     
     # Soda ash dewatering unit electricity cost
-    if hasattr(m.fs.soda_ash_dewatering, 'electricity_consumption'):
-        m.fs.soda_ash_dewatering.electricity_consumption[0].setlb(0)
-        m.fs.costing.cost_flow(m.fs.soda_ash_dewatering.electricity_consumption[0], "electricity")
+    if hasattr(m.fs.soda_ash_vacuum_filter, 'electricity_consumption'):
+        m.fs.soda_ash_vacuum_filter.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.soda_ash_vacuum_filter.electricity_consumption[0], "electricity")
     
     # Soda ash centrifuge dewatering unit electricity cost
     if hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
@@ -147,9 +147,9 @@ def add_flow_costs(m):
         m.fs.costing.cost_flow(m.fs.soda_ash_centrifuge.electricity_consumption[0], "electricity")
     
     # Softening dewatering unit electricity cost
-    if hasattr(m.fs.lime_dewatering, 'electricity_consumption'):
-        m.fs.lime_dewatering.electricity_consumption[0].setlb(0)
-        m.fs.costing.cost_flow(m.fs.lime_dewatering.electricity_consumption[0], "electricity")
+    if hasattr(m.fs.lime_press_filter, 'electricity_consumption'):
+        m.fs.lime_press_filter.electricity_consumption[0].setlb(0)
+        m.fs.costing.cost_flow(m.fs.lime_press_filter.electricity_consumption[0], "electricity")
     
     # Centrifuge dewatering unit electricity cost
     if hasattr(m.fs.lime_centrifuge, 'electricity_consumption'):
@@ -203,15 +203,11 @@ def add_flow_costs(m):
     if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
         m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"], "process_water")
 
-def add_costing(m, stage=3):
+def add_costing(m):
     """Add costing components to the lithium processing flowsheet.
     
     Args:
         m: Pyomo model to add costing to
-        stage: Stage of flowsheet to add costing to
-            1 - Feed, storage tank, and pump only
-            2 - Stage 1 + stoichiometric reactors
-            3 - Stage 2 + dewaterers (complete flowsheet)
     """
     # Add global costing
     m.fs.costing = REFLOCosting()
@@ -222,15 +218,15 @@ def add_costing(m, stage=3):
     m.fs.brine_pump.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
     # Add unit model costing blocks for Stage 2
-    if stage >= 2:
+    if hasattr(m.fs, 'soda_ash_reactor'):
         m.fs.soda_ash_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
         m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
         m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
     # Add unit model costing blocks for Stage 3
-    if stage >= 3:
-        # Add lime dewatering unit costing with belt filter press configuration
-        m.fs.lime_dewatering.costing = UnitModelCostingBlock(
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        # Add lime press filter unit costing with belt filter press configuration
+        m.fs.lime_press_filter.costing = UnitModelCostingBlock(
             flowsheet_costing_block=m.fs.costing,
             costing_method=cost_dewatering,
             costing_method_arguments={
@@ -250,7 +246,7 @@ def add_costing(m, stage=3):
         )
         
         # Add soda ash dewatering unit costing with custom RDVF configuration
-        m.fs.soda_ash_dewatering.costing = UnitModelCostingBlock(
+        m.fs.soda_ash_vacuum_filter.costing = UnitModelCostingBlock(
             flowsheet_costing_block=m.fs.costing,
             costing_method=make_rdvf_costing_method(
                 number_of_drums=2,

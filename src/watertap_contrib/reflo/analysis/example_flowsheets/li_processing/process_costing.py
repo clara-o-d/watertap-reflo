@@ -7,7 +7,7 @@ from pyomo.environ import Param, Var, Constraint
 from pyomo.environ import units as pyunits
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_scaling_factors import set_scaling_factors
 
-def process_costing(m, stage=3):
+def process_costing(m):
     """Initialize costing and add LCOLi calculations.
     
     Args:
@@ -25,12 +25,12 @@ def process_costing(m, stage=3):
         m.fs.lime_reactor.costing.initialize()
     if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         m.fs.lithium_carbonate_reactor.costing.initialize()
-    if hasattr(m.fs.soda_ash_dewatering, 'costing'):
-        m.fs.soda_ash_dewatering.costing.initialize()
+    if hasattr(m.fs.soda_ash_vacuum_filter, 'costing'):
+        m.fs.soda_ash_vacuum_filter.costing.initialize()
     if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
         m.fs.soda_ash_centrifuge.costing.initialize()
-    if hasattr(m.fs.lime_dewatering, 'costing'):
-        m.fs.lime_dewatering.costing.initialize()
+    if hasattr(m.fs.lime_press_filter, 'costing'):
+        m.fs.lime_press_filter.costing.initialize()
     if hasattr(m.fs.lime_centrifuge, 'costing'):
         m.fs.lime_centrifuge.costing.initialize()
     if hasattr(m.fs.li_dewatering, 'costing'):
@@ -114,5 +114,5 @@ def process_costing(m, stage=3):
             to_units=pyunits.kWh / pyunits.kg
         )
     )
-    set_scaling_factors(m, stage=stage)
+    set_scaling_factors(m)
 

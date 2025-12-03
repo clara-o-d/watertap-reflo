@@ -6,7 +6,7 @@
     ## 1. Brine feed -> Storage tank -> Pump
     ## 2. Soda ash reactor (Na2CO3 -> precipitates MgCO3)
     ## 3. Lime reactor (Ca(OH)2 -> precipitates Mg(OH)2 and CaSO4)
-    ## 4. Lime dewatering (separates Mg(OH)2 and CaSO4 precipitates)
+    ## 4. Lime press filter (separates Mg(OH)2 and CaSO4 precipitates)
     ## 5. Lime centrifuge (further concentrates lime precipitates)
     ## 6. Lithium carbonate reactor (Na2CO3 -> precipitates Li2CO3)
     ## 7. Lithium dewatering (separates Li2CO3 slurry into solids and clarified liquid)
@@ -55,23 +55,23 @@ from watertap.core.wt_database import Database
 # Local imports
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_scaling_factors import set_scaling_factors
 
-def modify_unit_models(m, stage=3):
+def modify_unit_models(m):
     """
     Modify the unit models for the flowsheet.
     """
-    if stage >= 3:
-        # SODA ASH DEWATERING UNIT
-        # Add electricity consumption variable for soda ash dewatering costing
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        # SODA ASH VACUUM FILTER UNIT
+        # Add electricity consumption variable for soda ash vacuum filter costing
         # Based on typical belt filter press: 0.006 kWh/m³
-        m.fs.soda_ash_dewatering.electricity_consumption = pyo.Var(
+        m.fs.soda_ash_vacuum_filter.electricity_consumption = pyo.Var(
             m.fs.time,
             initialize=0.1,
             units=pyunits.kW,
             bounds=(0, None),
-            doc="Electricity consumption of soda ash dewatering unit"
+            doc="Electricity consumption of soda ash vacuum filter unit"
         )
         
-        m.fs.soda_ash_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+        m.fs.soda_ash_vacuum_filter.energy_electric_flow_vol_inlet = pyo.Param(
             m.fs.time,
             initialize=0.006,
             units=pyunits.kWh / pyunits.m**3,
@@ -79,7 +79,7 @@ def modify_unit_models(m, stage=3):
             doc="Specific electricity intensity for belt filter press"
         )
         
-        @m.fs.soda_ash_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
+        @m.fs.soda_ash_vacuum_filter.Constraint(m.fs.time, doc="Electricity consumption equation")
         def soda_ash_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
@@ -112,9 +112,9 @@ def modify_unit_models(m, stage=3):
                 to_units=pyunits.kW,
             )
         
-        # LIME DEWATERING UNIT
+        # LIME PRESS FILTER UNIT
         # Add electricity consumption variable for costing
-        m.fs.lime_dewatering.electricity_consumption = pyo.Var(
+        m.fs.lime_press_filter.electricity_consumption = pyo.Var(
             m.fs.time,
             initialize=0.1,
             units=pyunits.kW,
@@ -122,7 +122,7 @@ def modify_unit_models(m, stage=3):
             doc="Electricity consumption of softening dewatering unit"
         )
         
-        m.fs.lime_dewatering.energy_electric_flow_vol_inlet = pyo.Param(
+        m.fs.lime_press_filter.energy_electric_flow_vol_inlet = pyo.Param(
             m.fs.time,
             initialize=0.006,
             units=pyunits.kWh / pyunits.m**3,
@@ -130,8 +130,8 @@ def modify_unit_models(m, stage=3):
             doc="Specific electricity intensity for belt filter press"
         )
         
-        @m.fs.lime_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
-        def lime_dewatering_eq_electricity_consumption(blk, t):
+        @m.fs.lime_press_filter.Constraint(m.fs.time, doc="Electricity consumption equation")
+        def lime_press_filter_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
                 to_units=pyunits.kW,
@@ -263,7 +263,7 @@ def set_brine_feed_conditions(m):
     water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
 
-def modify_flowsheet(m, stage=3):
+def modify_flowsheet(m):
     """
     Modify the flowsheet for the flowsheet.
     """
@@ -295,7 +295,7 @@ def modify_flowsheet(m, stage=3):
     )
     m.fs.max_total_product_impurity.fix(0.0005)
     
-    if stage >= 2: 
+    if hasattr(m.fs, 'soda_ash_reactor'): 
         # Stoichiometric coefficients (a-k) - define as unfixed variables
         m.fs.stoich_coeff_a = pyo.Var(
             initialize=1.0,
@@ -532,15 +532,39 @@ def modify_flowsheet(m, stage=3):
                 to_units=pyunits.kg / pyunits.year
             )
     
-def fix_unit_model_variables(m, stage=3):
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        # Ion split fraction parameters for dewatering units
+        m.fs.soda_ash_vacuum_filter_ion_split_fraction = pyo.Param(
+            initialize=0.10,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Ion split fraction to overflow for soda ash vacuum filter unit"
+        )
+        
+        m.fs.soda_ash_centrifuge_ion_split_fraction = pyo.Param(
+            initialize=0.05,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Ion split fraction to overflow for soda ash centrifuge unit"
+        )
+        
+        m.fs.lime_press_filter_ion_split_fraction = pyo.Param(
+            initialize=0.05,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Ion split fraction to overflow for lime press filter unit"
+        )
+        
+        m.fs.lime_centrifuge_ion_split_fraction = pyo.Param(
+            initialize=0.05,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Ion split fraction to overflow for lime centrifuge unit"
+        )
+    
+def fix_unit_model_variables(m):
     """
     Fix the required variables for each unit model in the flowsheet.
-    
-    Args:
-        stage: Stage of flowsheet being fixed
-            1 - Feed, storage tank, and pump only
-            2 - Stage 1 + stoichiometric reactors
-            3 - Stage 2 + dewaterers (complete flowsheet)
     """
     
     # ============================================================================
@@ -557,7 +581,7 @@ def fix_unit_model_variables(m, stage=3):
     # STAGE 2: STOICHIOMETRIC REACTORS
     # ============================================================================
     
-    if stage >= 2:
+    if hasattr(m.fs, 'soda_ash_reactor'):
         # SODA ASH REACTOR (First softening stage)
         # MgCO3 precipitation rate determined by mgco3_precipitation_constraint in modify_flowsheet
         # Constraint sets MgCO3 precipitation equal to soda ash (Na2CO3) addition on a molar basis
@@ -580,28 +604,22 @@ def fix_unit_model_variables(m, stage=3):
         # Fix waste stream solids fraction to define separator behavior  
         m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.5)  # 20% solids in waste stream
     
-    if stage >= 3:
-        # SODA ASH DEWATERING UNIT (Separator for MgCO3 precipitates)
-        # Fix component-specific split fractions for soda ash dewatering
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        # SODA ASH VACUUM FILTER UNIT (Separator for MgCO3 precipitates)
+        # Fix component-specific split fractions for soda ash vacuum filter
         # Overflow (clarified liquid) gets most water and dissolved ions
         # Underflow (concentrated solids) retains MgCO3 precipitates
         # Index: [time, outlet, component] for componentFlow split basis
         
         # Water: 95% to overflow (clarified liquid), 5% to underflow (moisture in solids)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
+        m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
         
-        # Dissolved ions: 90% to overflow (stay in solution), 10% to underflow (entrapped in filter cake)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "Na"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "K"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "Li"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "Cl"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "B"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "H"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "Mg"].fix(0.10)
-        m.fs.soda_ash_dewatering.split_fraction[0, "overflow", "Ca"].fix(0.10)
+        # Dissolved ions: use parameter for split fraction to overflow
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        for ion in ion_list:
+            m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", ion].fix(
+                m.fs.soda_ash_vacuum_filter_ion_split_fraction.value
+            )
     
         
         # SODA ASH CENTRIFUGE DEWATERING UNIT (Further dewatering of soda ash precipitates)
@@ -612,41 +630,29 @@ def fix_unit_model_variables(m, stage=3):
         # Water: 90% to overflow (clarified liquid), 10% to underflow (moisture in solids)
         m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.90)
         
-        # All ions: 5% to overflow (stay in solution), 95% to underflow (entrapped in filter cake)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "Na"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "K"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "Li"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "Cl"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "SO4"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "B"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "HCO3"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "CO3"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "Mg"].fix(0.05)
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "Ca"].fix(0.05)
+        # All ions: use parameter for split fraction to overflow
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        for ion in ion_list:
+            m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", ion].fix(
+                m.fs.soda_ash_centrifuge_ion_split_fraction.value
+            )
     
         
-        # LIME DEWATERING UNIT (Separator for Mg(OH)2 and CaSO4 precipitates)
-        # Fix component-specific split fractions for lime dewatering
+        # LIME PRESS FILTER UNIT (Separator for Mg(OH)2 and CaSO4 precipitates)
+        # Fix component-specific split fractions for lime press filter
         # Overflow (clarified liquid) gets most water and dissolved ions
         # Underflow (concentrated solids) retains Mg(OH)2 and CaSO4 precipitates
         # Index: [time, outlet, component] for componentFlow split basis
         
         # Water: 95% to overflow (clarified liquid), 5% to underflow (moisture in solids)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
+        m.fs.lime_press_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
         
-        # Dissolved ions: 90% to overflow (stay in solution), 10% to underflow (entrapped in filter cake)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "Na"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "K"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "Li"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "Cl"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "B"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "H"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "Mg"].fix(0.05)
-        m.fs.lime_dewatering.split_fraction[0, "overflow", "Ca"].fix(0.05)
+        # Dissolved ions: use parameter for split fraction to overflow
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        for ion in ion_list:
+            m.fs.lime_press_filter.split_fraction[0, "overflow", ion].fix(
+                m.fs.lime_press_filter_ion_split_fraction.value
+            )
     
         
         # LIME CENTRIFUGE UNIT (Further dewatering of lime precipitates)
@@ -657,18 +663,12 @@ def fix_unit_model_variables(m, stage=3):
         # Water: 85% to overflow (clarified liquid), 15% to underflow (moisture in solids)
         m.fs.lime_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.95)
         
-        # All ions: 70% to overflow (stay in solution), 30% to underflow (entrapped in filter cake)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "Na"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "K"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "Li"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "Mg"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "Ca"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "Cl"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "SO4"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "B"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "H"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "HCO3"].fix(0.05)
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "CO3"].fix(0.05)
+        # All ions: use parameter for split fraction to overflow
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        for ion in ion_list:
+            m.fs.lime_centrifuge.split_fraction[0, "overflow", ion].fix(
+                m.fs.lime_centrifuge_ion_split_fraction.value
+            )
     
         
         # LITHIUM DEWATERING UNIT (Separator acting as dewatering for Li2CO3 slurry)
@@ -695,22 +695,18 @@ def fix_unit_model_variables(m, stage=3):
     
     print("Unit model variables fixed successfully!")
 
-def initialize_flowsheet(m, stage=3):
+def initialize_flowsheet(m):
     """
     Initialize the flowsheet by setting up all unit models in sequence.
     
     Args:
         m: The flowsheet model to initialize
-        stage: Stage of flowsheet to initialize
-            1 - Feed, storage tank, and pump only
-            2 - Stage 1 + stoichiometric reactors
-            3 - Stage 2 + dewaterers (complete flowsheet)
         
     Returns:
         m: The initialized flowsheet model
     """
     print("\n" + "="*60)
-    print(f"INITIALIZATION SEQUENCE - STAGE {stage}")
+    print("INITIALIZATION SEQUENCE")
     print("="*60)
     
     # ============================================================================
@@ -743,7 +739,7 @@ def initialize_flowsheet(m, stage=3):
     # STAGE 2: Stoichiometric Reactors
     # ============================================================================
     
-    if stage >= 2:
+    if hasattr(m.fs, 'soda_ash_reactor'):
         # Propagate state to soda ash reactor
         print("\n4. Propagating state to soda ash reactor...")
         propagate_state(m.fs.pump_to_soda_ash)
@@ -772,34 +768,34 @@ def initialize_flowsheet(m, stage=3):
     # STAGE 3: Dewaterers
     # ============================================================================
     
-    if stage >= 3:
-        # Propagate state to soda ash dewatering unit
-        print("\n7. Propagating state to soda ash dewatering unit...")
-        propagate_state(m.fs.soda_ash_to_dewatering)
-        m.fs.soda_ash_dewatering.initialize()
-        m.fs.soda_ash_dewatering.report()
-        print("Soda ash dewatering unit initialized successfully!")
-        print(f"DOF after soda ash dewatering: {degrees_of_freedom(m)}")
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        # Propagate state to soda ash vacuum filter unit
+        print("\n7. Propagating state to soda ash vacuum filter unit...")
+        propagate_state(m.fs.soda_ash_to_vacuum_filter)
+        m.fs.soda_ash_vacuum_filter.initialize()
+        m.fs.soda_ash_vacuum_filter.report()
+        print("Soda ash vacuum filter unit initialized successfully!")
+        print(f"DOF after soda ash vacuum filter: {degrees_of_freedom(m)}")
         
         # Propagate state to soda ash centrifuge dewatering unit
         print("\n8. Propagating state to soda ash centrifuge dewatering unit...")
-        propagate_state(m.fs.soda_ash_dewatering_to_centrifuge)
+        propagate_state(m.fs.soda_ash_vacuum_filter_to_centrifuge)
         m.fs.soda_ash_centrifuge.initialize()
         m.fs.soda_ash_centrifuge.report()
         print("Soda ash centrifuge dewatering unit initialized successfully!")
         print(f"DOF after soda ash centrifuge: {degrees_of_freedom(m)}")
         
-        # Propagate state to lime dewatering unit
-        print("\n9. Propagating state to lime dewatering unit...")
-        propagate_state(m.fs.lime_to_lime_dewater)
-        m.fs.lime_dewatering.initialize()
-        m.fs.lime_dewatering.report()
-        print("Lime dewatering unit initialized successfully!")
-        print(f"DOF after lime dewatering: {degrees_of_freedom(m)}")
+        # Propagate state to lime press filter unit
+        print("\n9. Propagating state to lime press filter unit...")
+        propagate_state(m.fs.lime_to_lime_press_filter)
+        m.fs.lime_press_filter.initialize()
+        m.fs.lime_press_filter.report()
+        print("Lime press filter unit initialized successfully!")
+        print(f"DOF after lime press filter: {degrees_of_freedom(m)}")
         
         # Propagate state to lime centrifuge unit
         print("\n10. Propagating state to lime centrifuge unit...")
-        propagate_state(m.fs.lime_dewatering_to_lime_centrifuge)
+        propagate_state(m.fs.lime_press_filter_to_lime_centrifuge)
         m.fs.lime_centrifuge.initialize()
         m.fs.lime_centrifuge.report()
         print("Lime centrifuge unit initialized successfully!")
@@ -1233,14 +1229,14 @@ def build_flowsheet(stage=3):
     if stage >= 3:
         # Dewatering unit for soda ash precipitates (MgCO3)
         # Separates waste stream from soda ash reactor into concentrated solids and clarified liquid
-        m.fs.soda_ash_dewatering = Separator(
+        m.fs.soda_ash_vacuum_filter = Separator(
             property_package=m.fs.brine_props,
             outlet_list=["overflow", "underflow"],
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
         
-        # Additional dewatering unit after soda ash dewatering (centrifuge type)
-        # Further concentrates solids from soda ash dewatering underflow
+        # Additional dewatering unit after soda ash vacuum filter (centrifuge type)
+        # Further concentrates solids from soda ash vacuum filter underflow
         m.fs.soda_ash_centrifuge = Separator(
             property_package=m.fs.brine_props,
             outlet_list=["overflow", "underflow"],
@@ -1249,14 +1245,14 @@ def build_flowsheet(stage=3):
         
         # Dewatering unit for lime precipitates (Mg(OH)2 and CaSO4)
         # Separates waste stream from lime reactor into concentrated solids and clarified liquid
-        m.fs.lime_dewatering = Separator(
+        m.fs.lime_press_filter = Separator(
             property_package=m.fs.brine_props,
             outlet_list=["overflow", "underflow"],
             split_basis=SplittingType.componentFlow  # Split each component independently
         )
         
         # Lime centrifuge unit for further dewatering of lime precipitates
-        # Takes underflow from lime dewatering and further concentrates the solids
+        # Takes underflow from lime press filter and further concentrates the solids
         m.fs.lime_centrifuge = Separator(
             property_package=m.fs.brine_props,
             outlet_list=["overflow", "underflow"],
@@ -1281,22 +1277,22 @@ def build_flowsheet(stage=3):
     m.fs.storage_to_pump = Arc(source=m.fs.brine_storage.outlet, destination=m.fs.brine_pump.inlet)
     
     # Stage 2 connections
-    if stage >= 2:
+    if hasattr(m.fs, 'soda_ash_reactor'):
         m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
         m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
         m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
     
     # Stage 3 connections
-    if stage >= 3:
-        m.fs.soda_ash_to_dewatering = Arc(source=m.fs.soda_ash_reactor.waste, destination=m.fs.soda_ash_dewatering.inlet)
-        m.fs.soda_ash_dewatering_to_centrifuge = Arc(source=m.fs.soda_ash_dewatering.underflow, destination=m.fs.soda_ash_centrifuge.inlet)
-        m.fs.lime_to_lime_dewater = Arc(source=m.fs.lime_reactor.waste, destination=m.fs.lime_dewatering.inlet)
-        m.fs.lime_dewatering_to_lime_centrifuge = Arc(source=m.fs.lime_dewatering.underflow, destination=m.fs.lime_centrifuge.inlet)
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        m.fs.soda_ash_to_vacuum_filter = Arc(source=m.fs.soda_ash_reactor.waste, destination=m.fs.soda_ash_vacuum_filter.inlet)
+        m.fs.soda_ash_vacuum_filter_to_centrifuge = Arc(source=m.fs.soda_ash_vacuum_filter.underflow, destination=m.fs.soda_ash_centrifuge.inlet)
+        m.fs.lime_to_lime_press_filter = Arc(source=m.fs.lime_reactor.waste, destination=m.fs.lime_press_filter.inlet)
+        m.fs.lime_press_filter_to_lime_centrifuge = Arc(source=m.fs.lime_press_filter.underflow, destination=m.fs.lime_centrifuge.inlet)
         m.fs.lithium_to_dewatering = Arc(source=m.fs.lithium_carbonate_reactor.waste, destination=m.fs.li_dewatering.inlet)
-    # Note: Mg(OH)2 and CaSO4 precipitate slurry from lime reactor waste stream goes to lime dewatering
+    # Note: Mg(OH)2 and CaSO4 precipitate slurry from lime reactor waste stream goes to lime press filter
     # Note: Dewatered lime precipitates go to lime centrifuge for further concentration
     # Note: Final concentrated lime precipitates are available at m.fs.lime_centrifuge.underflow
-    # Note: Clarified process water is available at m.fs.lime_dewatering.overflow and m.fs.lime_centrifuge.overflow
+    # Note: Clarified process water is available at m.fs.lime_press_filter.overflow and m.fs.lime_centrifuge.overflow
     # Note: Li2CO3 precipitate slurry from reactor waste stream goes to lithium dewatering
     # Note: Dewatered Li2CO3 product is available at m.fs.li_dewatering.underflow
     # Note: Clarified process water is available at m.fs.li_dewatering.overflow
@@ -1308,11 +1304,11 @@ def build_flowsheet(stage=3):
     # SET CONDITIONS
     # ============================================================================
     
-    modify_unit_models(m, stage=stage)
+    modify_unit_models(m)
     set_brine_feed_conditions(m)
-    modify_flowsheet(m, stage=stage)
-    fix_unit_model_variables(m, stage=stage)
-    initialize_flowsheet(m, stage=stage)
+    modify_flowsheet(m)
+    fix_unit_model_variables(m)
+    initialize_flowsheet(m)
     set_scaling_factors(m, stage=stage)
 
     run_diagnostics(m, report_scaling=True, analyze_jacobian=False, check_jacobian_quality=False)
