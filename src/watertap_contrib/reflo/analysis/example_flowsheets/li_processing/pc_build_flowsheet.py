@@ -303,27 +303,31 @@ def modify_flowsheet(m, stage=3):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient a: Na2CO3 to MgCO3 ratio in soda ash reactor"
         )
-        
+        m.fs.stoich_coeff_a.fix(10.0)
+
         m.fs.stoich_coeff_b = pyo.Var(
             initialize=1.0,
             bounds=(0, None),
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient b: Na2CO3 to CaCO3 ratio in soda ash reactor"
         )
-        
+        # m.fs.stoich_coeff_b.fix(3.0)
+
         m.fs.stoich_coeff_c = pyo.Var(
             initialize=1.0,
             bounds=(0, None),
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient c: Ca(OH)2 to Mg(OH)2 ratio"
         )
-        
+        m.fs.stoich_coeff_c.fix(1.0)
+
         m.fs.stoich_coeff_d = pyo.Var(
             initialize=1.0,
             bounds=(0, None),
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient d: Ca(OH)2 to CaCO3 ratio"
         )
+        m.fs.stoich_coeff_d.fix(3)
         
         m.fs.stoich_coeff_e = pyo.Var(
             initialize=1.0,
@@ -331,6 +335,7 @@ def modify_flowsheet(m, stage=3):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient e: Ca(OH)2 to CaSO4 ratio"
         )
+        m.fs.stoich_coeff_e.fix(3.0)
         
         m.fs.stoich_coeff_f = pyo.Var(
             initialize=1.0,
@@ -368,15 +373,48 @@ def modify_flowsheet(m, stage=3):
             initialize=1.0,
             bounds=(0, None),
             units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient j: total soda ash to soda ash reactor ratio"
+            doc="Stoichiometric coefficient j: soda ash reactor input to total soda ash ratio"
         )
-        
+        m.fs.stoich_coeff_j.fix(0.95)
+
         m.fs.stoich_coeff_k = pyo.Var(
             initialize=1.0,
             bounds=(0, None),
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient k: total soda ash to lithium reactor ratio"
         )
+
+        m.fs.stoich_coeff_l = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient l: Na2CO3 to H2O in soda ash reactor"
+        )
+        m.fs.stoich_coeff_l.fix(1.0)
+
+        m.fs.stoich_coeff_m = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient m: Ca(OH)2 to H2O"
+        )
+        m.fs.stoich_coeff_m.fix(1.0)
+
+        m.fs.stoich_coeff_n = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient n: Na2CO3 to H2O in lithium reactor"
+        )
+        m.fs.stoich_coeff_n.fix(1.0)
+
+        m.fs.stoich_coeff_o = pyo.Var(
+            initialize=1.0,
+            bounds=(0, None),
+            units=pyunits.dimensionless,
+            doc="Stoichiometric coefficient o: CaCO3 to MgCO3 in soda ash reactor"
+        )
+        m.fs.stoich_coeff_o.fix(1.0)
         
         # Molecular weights
         mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
@@ -459,9 +497,32 @@ def modify_flowsheet(m, stage=3):
             )
 
         # Constraint 8: j + k = 1
-        @m.fs.Constraint(doc="Total soda ash balance")
-        def total_soda_ash_balance(fs):
+        @m.fs.Constraint(doc="Total soda ash coefficients balance")
+        def total_soda_ash_coefficients_balance(fs):
             return fs.stoich_coeff_j + fs.stoich_coeff_k == 1
+
+        # Constraint 9: Water reagent in soda ash reactor = Na2CO3 / l
+        @m.fs.Constraint(doc="Water reagent in soda ash reactor")
+        def water_reagent_soda_ash_reactor(fs):
+            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == fs.stoich_coeff_l * fs.soda_ash_reactor.flow_mass_reagent["H2O"]
+        
+        # Constraint 10: Water reagent in lime reactor = Ca(OH)2 / m
+        @m.fs.Constraint(doc="Water reagent in lime reactor")
+        def water_reagent_lime_reactor(fs):
+            return fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] == fs.stoich_coeff_m * fs.lime_reactor.flow_mass_reagent["H2O"]
+        
+        # Constraint 11: Water reagent in lithium reactor = Na2CO3 / n
+        @m.fs.Constraint(doc="Water reagent in lithium reactor")
+        def water_reagent_lithium_reactor(fs):
+            return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == fs.stoich_coeff_n * fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"]
+
+        # Constraint 12: CaCO3 = o * MgCO3 in soda ash reactor
+        @m.fs.Constraint(doc="CaCO3 = o * MgCO3 in soda ash reactor")
+        def ca_co3_from_mg_co3(fs):
+            ca_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
+            mg_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
+            
+            return ca_co3_molar_flow == fs.stoich_coeff_o * mg_co3_molar_flow
         
         # Lime annual input constraint
         @m.fs.Constraint(doc="Lime annual input constraint")
