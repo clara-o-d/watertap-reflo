@@ -20,6 +20,7 @@ def solve(m, solver=None):
 
     # Try with default settings first
     print("Attempting solve with default solver settings...")
+    print("Degrees of freedom: ", degrees_of_freedom(m))
     try:
         results = solver.solve(m, tee=True)
         tc = results.solver.termination_condition

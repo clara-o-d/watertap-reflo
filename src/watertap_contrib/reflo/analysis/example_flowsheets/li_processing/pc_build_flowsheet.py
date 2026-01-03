@@ -257,7 +257,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient b: Na2CO3 to CaCO3 ratio in soda ash reactor"
         )
-        # m.fs.stoich_coeff_b.fix(3.0)
+        m.fs.stoich_coeff_b.fix(3.0)
 
         m.fs.stoich_coeff_c = pyo.Var(
             initialize=1.0,
