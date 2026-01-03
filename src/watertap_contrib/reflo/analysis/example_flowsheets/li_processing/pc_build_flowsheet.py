@@ -209,9 +209,9 @@ def set_brine_feed_conditions(m):
     
     # Water: calculate as difference from total (to ensure mass balance)
     total_solute_mass_fraction = sum(ppm[c] / 1e6 for c in ppm) + (H_conc_mol_L * MW["H"] / density)
-    water_mass_fraction = 1.0 - total_solute_mass_fraction
-    water_mass_flow = water_mass_fraction * total_flow_mass
-    water_molar_flow = water_mass_flow / MW["H2O"]
+    water_mass_fraction = 1.0 - total_solute_mass_fraction  # dimensionless
+    water_mass_flow = water_mass_fraction * total_flow_mass  # kg/s
+    water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
 
 def modify_flowsheet(m):
@@ -273,7 +273,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient d: Ca(OH)2 to CaCO3 ratio"
         )
-        m.fs.stoich_coeff_d.fix(3)
+        m.fs.stoich_coeff_d.fix(3.0)
         
         m.fs.stoich_coeff_e = pyo.Var(
             initialize=1.0,
