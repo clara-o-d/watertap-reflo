@@ -60,7 +60,7 @@ def modify_unit_models(m):
             doc="Specific electricity intensity for belt filter press"
         )
         
-        @m.fs.soda_ash_vacuum_filter.Constraint(m.fs.time)
+        @m.fs.soda_ash_vacuum_filter.Constraint(m.fs.time, doc="Electricity consumption equation")
         def soda_ash_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
@@ -82,7 +82,7 @@ def modify_unit_models(m):
             doc="Specific electricity intensity for centrifuge"
         )
         
-        @m.fs.soda_ash_centrifuge.Constraint(m.fs.time)
+        @m.fs.soda_ash_centrifuge.Constraint(m.fs.time, doc="Electricity consumption equation")
         def soda_ash_centrifuge_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
@@ -104,7 +104,7 @@ def modify_unit_models(m):
             doc="Specific electricity intensity for belt filter press"
         )
         
-        @m.fs.lime_press_filter.Constraint(m.fs.time)
+        @m.fs.lime_press_filter.Constraint(m.fs.time, doc="Electricity consumption equation")
         def lime_press_filter_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
@@ -126,7 +126,7 @@ def modify_unit_models(m):
             doc="Specific electricity intensity for centrifuge"
         )
         
-        @m.fs.lime_centrifuge.Constraint(m.fs.time)
+        @m.fs.lime_centrifuge.Constraint(m.fs.time, doc="Electricity consumption equation")
         def lime_centrifuge_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
@@ -148,7 +148,7 @@ def modify_unit_models(m):
             doc="Specific electricity intensity for belt filter press"
         )
         
-        @m.fs.li_dewatering.Constraint(m.fs.time)
+        @m.fs.li_dewatering.Constraint(m.fs.time, doc="Electricity consumption equation")
         def li_eq_electricity_consumption(blk, t):
             return blk.electricity_consumption[t] == pyunits.convert(
                 blk.energy_electric_flow_vol_inlet[t] * blk.mixed_state[t].flow_vol,
@@ -177,6 +177,7 @@ def set_brine_feed_conditions(m):
         "B": 10.81 * pyunits.g/pyunits.mol,
         "H2O": 18.0 * pyunits.g/pyunits.mol,
         "H": 1.008 * pyunits.g/pyunits.mol,
+        "OH": 17.008 * pyunits.g/pyunits.mol,
         "HCO3": 61.0168 * pyunits.g/pyunits.mol,
         "CO3": 60.0092 * pyunits.g/pyunits.mol,
     }
@@ -191,7 +192,7 @@ def set_brine_feed_conditions(m):
         "Cl": 351000,
         "SO4": 220,
         "B": 6270,
-        "HCO3": 100,
+        "HCO3": 16400, #230*1/(1-0.986),
         "CO3": 50,
     }
     
@@ -207,8 +208,13 @@ def set_brine_feed_conditions(m):
     H_flow_mol_s = H_conc_mol_L * total_flow_vol
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H"].fix(pyo.value(H_flow_mol_s))
     
+    # OH- from pH (assuming pH = 6.5, pOH = 7.5)
+    OH_conc_mol_L = 3.16e-8 * pyunits.mol / pyunits.L
+    OH_flow_mol_s = OH_conc_mol_L * total_flow_vol
+    m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "OH"].fix(pyo.value(OH_flow_mol_s))
+    
     # Water: calculate as difference from total (to ensure mass balance)
-    total_solute_mass_fraction = sum(ppm[c] / 1e6 for c in ppm) + (H_conc_mol_L * MW["H"] / density)
+    total_solute_mass_fraction = sum(ppm[c] / 1e6 for c in ppm) + (H_conc_mol_L * MW["H"] / density) + (OH_conc_mol_L * MW["OH"] / density)
     water_mass_fraction = 1.0 - total_solute_mass_fraction  # dimensionless
     water_mass_flow = water_mass_fraction * total_flow_mass  # kg/s
     water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
@@ -217,20 +223,28 @@ def set_brine_feed_conditions(m):
 def modify_flowsheet(m):
     # Annual reagent inputs (based on industrial-scale operation)
     m.fs.annual_soda_ash_input = pyo.Var(
-        initialize=381600000,
+        initialize=144402000,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
-        doc="Annual soda ash input (381,600 tonnes/year)"
+        doc="Annual soda ash input (144,402 tonnes/year)"
     )
-    m.fs.annual_soda_ash_input.fix(381600000)
+    m.fs.annual_soda_ash_input.fix(144402000)
     
     m.fs.annual_lime_input = pyo.Var(
-        initialize=15300000,
+        initialize=2536000,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
-        doc="Annual lime input (15,300 tonnes/year)"
+        doc="Annual lime input (2,536 tonnes/year)"
     )
-    m.fs.annual_lime_input.fix(15300000)
+    m.fs.annual_lime_input.fix(2536000)
+    
+    m.fs.annual_water_input = pyo.Var(
+        initialize=997.047*797259,
+        bounds=(0, None),
+        units=pyunits.kg / pyunits.year,
+        doc="Annual water input (1,000,000 tonnes/year)"
+    )
+    m.fs.annual_water_input.fix(9.97047*797259)
     
     # Product quality constraint: Na+Mg+Ca mass fraction <= 0.05%
     m.fs.max_total_product_impurity = pyo.Var(
@@ -249,7 +263,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient a: Na2CO3 to MgCO3 ratio in soda ash reactor"
         )
-        m.fs.stoich_coeff_a.fix(10.0)
+        # m.fs.stoich_coeff_a.fix(10.0)
 
         m.fs.stoich_coeff_b = pyo.Var(
             initialize=1.0,
@@ -257,7 +271,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient b: Na2CO3 to CaCO3 ratio in soda ash reactor"
         )
-        m.fs.stoich_coeff_b.fix(3.0)
+        # m.fs.stoich_coeff_b.fix(3.0)
 
         m.fs.stoich_coeff_c = pyo.Var(
             initialize=1.0,
@@ -265,7 +279,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient c: Ca(OH)2 to Mg(OH)2 ratio"
         )
-        m.fs.stoich_coeff_c.fix(1.0)
+        # m.fs.stoich_coeff_c.fix(1.0)
 
         m.fs.stoich_coeff_d = pyo.Var(
             initialize=1.0,
@@ -273,7 +287,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient d: Ca(OH)2 to CaCO3 ratio"
         )
-        m.fs.stoich_coeff_d.fix(3.0)
+        # m.fs.stoich_coeff_d.fix(3.0)
         
         m.fs.stoich_coeff_e = pyo.Var(
             initialize=1.0,
@@ -281,7 +295,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient e: Ca(OH)2 to CaSO4 ratio"
         )
-        m.fs.stoich_coeff_e.fix(3.0)
+        # m.fs.stoich_coeff_e.fix(3.0)
         
         m.fs.stoich_coeff_f = pyo.Var(
             initialize=1.0,
@@ -289,7 +303,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient f: SO4 to CaSO4 ratio"
         )
-        m.fs.stoich_coeff_f.fix(0.9)
+        # m.fs.stoich_coeff_f.fix(0.9)
 
         m.fs.stoich_coeff_g = pyo.Var(
             initialize=1.0,
@@ -297,7 +311,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient g: Mg feed to Mg precipitate ratio"
         )
-        m.fs.stoich_coeff_g.fix(0.95)
+        # m.fs.stoich_coeff_g.fix(0.95)
         
         m.fs.stoich_coeff_h = pyo.Var(
             initialize=0.435,
@@ -305,7 +319,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient h: Li feed to Li2CO3 ratio"
         )
-        m.fs.stoich_coeff_h.fix(0.435)
+        # m.fs.stoich_coeff_h.fix(0.435)
 
         m.fs.stoich_coeff_i = pyo.Var(
             initialize=1.0,
@@ -313,7 +327,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient i: Na2CO3 to Li2CO3 ratio in lithium reactor"
         )
-        m.fs.stoich_coeff_i.fix(1.1)
+        # m.fs.stoich_coeff_i.fix(1.1)
         
         m.fs.stoich_coeff_j = pyo.Var(
             initialize=1.0,
@@ -321,7 +335,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient j: soda ash reactor input to total soda ash ratio"
         )
-        m.fs.stoich_coeff_j.fix(0.95)
+        # m.fs.stoich_coeff_j.fix(0.95)
 
         m.fs.stoich_coeff_k = pyo.Var(
             initialize=1.0,
@@ -336,7 +350,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient l: Na2CO3 to H2O in soda ash reactor"
         )
-        m.fs.stoich_coeff_l.fix(1.0)
+        # m.fs.stoich_coeff_l.fix(1.0)
 
         m.fs.stoich_coeff_m = pyo.Var(
             initialize=1.0,
@@ -344,7 +358,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient m: Ca(OH)2 to H2O"
         )
-        m.fs.stoich_coeff_m.fix(1.0)
+        # m.fs.stoich_coeff_m.fix(1.0)
 
         m.fs.stoich_coeff_n = pyo.Var(
             initialize=1.0,
@@ -352,7 +366,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient n: Na2CO3 to H2O in lithium reactor"
         )
-        m.fs.stoich_coeff_n.fix(1.0)
+        # m.fs.stoich_coeff_n.fix(1.0)
 
         m.fs.stoich_coeff_o = pyo.Var(
             initialize=1.0,
@@ -360,7 +374,7 @@ def modify_flowsheet(m):
             units=pyunits.dimensionless,
             doc="Stoichiometric coefficient o: CaCO3 to MgCO3 in soda ash reactor"
         )
-        m.fs.stoich_coeff_o.fix(1.0)
+        # m.fs.stoich_coeff_o.fix(1.0)
         
         # Molecular weights for stoichiometric calculations
         mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
@@ -372,7 +386,7 @@ def modify_flowsheet(m):
         li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
         
         # Reactor stoichiometry constraints
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Soda ash reactor stoichiometry")
         def soda_ash_reactor_stoichiometry(fs):
             na2co3_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
             mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
@@ -383,7 +397,7 @@ def modify_flowsheet(m):
                 fs.stoich_coeff_b * caco3_molar_flow
             )
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Lime reactor stoichiometry")
         def lime_reactor_stoichiometry(fs):
             caoh2_molar_flow = fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] / caoh2_mw
             brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
@@ -396,14 +410,14 @@ def modify_flowsheet(m):
                 fs.stoich_coeff_e * gypsum_molar_flow
             )
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Gypsum precipitation from SO4")
         def gypsum_from_so4(fs):
             gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
             so4_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"]
             
             return gypsum_molar_flow == fs.stoich_coeff_f * so4_feed_molar_flow
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Total Mg precipitated from feed Mg")
         def total_mg_precipitation(fs):
             brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
             mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
@@ -411,21 +425,21 @@ def modify_flowsheet(m):
             
             return (brucite_molar_flow + mgco3_molar_flow) == fs.stoich_coeff_g * mg_feed_molar_flow
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Li2CO3 from feed Li")
         def li2co3_from_feed_li(fs):
             li2co3_molar_flow = fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] / li2co3_mw
             li_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
             
             return li2co3_molar_flow == fs.stoich_coeff_h * li_feed_molar_flow
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Lithium reactor stoichiometry")
         def lithium_reactor_stoichiometry(fs):
             na2co3_lithium_molar_flow = fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
             li2co3_molar_flow = fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] / li2co3_mw
             
             return na2co3_lithium_molar_flow == fs.stoich_coeff_i * li2co3_molar_flow
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Total soda ash balance")
         def total_soda_ash_balance(fs):
             total_soda_ash_molar_flow = pyunits.convert(fs.annual_soda_ash_input, to_units=pyunits.kg / pyunits.s) / na2co3_mw
             na2co3_soda_ash_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
@@ -436,30 +450,30 @@ def modify_flowsheet(m):
                 fs.stoich_coeff_k * na2co3_lithium_molar_flow
             )
 
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Total soda ash coefficients balance")
         def total_soda_ash_coefficients_balance(fs):
-            return fs.stoich_coeff_j + fs.stoich_coeff_k == 1
+            return fs.stoich_coeff_j + fs.stoich_coeff_k == 2
 
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Water reagent in soda ash reactor")
         def water_reagent_soda_ash_reactor(fs):
             return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == fs.stoich_coeff_l * fs.soda_ash_reactor.flow_mass_reagent["H2O"]
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Water reagent in lime reactor")
         def water_reagent_lime_reactor(fs):
             return fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] == fs.stoich_coeff_m * fs.lime_reactor.flow_mass_reagent["H2O"]
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Water reagent in lithium reactor")
         def water_reagent_lithium_reactor(fs):
             return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == fs.stoich_coeff_n * fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"]
 
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="CaCO3 = o * MgCO3 in soda ash reactor")
         def ca_co3_from_mg_co3(fs):
             ca_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
             mg_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
             
             return ca_co3_molar_flow == fs.stoich_coeff_o * mg_co3_molar_flow
         
-        @m.fs.Constraint
+        @m.fs.Constraint(doc="Lime annual input constraint")
         def lime_annual_input_constraint(fs):
             return fs.annual_lime_input == pyunits.convert(
                 fs.lime_reactor.flow_mass_reagent["Ca(OH)2"],
@@ -510,28 +524,28 @@ def fix_unit_model_variables(m):
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         # Dewatering unit split fractions: overflow gets clarified liquid, underflow gets concentrated solids
         m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
         for ion in ion_list:
             m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", ion].fix(
                 m.fs.soda_ash_vacuum_filter_ion_split_fraction.value
             )
         
         m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.90)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
         for ion in ion_list:
             m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", ion].fix(
                 m.fs.soda_ash_centrifuge_ion_split_fraction.value
             )
         
         m.fs.lime_press_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
         for ion in ion_list:
             m.fs.lime_press_filter.split_fraction[0, "overflow", ion].fix(
                 m.fs.lime_press_filter_ion_split_fraction.value
             )
         
         m.fs.lime_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.95)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "HCO3", "CO3", "Mg", "Ca"]
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
         for ion in ion_list:
             m.fs.lime_centrifuge.split_fraction[0, "overflow", ion].fix(
                 m.fs.lime_centrifuge_ion_split_fraction.value
@@ -547,6 +561,7 @@ def fix_unit_model_variables(m):
         m.fs.li_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.10)
         m.fs.li_dewatering.split_fraction[0, "overflow", "B"].fix(0.10)
         m.fs.li_dewatering.split_fraction[0, "overflow", "H"].fix(0.10)
+        m.fs.li_dewatering.split_fraction[0, "overflow", "OH"].fix(0.10)
         m.fs.li_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.10)
         m.fs.li_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.10)
         m.fs.li_dewatering.split_fraction[0, "overflow", "Li"].fix(0.10)
@@ -832,8 +847,8 @@ def build_flowsheet(stage=3):
     m.fs = FlowsheetBlock(dynamic=False)
     
     m.fs.brine_props = MCASParameterBlock(
-        solute_list=["Na", "K", "Mg", "Li", "Ca", "Cl", "SO4", "B", "H", "HCO3", "CO3"],
-        charge={"Na": 1, "K": 1, "Mg": 2, "Li": 1, "Ca": 2, "Cl": -1, "SO4": -2, "B": 0, "H": 1, "HCO3": -1, "CO3": -2},
+        solute_list=["Na", "K", "Mg", "Li", "Ca", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3"],
+        charge={"Na": 1, "K": 1, "Mg": 2, "Li": 1, "Ca": 2, "Cl": -1, "SO4": -2, "B": 0, "H": 1, "OH": -1, "HCO3": -1, "CO3": -2},
         mw_data={
             "H2O": 18e-3,
             "Na": 23e-3,
@@ -845,6 +860,7 @@ def build_flowsheet(stage=3):
             "SO4": 96.06e-3,
             "B": 10.81e-3,
             "H": 1.008e-3,
+            "OH": 17.008e-3,
             "HCO3": 61.0168e-3,
             "CO3": 60.0092e-3,
         },
@@ -866,7 +882,7 @@ def build_flowsheet(stage=3):
         soda_ash_reagents = {
             "Na2CO3": {
                 "mw": 105.99 * pyunits.g / pyunits.mol,
-                "dissolution_stoichiometric": {"Na": 2, "CO3": 1},
+                "dissolution_stoichiometric": {"Na": 2, "HCO3": 1},
                 "density_reagent": 2.52 * pyunits.kg / pyunits.L,
             },
             "H2O": {
@@ -879,11 +895,11 @@ def build_flowsheet(stage=3):
         soda_ash_precipitates = {
             "MgCO3": {
                 "mw": 84.3139 * pyunits.g / pyunits.mol,
-                "precipitation_stoichiometric": {"Mg": 1, "CO3": 1},
+                "precipitation_stoichiometric": {"Mg": 1, "HCO3": 1},
             },
             "CaCO3": {
                 "mw": 100.09 * pyunits.g / pyunits.mol,
-                "precipitation_stoichiometric": {"Ca": 1, "CO3": 1},
+                "precipitation_stoichiometric": {"Ca": 1, "HCO3": 1},
             },
         }
         
@@ -918,7 +934,7 @@ def build_flowsheet(stage=3):
             },
             "CaCO3": {
                 "mw": 100.09 * pyunits.g / pyunits.mol,
-                "precipitation_stoichiometric": {"Ca": 1, "CO3": 1},
+                "precipitation_stoichiometric": {"Ca": 1, "HCO3": 1},
             },
         }
         
@@ -932,7 +948,7 @@ def build_flowsheet(stage=3):
         lithium_reagents = {
             "Na2CO3": {
                 "mw": 105.99 * pyunits.g / pyunits.mol,
-                "dissolution_stoichiometric": {"Na": 2, "CO3": 1},
+                "dissolution_stoichiometric": {"Na": 2, "HCO3": 1},
                 "density_reagent": 1.2 * pyunits.kg / pyunits.L,
             },
             "H2O": {
@@ -945,7 +961,7 @@ def build_flowsheet(stage=3):
         lithium_precipitants = {
             "Li2CO3": {
                 "mw": 73.89 * pyunits.g / pyunits.mol,
-                "precipitation_stoichiometric": {"Li": 2, "CO3": 1},
+                "precipitation_stoichiometric": {"Li": 2, "HCO3": 1},
                 "density_precipitate": 2.11 * pyunits.kg / pyunits.L,
             },
         }
@@ -1044,6 +1060,30 @@ def check_unfixed_variables(block, name="block"):
     
     return unfixed_vars
 
+def set_objective(m):
+    """
+    Set objective to minimize all alphabetical stoichiometric coefficients (a through o).
+    This unfixes all coefficients if they were fixed and sets the objective.
+    """
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        # List of all alphabetical stoichiometric coefficients
+        coeff_list = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o']
+        
+        # Unfix all coefficients if they were fixed
+        for coeff in coeff_list:
+            coeff_name = f'stoich_coeff_{coeff}'
+            if hasattr(m.fs, coeff_name):
+                coeff_var = getattr(m.fs, coeff_name)
+                if coeff_var.is_fixed():
+                    coeff_var.unfix()
+        
+        # Set objective to minimize the sum of all coefficients
+        objective_expr = sum(getattr(m.fs, f'stoich_coeff_{coeff}') for coeff in coeff_list if hasattr(m.fs, f'stoich_coeff_{coeff}'))
+        m.fs.objective = pyo.Objective(expr=objective_expr, sense=pyo.minimize)
+        print("\nObjective set: minimize sum of all alphabetical stoichiometric coefficients (a-o)")
+    else:
+        print("\nWarning: soda_ash_reactor not found in flowsheet, cannot set objective")
+
 def main():
     print("Building lithium carbonate plant flowsheet...")
     m = build_flowsheet()
@@ -1051,6 +1091,9 @@ def main():
     print("\nFlowsheet built successfully!")
     print(f"Number of variables: {len(list(m.fs.component_data_objects(pyo.Var)))}")
     print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
+    
+    # Set objective to minimize all alphabetical stoichiometric coefficients
+    set_objective(m)
     
     return m
 

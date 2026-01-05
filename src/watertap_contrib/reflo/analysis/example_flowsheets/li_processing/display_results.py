@@ -231,13 +231,26 @@ def display_results(m, show_costing=False):
         print(f"\nFLOWSHEET-LEVEL VARIABLES:")
         
         if hasattr(m.fs, 'annual_soda_ash_input'):
+            na2co3_mw = .10599
             annual_soda_ash_tonnes = value(pyunits.convert(m.fs.annual_soda_ash_input, to_units=pyunits.tonne/pyunits.year))
+            secondly_soda_ash_moles = value(pyunits.convert(m.fs.annual_soda_ash_input, to_units=pyunits.kg/pyunits.s)) / na2co3_mw
             print(f"  Annual Soda Ash (Na2CO3) Input: {annual_soda_ash_tonnes:.1f} tonnes/year")
+            print(f"  Secondly Soda Ash (Na2CO3) Input: {secondly_soda_ash_moles:.6f} mol/s")
         
         if hasattr(m.fs, 'annual_lime_input'):
+            caoh2_mw = .074093
             annual_lime_tonnes = value(pyunits.convert(m.fs.annual_lime_input, to_units=pyunits.tonne/pyunits.year))
+            secondly_lime_moles = value(pyunits.convert(m.fs.annual_lime_input, to_units=pyunits.kg/pyunits.s)) / caoh2_mw
             print(f"  Annual Lime (Ca(OH)2) Input: {annual_lime_tonnes:.1f} tonnes/year")
+            print(f"  Secondly Lime (Ca(OH)2) Input: {secondly_lime_moles:.6f} mol/s")
         
+        if hasattr(m.fs, 'annual_water_input'):
+            water_mw = .018015
+            annual_water_tonnes = value(pyunits.convert(m.fs.annual_water_input, to_units=pyunits.tonne/pyunits.year))
+            secondly_water_moles = value(pyunits.convert(m.fs.annual_water_input, to_units=pyunits.kg/pyunits.s)) / water_mw
+            print(f"  Annual Water Input: {annual_water_tonnes:.1f} tonnes/year")
+            print(f"  Secondly Water Input: {secondly_water_moles:.6f} mol/s")
+
         if hasattr(m.fs, 'soda_ash_split_fraction'):
             split_fraction = value(m.fs.soda_ash_split_fraction)
             print(f"  Soda Ash Split Fraction (to Soda Ash Reactor): {split_fraction*100:.1f}%")
@@ -464,10 +477,13 @@ def display_results(m, show_costing=False):
         pass
     
     print(f"\nCOMPONENT FLOW RATES (mol/s):")
-    for comp in ["Li", "Na", "K", "Mg", "Ca", "Cl", "SO4", "B", "H2O"]:
-        if comp in m.fs.brine_props.solute_set:
+    for comp in ["Li", "Na", "K", "Mg", "Ca", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "H2O"]:
+        if comp in m.fs.brine_props.component_list:
             flow = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", comp])
-            print(f"  {comp}: {flow:.4f}")
+            if comp in ["H", "OH"]:
+                print(f"  {comp}: {flow:.10e}")
+            else:
+                print(f"  {comp}: {flow:.4f}")
     
     if hasattr(m.fs, 'brine_storage'):
         print(f"\nBRINE STORAGE TANK:")
