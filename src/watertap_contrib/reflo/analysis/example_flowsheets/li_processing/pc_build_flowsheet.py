@@ -221,6 +221,15 @@ def set_brine_feed_conditions(m):
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
 
 def modify_flowsheet(m):
+    # Molecular weights for stoichiometric calculations
+    mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
+    caco3_mw = 100.09e-3 * pyunits.kg / pyunits.mol
+    na2co3_mw = 105.99e-3 * pyunits.kg / pyunits.mol
+    caoh2_mw = 74.093e-3 * pyunits.kg / pyunits.mol
+    brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
+    gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
+    li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
+
     # Annual reagent inputs (based on industrial-scale operation)
     m.fs.annual_soda_ash_input = pyo.Var(
         initialize=144402000,
@@ -237,7 +246,7 @@ def modify_flowsheet(m):
         doc="Annual lime input (2,536 tonnes/year)"
     )
     m.fs.annual_lime_input.fix(2536000)
-    
+
     m.fs.annual_water_input = pyo.Var(
         initialize=997.047*797259,
         bounds=(0, None),
@@ -245,6 +254,56 @@ def modify_flowsheet(m):
         doc="Annual water input (1,000,000 tonnes/year)"
     )
     m.fs.annual_water_input.fix(9.97047*797259)
+
+    # Stoichiometric fractions for reactor molar balances
+    m.fs.magnesium_removal_fraction_soda_ash_reactor = pyo.Var(
+        initialize=0.3,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Molar magnesium removal fraction from soda ash reactor"
+    )
+    # m.fs.magnesium_removal_fraction_soda_ash_reactor.fix(0.3)
+    
+    m.fs.magnesium_removal_fraction_lime_reactor = pyo.Var(
+        initialize=0.9,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Molar magnesium removal fraction from lime reactor"
+    )
+    # m.fs.magnesium_removal_fraction_lime_reactor.fix(0.9)
+    
+    m.fs.calcium_removal_fraction_soda_ash_reactor = pyo.Var(
+        initialize=0.2,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Molar calcium removal fraction from soda ash reactor"
+    )
+    # m.fs.calcium_removal_fraction_soda_ash_reactor.fix(0.2)
+    
+    m.fs.calcium_removal_fraction_lime_reactor = pyo.Var(
+        initialize=0.5,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Molar calcium removal fraction from lime reactor"
+    )
+    # m.fs.calcium_removal_fraction_lime_reactor.fix(0.5)
+
+    m.fs.sulfate_removal_fraction_lime_reactor = pyo.Var(
+        initialize=0.9,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Molar sulfate removal fraction from lime reactor"
+    )
+    # m.fs.sulfate_removal_fraction_lime_reactor.fix(0.9)
+
+    m.fs.lithium_removal_fraction_lithium_reactor = pyo.Var(
+        initialize=0.95,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Molar lithium removal fraction from lithium reactor"
+    )
+    # m.fs.lithium_removal_fraction_lithium_reactor.fix(0.95)
+    '''
     
     # Product quality constraint: Na+Mg+Ca mass fraction <= 0.05%
     m.fs.max_total_product_impurity = pyo.Var(
@@ -376,15 +435,7 @@ def modify_flowsheet(m):
         )
         # m.fs.stoich_coeff_o.fix(1.0)
         
-        # Molecular weights for stoichiometric calculations
-        mgco3_mw = 84.3139e-3 * pyunits.kg / pyunits.mol
-        caco3_mw = 100.09e-3 * pyunits.kg / pyunits.mol
-        na2co3_mw = 105.99e-3 * pyunits.kg / pyunits.mol
-        caoh2_mw = 74.093e-3 * pyunits.kg / pyunits.mol
-        brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
-        gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
-        li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
-        
+
         # Reactor stoichiometry constraints
         @m.fs.Constraint(doc="Soda ash reactor stoichiometry")
         def soda_ash_reactor_stoichiometry(fs):
@@ -472,17 +523,56 @@ def modify_flowsheet(m):
             mg_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
             
             return ca_co3_molar_flow == fs.stoich_coeff_o * mg_co3_molar_flow
+        '''
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        @m.fs.Constraint(doc="Soda ash annual input constraint")
+        def soda_ash_annual_input_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] + fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(
+                fs.annual_soda_ash_input,
+                to_units=pyunits.kg / pyunits.second
+            )
         
         @m.fs.Constraint(doc="Lime annual input constraint")
         def lime_annual_input_constraint(fs):
-            return fs.annual_lime_input == pyunits.convert(
-                fs.lime_reactor.flow_mass_reagent["Ca(OH)2"],
-                to_units=pyunits.kg / pyunits.year
+            return fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] == pyunits.convert(
+                fs.annual_lime_input,
+                to_units=pyunits.kg / pyunits.second
             )
-    
+
+        @m.fs.Constraint(doc="Water annual input constraint")
+        def water_annual_input_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_reagent["H2O"] + fs.lime_reactor.flow_mass_reagent["H2O"] + fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] == pyunits.convert(
+                fs.annual_water_input,
+                to_units=pyunits.kg / pyunits.second
+            )
+
+        @m.fs.Constraint(doc="Magnesium removal fraction from soda ash reactor")
+        def magnesium_removal_fraction_soda_ash_reactor_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] * mgco3_mw == fs.magnesium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
+
+        @m.fs.Constraint(doc="Magnesium removal fraction from lime reactor")
+        def magnesium_removal_fraction_lime_reactor_constraint(fs):
+            return fs.lime_reactor.flow_mass_precipitate["Brucite"] * brucite_mw == fs.magnesium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
+        
+        @m.fs.Constraint(doc="Calcium removal fraction from soda ash reactor")
+        def calcium_removal_fraction_soda_ash_reactor_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] * caco3_mw == fs.calcium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
+        
+        @m.fs.Constraint(doc="Calcium removal fraction from lime reactor")
+        def calcium_removal_fraction_lime_reactor_constraint(fs):
+            return fs.lime_reactor.flow_mass_precipitate["CaCO3"] * caco3_mw == fs.calcium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
+        
+        @m.fs.Constraint(doc="Sulfate removal fraction from lime reactor")
+        def sulfate_removal_fraction_lime_reactor_constraint(fs):
+            return fs.lime_reactor.flow_mass_precipitate["Gypsum"] * gypsum_mw == fs.sulfate_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "SO4"]
+        
+        @m.fs.Constraint(doc="Lithium removal fraction from lithium reactor")
+        def lithium_removal_fraction_lithium_reactor_constraint(fs):
+            return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] * li2co3_mw == fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"]
+        
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         m.fs.soda_ash_vacuum_filter_ion_split_fraction = pyo.Param(
-            initialize=0.10,
+            initialize=0.05,
             mutable=True,
             units=pyunits.dimensionless,
             doc="Ion split fraction to overflow for soda ash vacuum filter unit"
@@ -509,6 +599,13 @@ def modify_flowsheet(m):
             doc="Ion split fraction to overflow for lime centrifuge unit"
             )
 
+        m.fs.lithium_dewatering_ion_split_fraction = pyo.Param(
+            initialize=0.05,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Ion split fraction to overflow for lithium dewatering unit"
+        )
+
 def fix_unit_model_variables(m):
     m.fs.brine_storage.load_parameters_from_database()
     
@@ -523,48 +620,37 @@ def fix_unit_model_variables(m):
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         # Dewatering unit split fractions: overflow gets clarified liquid, underflow gets concentrated solids
-        m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
         ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
+
+        m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
         for ion in ion_list:
             m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", ion].fix(
                 m.fs.soda_ash_vacuum_filter_ion_split_fraction.value
             )
         
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.90)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
+        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.95)
         for ion in ion_list:
             m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", ion].fix(
                 m.fs.soda_ash_centrifuge_ion_split_fraction.value
             )
         
         m.fs.lime_press_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
         for ion in ion_list:
             m.fs.lime_press_filter.split_fraction[0, "overflow", ion].fix(
                 m.fs.lime_press_filter_ion_split_fraction.value
             )
         
         m.fs.lime_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.95)
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
         for ion in ion_list:
             m.fs.lime_centrifuge.split_fraction[0, "overflow", ion].fix(
                 m.fs.lime_centrifuge_ion_split_fraction.value
             )
         
-        # Lithium dewatering: 10% of ions go to underflow (entrapped in filter cake)
         m.fs.li_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "Na"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "K"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "Mg"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "Ca"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "Cl"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "SO4"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "B"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "H"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "OH"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "HCO3"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "CO3"].fix(0.10)
-        m.fs.li_dewatering.split_fraction[0, "overflow", "Li"].fix(0.10)
+        for ion in ion_list:
+            m.fs.li_dewatering.split_fraction[0, "overflow", ion].fix(
+                m.fs.lithium_dewatering_ion_split_fraction.value
+            )
 
 def initialize_flowsheet(m):
     """Initialize flowsheet units in sequence, propagating state between units."""

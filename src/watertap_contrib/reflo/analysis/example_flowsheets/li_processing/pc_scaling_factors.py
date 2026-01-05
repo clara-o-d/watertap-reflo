@@ -38,7 +38,7 @@ def set_scaling_factors(m, stage=3):
         # Flowsheet variable scaling factors
         iscale.set_scaling_factor(m.fs.annual_soda_ash_input, 1E-09 / reference_li * mol_flow_li)
         iscale.set_scaling_factor(m.fs.annual_lime_input, 1E-08 / reference_li * mol_flow_li)
-        iscale.set_scaling_factor(m.fs.max_total_product_impurity, 1E+03 / reference_li * mol_flow_li)
+        # iscale.set_scaling_factor(m.fs.max_total_product_impurity, 1E+03 / reference_li * mol_flow_li)
 
         # Property parameter scaling factors
         iscale.set_scaling_factor(m.fs.brine_props.diffus_phase_comp["Liq","Na"], 1E+00 / reference_li * mol_flow_li)
@@ -149,17 +149,17 @@ def set_scaling_factors(m, stage=3):
         
         if hasattr(m.fs, 'soda_ash_reactor'):
             # Flowsheet variable scaling factors
-            iscale.set_scaling_factor(m.fs.stoich_coeff_a, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_b, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_c, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_d, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_e, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_f, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_g, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_h, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_i, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_j, 1E+00 / reference_li * mol_flow_li)
-            iscale.set_scaling_factor(m.fs.stoich_coeff_k, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_a, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_b, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_c, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_d, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_e, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_f, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_g, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_h, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_i, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_j, 1E+00 / reference_li * mol_flow_li)
+            # iscale.set_scaling_factor(m.fs.stoich_coeff_k, 1E+00 / reference_li * mol_flow_li)
 
             # Soda ash reactor variables
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.reagent_dose["Na2CO3"], 1E-04 / reference_li * mol_flow_li)
