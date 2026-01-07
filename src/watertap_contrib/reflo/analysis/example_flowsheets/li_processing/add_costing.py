@@ -218,6 +218,30 @@ def add_costing(m):
     
     add_flow_costs(m)
     
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        for reactor_name in ['soda_ash_reactor', 'lime_reactor', 'lithium_carbonate_reactor']:
+            reactor = getattr(m.fs, reactor_name)
+            if hasattr(reactor, 'costing') and hasattr(reactor.costing, 'capital_cost_constraint'):
+                print(f"Modifying capital cost constraint for {reactor_name} to exclude H2O from reagent sum")
+                blk = reactor.costing
+                blk.del_component(blk.capital_cost_constraint)
+                
+                blk.capital_cost_constraint = Constraint(
+                    expr=blk.capital_cost
+                    == blk.cost_factor
+                    * pyunits.convert(
+                        blk.costing_package.stoichiometric_reactor.capital_cost_softening,
+                        to_units=blk.costing_package.base_currency / (pyunits.lb / pyunits.day),
+                    )
+                    * sum(
+                        pyunits.convert(
+                            obj,
+                            to_units=pyunits.lb / pyunits.day,
+                        )
+                        for reagent, obj in blk.unit_model.flow_mass_reagent.items() if reagent != "H2O"
+                    ),
+                )
+    
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.10)
     m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))

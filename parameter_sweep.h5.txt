@@ -1,0 +1,13 @@
+{'outputs': ['Li2CO3 production (kg/s)',
+             'MgCO3 production (kg/s)',
+             'CaCO3 production from soda ash (kg/s)',
+             'Brucite production (kg/s)',
+             'Gypsum production (kg/s)',
+             'CaCO3 production from lime (kg/s)',
+             'Soda ash reagent (soda ash reactor) (kg/s)',
+             'Soda ash reagent (li reactor) (kg/s)',
+             'Lime reagent (kg/s)',
+             'Water reagent (soda ash reactor) (kg/s)',
+             'Water reagent (lime reactor) (kg/s)',
+             'Water reagent (li reactor) (kg/s)'],
+ 'sweep_params': ['Annual soda ash (kg/year)']}

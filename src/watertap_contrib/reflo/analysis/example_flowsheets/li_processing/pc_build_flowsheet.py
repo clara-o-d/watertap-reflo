@@ -42,7 +42,7 @@ from watertap.core.wt_database import Database
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_scaling_factors import set_scaling_factors
 
 def modify_unit_models(m):
-    """Add electricity consumption variables to dewatering units for costing."""
+    """Modify variables and constraints for unit models."""      
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         m.fs.soda_ash_vacuum_filter.electricity_consumption = pyo.Var(
             m.fs.time,
@@ -237,23 +237,77 @@ def modify_flowsheet(m):
         units=pyunits.kg / pyunits.year,
         doc="Annual soda ash input (144,402 tonnes/year)"
     )
-    m.fs.annual_soda_ash_input.fix(144402000)
+    m.fs.annual_soda_ash_input_param = pyo.Param(
+        initialize=144402000,
+        mutable=True,
+        units=pyunits.kg / pyunits.year,
+        doc="Parameter for annual soda ash input"
+    )
+    m.fs.annual_soda_ash_input.fix(m.fs.annual_soda_ash_input_param)
+
+    m.fs.soda_ash_input_split_fraction = pyo.Var(
+        initialize=0.1,
+        bounds=(0, None),
+        units=pyunits.dimensionless,
+        doc="Fraction of soda ash input to soda ash reactor"
+    )
+    m.fs.soda_ash_input_split_fraction_param = pyo.Param(
+        initialize=0.15,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Parameter for fraction of soda ash input to soda ash reactor"
+    )
+    m.fs.soda_ash_input_split_fraction.fix(m.fs.soda_ash_input_split_fraction_param)
     
     m.fs.annual_lime_input = pyo.Var(
-        initialize=2536000,
+        initialize=3356800,
         bounds=(0, None),
         units=pyunits.kg / pyunits.year,
-        doc="Annual lime input (2,536 tonnes/year)"
+        doc="Annual lime input (3,356.8 tonnes/year)"
     )
-    m.fs.annual_lime_input.fix(2536000)
+    m.fs.annual_lime_input_param = pyo.Param(
+        initialize=3356800,
+        mutable=True,
+        units=pyunits.kg / pyunits.year,
+        doc="Parameter for annual lime input"
+    )
+    m.fs.annual_lime_input.fix(m.fs.annual_lime_input_param)
 
-    m.fs.annual_water_input = pyo.Var(
-        initialize=997.047*797259,
+    # m.fs.annual_water_input = pyo.Var(
+    #     initialize=997.047*797259,
+    #     bounds=(0, None),
+    #     units=pyunits.kg / pyunits.year,
+    #     doc="Annual water input"
+    # )
+    # m.fs.annual_water_input.fix(424008000)
+
+    m.fs.soda_ash_solution_molality = pyo.Var(
+        initialize=3,
         bounds=(0, None),
-        units=pyunits.kg / pyunits.year,
-        doc="Annual water input (1,000,000 tonnes/year)"
+        units=pyunits.mol / pyunits.kg,
+        doc="Molality of soda ash solution"
     )
-    m.fs.annual_water_input.fix(9.97047*797259)
+    m.fs.soda_ash_solution_molality_param = pyo.Param(
+        initialize=30,
+        mutable=True,
+        units=pyunits.mol / pyunits.kg,
+        doc="Parameter for soda ash solution molality"
+    )
+    m.fs.soda_ash_solution_molality.fix(m.fs.soda_ash_solution_molality_param)
+    
+    m.fs.lime_solution_molality = pyo.Var(
+        initialize=1.5,
+        bounds=(0, None),
+        units=pyunits.mol / pyunits.kg,
+        doc="Molality of lime solution"
+    )
+    m.fs.lime_solution_molality_param = pyo.Param(
+        initialize=1.5,
+        mutable=True,
+        units=pyunits.mol / pyunits.kg,
+        doc="Parameter for lime solution molality"
+    )
+    m.fs.lime_solution_molality.fix(m.fs.lime_solution_molality_param)
 
     # Stoichiometric fractions for reactor molar balances
     m.fs.magnesium_removal_fraction_soda_ash_reactor = pyo.Var(
@@ -262,7 +316,13 @@ def modify_flowsheet(m):
         units=pyunits.dimensionless,
         doc="Molar magnesium removal fraction from soda ash reactor"
     )
-    # m.fs.magnesium_removal_fraction_soda_ash_reactor.fix(0.3)
+    m.fs.magnesium_removal_fraction_soda_ash_reactor_param = pyo.Param(
+        initialize=0.1,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Parameter for magnesium removal fraction from soda ash reactor"
+    )
+    m.fs.magnesium_removal_fraction_soda_ash_reactor.fix(m.fs.magnesium_removal_fraction_soda_ash_reactor_param)
     
     m.fs.magnesium_removal_fraction_lime_reactor = pyo.Var(
         initialize=0.9,
@@ -270,7 +330,13 @@ def modify_flowsheet(m):
         units=pyunits.dimensionless,
         doc="Molar magnesium removal fraction from lime reactor"
     )
-    # m.fs.magnesium_removal_fraction_lime_reactor.fix(0.9)
+    m.fs.magnesium_removal_fraction_lime_reactor_param = pyo.Param(
+        initialize=0.7,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Parameter for magnesium removal fraction from lime reactor"
+    )
+    m.fs.magnesium_removal_fraction_lime_reactor.fix(m.fs.magnesium_removal_fraction_lime_reactor_param)
     
     m.fs.calcium_removal_fraction_soda_ash_reactor = pyo.Var(
         initialize=0.2,
@@ -278,7 +344,13 @@ def modify_flowsheet(m):
         units=pyunits.dimensionless,
         doc="Molar calcium removal fraction from soda ash reactor"
     )
-    # m.fs.calcium_removal_fraction_soda_ash_reactor.fix(0.2)
+    m.fs.calcium_removal_fraction_soda_ash_reactor_param = pyo.Param(
+        initialize=0.2,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Parameter for calcium removal fraction from soda ash reactor"
+    )
+    m.fs.calcium_removal_fraction_soda_ash_reactor.fix(m.fs.calcium_removal_fraction_soda_ash_reactor_param)
     
     m.fs.calcium_removal_fraction_lime_reactor = pyo.Var(
         initialize=0.5,
@@ -286,7 +358,13 @@ def modify_flowsheet(m):
         units=pyunits.dimensionless,
         doc="Molar calcium removal fraction from lime reactor"
     )
-    # m.fs.calcium_removal_fraction_lime_reactor.fix(0.5)
+    m.fs.calcium_removal_fraction_lime_reactor_param = pyo.Param(
+        initialize=0.5,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Parameter for calcium removal fraction from lime reactor"
+    )
+    m.fs.calcium_removal_fraction_lime_reactor.fix(m.fs.calcium_removal_fraction_lime_reactor_param)
 
     m.fs.sulfate_removal_fraction_lime_reactor = pyo.Var(
         initialize=0.9,
@@ -294,7 +372,13 @@ def modify_flowsheet(m):
         units=pyunits.dimensionless,
         doc="Molar sulfate removal fraction from lime reactor"
     )
-    # m.fs.sulfate_removal_fraction_lime_reactor.fix(0.9)
+    m.fs.sulfate_removal_fraction_lime_reactor_param = pyo.Param(
+        initialize=0.9,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Parameter for sulfate removal fraction from lime reactor"
+    )
+    m.fs.sulfate_removal_fraction_lime_reactor.fix(m.fs.sulfate_removal_fraction_lime_reactor_param)
 
     m.fs.lithium_removal_fraction_lithium_reactor = pyo.Var(
         initialize=0.95,
@@ -302,228 +386,14 @@ def modify_flowsheet(m):
         units=pyunits.dimensionless,
         doc="Molar lithium removal fraction from lithium reactor"
     )
-    # m.fs.lithium_removal_fraction_lithium_reactor.fix(0.95)
-    '''
-    
-    # Product quality constraint: Na+Mg+Ca mass fraction <= 0.05%
-    m.fs.max_total_product_impurity = pyo.Var(
-        initialize=0.0005,
-        bounds=(0, 1.0),
+    m.fs.lithium_removal_fraction_lithium_reactor_param = pyo.Param(
+        initialize=0.95,
+        mutable=True,
         units=pyunits.dimensionless,
-        doc="Maximum total mass fraction of Na, Mg, and Ca in Li2CO3 product (0.05%)"
+        doc="Parameter for lithium removal fraction from lithium reactor"
     )
-    m.fs.max_total_product_impurity.fix(0.0005)
-    
-    if hasattr(m.fs, 'soda_ash_reactor'):
-        # Stoichiometric coefficients for reactor mass balances
-        m.fs.stoich_coeff_a = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient a: Na2CO3 to MgCO3 ratio in soda ash reactor"
-        )
-        # m.fs.stoich_coeff_a.fix(10.0)
+    # m.fs.lithium_removal_fraction_lithium_reactor.fix(m.fs.lithium_removal_fraction_lithium_reactor_param)
 
-        m.fs.stoich_coeff_b = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient b: Na2CO3 to CaCO3 ratio in soda ash reactor"
-        )
-        # m.fs.stoich_coeff_b.fix(3.0)
-
-        m.fs.stoich_coeff_c = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient c: Ca(OH)2 to Mg(OH)2 ratio"
-        )
-        # m.fs.stoich_coeff_c.fix(1.0)
-
-        m.fs.stoich_coeff_d = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient d: Ca(OH)2 to CaCO3 ratio"
-        )
-        # m.fs.stoich_coeff_d.fix(3.0)
-        
-        m.fs.stoich_coeff_e = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient e: Ca(OH)2 to CaSO4 ratio"
-        )
-        # m.fs.stoich_coeff_e.fix(3.0)
-        
-        m.fs.stoich_coeff_f = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient f: SO4 to CaSO4 ratio"
-        )
-        # m.fs.stoich_coeff_f.fix(0.9)
-
-        m.fs.stoich_coeff_g = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient g: Mg feed to Mg precipitate ratio"
-        )
-        # m.fs.stoich_coeff_g.fix(0.95)
-        
-        m.fs.stoich_coeff_h = pyo.Var(
-            initialize=0.435,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient h: Li feed to Li2CO3 ratio"
-        )
-        # m.fs.stoich_coeff_h.fix(0.435)
-
-        m.fs.stoich_coeff_i = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient i: Na2CO3 to Li2CO3 ratio in lithium reactor"
-        )
-        # m.fs.stoich_coeff_i.fix(1.1)
-        
-        m.fs.stoich_coeff_j = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient j: soda ash reactor input to total soda ash ratio"
-        )
-        # m.fs.stoich_coeff_j.fix(0.95)
-
-        m.fs.stoich_coeff_k = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient k: total soda ash to lithium reactor ratio"
-        )
-
-        m.fs.stoich_coeff_l = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient l: Na2CO3 to H2O in soda ash reactor"
-        )
-        # m.fs.stoich_coeff_l.fix(1.0)
-
-        m.fs.stoich_coeff_m = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient m: Ca(OH)2 to H2O"
-        )
-        # m.fs.stoich_coeff_m.fix(1.0)
-
-        m.fs.stoich_coeff_n = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient n: Na2CO3 to H2O in lithium reactor"
-        )
-        # m.fs.stoich_coeff_n.fix(1.0)
-
-        m.fs.stoich_coeff_o = pyo.Var(
-            initialize=1.0,
-            bounds=(0, None),
-            units=pyunits.dimensionless,
-            doc="Stoichiometric coefficient o: CaCO3 to MgCO3 in soda ash reactor"
-        )
-        # m.fs.stoich_coeff_o.fix(1.0)
-        
-
-        # Reactor stoichiometry constraints
-        @m.fs.Constraint(doc="Soda ash reactor stoichiometry")
-        def soda_ash_reactor_stoichiometry(fs):
-            na2co3_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
-            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
-            caco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
-            
-            return na2co3_molar_flow == (
-                fs.stoich_coeff_a * mgco3_molar_flow + 
-                fs.stoich_coeff_b * caco3_molar_flow
-            )
-        
-        @m.fs.Constraint(doc="Lime reactor stoichiometry")
-        def lime_reactor_stoichiometry(fs):
-            caoh2_molar_flow = fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] / caoh2_mw
-            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
-            caco3_molar_flow = fs.lime_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
-            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
-            
-            return caoh2_molar_flow == (
-                fs.stoich_coeff_c * brucite_molar_flow + 
-                fs.stoich_coeff_d * caco3_molar_flow + 
-                fs.stoich_coeff_e * gypsum_molar_flow
-            )
-        
-        @m.fs.Constraint(doc="Gypsum precipitation from SO4")
-        def gypsum_from_so4(fs):
-            gypsum_molar_flow = fs.lime_reactor.flow_mass_precipitate["Gypsum"] / gypsum_mw
-            so4_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"]
-            
-            return gypsum_molar_flow == fs.stoich_coeff_f * so4_feed_molar_flow
-        
-        @m.fs.Constraint(doc="Total Mg precipitated from feed Mg")
-        def total_mg_precipitation(fs):
-            brucite_molar_flow = fs.lime_reactor.flow_mass_precipitate["Brucite"] / brucite_mw
-            mgco3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
-            mg_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Mg"]
-            
-            return (brucite_molar_flow + mgco3_molar_flow) == fs.stoich_coeff_g * mg_feed_molar_flow
-        
-        @m.fs.Constraint(doc="Li2CO3 from feed Li")
-        def li2co3_from_feed_li(fs):
-            li2co3_molar_flow = fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] / li2co3_mw
-            li_feed_molar_flow = fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
-            
-            return li2co3_molar_flow == fs.stoich_coeff_h * li_feed_molar_flow
-        
-        @m.fs.Constraint(doc="Lithium reactor stoichiometry")
-        def lithium_reactor_stoichiometry(fs):
-            na2co3_lithium_molar_flow = fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
-            li2co3_molar_flow = fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] / li2co3_mw
-            
-            return na2co3_lithium_molar_flow == fs.stoich_coeff_i * li2co3_molar_flow
-        
-        @m.fs.Constraint(doc="Total soda ash balance")
-        def total_soda_ash_balance(fs):
-            total_soda_ash_molar_flow = pyunits.convert(fs.annual_soda_ash_input, to_units=pyunits.kg / pyunits.s) / na2co3_mw
-            na2co3_soda_ash_molar_flow = fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
-            na2co3_lithium_molar_flow = fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] / na2co3_mw
-            
-            return total_soda_ash_molar_flow == (
-                fs.stoich_coeff_j * na2co3_soda_ash_molar_flow + 
-                fs.stoich_coeff_k * na2co3_lithium_molar_flow
-            )
-
-        @m.fs.Constraint(doc="Total soda ash coefficients balance")
-        def total_soda_ash_coefficients_balance(fs):
-            return fs.stoich_coeff_j + fs.stoich_coeff_k == 2
-
-        @m.fs.Constraint(doc="Water reagent in soda ash reactor")
-        def water_reagent_soda_ash_reactor(fs):
-            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == fs.stoich_coeff_l * fs.soda_ash_reactor.flow_mass_reagent["H2O"]
-        
-        @m.fs.Constraint(doc="Water reagent in lime reactor")
-        def water_reagent_lime_reactor(fs):
-            return fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] == fs.stoich_coeff_m * fs.lime_reactor.flow_mass_reagent["H2O"]
-        
-        @m.fs.Constraint(doc="Water reagent in lithium reactor")
-        def water_reagent_lithium_reactor(fs):
-            return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == fs.stoich_coeff_n * fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"]
-
-        @m.fs.Constraint(doc="CaCO3 = o * MgCO3 in soda ash reactor")
-        def ca_co3_from_mg_co3(fs):
-            ca_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] / caco3_mw
-            mg_co3_molar_flow = fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] / mgco3_mw
-            
-            return ca_co3_molar_flow == fs.stoich_coeff_o * mg_co3_molar_flow
-        '''
     if hasattr(m.fs, 'soda_ash_reactor'):
         @m.fs.Constraint(doc="Soda ash annual input constraint")
         def soda_ash_annual_input_constraint(fs):
@@ -531,6 +401,10 @@ def modify_flowsheet(m):
                 fs.annual_soda_ash_input,
                 to_units=pyunits.kg / pyunits.second
             )
+
+        @m.fs.Constraint(doc="Soda ash input split fraction constraint")
+        def soda_ash_input_split_fraction_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * fs.soda_ash_input_split_fraction, to_units=pyunits.kg / pyunits.second)
         
         @m.fs.Constraint(doc="Lime annual input constraint")
         def lime_annual_input_constraint(fs):
@@ -539,36 +413,48 @@ def modify_flowsheet(m):
                 to_units=pyunits.kg / pyunits.second
             )
 
-        @m.fs.Constraint(doc="Water annual input constraint")
-        def water_annual_input_constraint(fs):
-            return fs.soda_ash_reactor.flow_mass_reagent["H2O"] + fs.lime_reactor.flow_mass_reagent["H2O"] + fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] == pyunits.convert(
-                fs.annual_water_input,
-                to_units=pyunits.kg / pyunits.second
-            )
+        # @m.fs.Constraint(doc="Water annual input constraint")
+        # def water_annual_input_constraint(fs):
+        #     return fs.soda_ash_reactor.flow_mass_reagent["H2O"] + fs.lime_reactor.flow_mass_reagent["H2O"] + fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] == pyunits.convert(
+        #         fs.annual_water_input,
+        #         to_units=pyunits.kg / pyunits.second
+        #     )
 
         @m.fs.Constraint(doc="Magnesium removal fraction from soda ash reactor")
         def magnesium_removal_fraction_soda_ash_reactor_constraint(fs):
-            return fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] * mgco3_mw == fs.magnesium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
+            return fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] == mgco3_mw * fs.magnesium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
 
         @m.fs.Constraint(doc="Magnesium removal fraction from lime reactor")
         def magnesium_removal_fraction_lime_reactor_constraint(fs):
-            return fs.lime_reactor.flow_mass_precipitate["Brucite"] * brucite_mw == fs.magnesium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
+            return fs.lime_reactor.flow_mass_precipitate["Brucite"] == brucite_mw * fs.magnesium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
         
         @m.fs.Constraint(doc="Calcium removal fraction from soda ash reactor")
         def calcium_removal_fraction_soda_ash_reactor_constraint(fs):
-            return fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] * caco3_mw == fs.calcium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
+            return fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] == caco3_mw * fs.calcium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
         
         @m.fs.Constraint(doc="Calcium removal fraction from lime reactor")
         def calcium_removal_fraction_lime_reactor_constraint(fs):
-            return fs.lime_reactor.flow_mass_precipitate["CaCO3"] * caco3_mw == fs.calcium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
+            return fs.lime_reactor.flow_mass_precipitate["CaCO3"] == caco3_mw * fs.calcium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
         
         @m.fs.Constraint(doc="Sulfate removal fraction from lime reactor")
         def sulfate_removal_fraction_lime_reactor_constraint(fs):
-            return fs.lime_reactor.flow_mass_precipitate["Gypsum"] * gypsum_mw == fs.sulfate_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "SO4"]
+            return fs.lime_reactor.flow_mass_precipitate["Gypsum"] == gypsum_mw * fs.sulfate_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "SO4"]
         
         @m.fs.Constraint(doc="Lithium removal fraction from lithium reactor")
         def lithium_removal_fraction_lithium_reactor_constraint(fs):
-            return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] * li2co3_mw == fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"]
+            return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] == li2co3_mw * fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"]
+        
+        @m.fs.Constraint(doc="Water reagent to soda ash reagent ratio 1")
+        def soda_ash_solution_molality_constraint_1(fs):
+            return fs.soda_ash_solution_molality * fs.soda_ash_reactor.flow_mass_reagent["H2O"] * na2co3_mw == fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"]
+
+        @m.fs.Constraint(doc="Water reagent to soda ash reagent ratio 2")
+        def soda_ash_solution_molality_constraint_2(fs):
+            return fs.soda_ash_solution_molality * fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] * na2co3_mw == fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"]
+        
+        @m.fs.Constraint(doc="Water reagent to lime reagent ratio")
+        def lime_solution_molality_constraint(fs):
+            return fs.lime_solution_molality * fs.lime_reactor.flow_mass_reagent["H2O"] * caoh2_mw == fs.lime_reactor.flow_mass_reagent["Ca(OH)2"]
         
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         m.fs.soda_ash_vacuum_filter_ion_split_fraction = pyo.Param(
@@ -614,7 +500,7 @@ def fix_unit_model_variables(m):
     
     if hasattr(m.fs, 'soda_ash_reactor'):
         # Waste stream solids fraction (50% solids in slurry)
-        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)
+        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.260380913333)
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.5)
         m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.5)
     
@@ -1179,7 +1065,7 @@ def main():
     print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
     
     # Set objective to minimize all alphabetical stoichiometric coefficients
-    set_objective(m)
+    # set_objective(m)
     
     return m
 

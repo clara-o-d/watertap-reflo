@@ -227,7 +227,7 @@ def display_results(m, show_costing=False):
     print("LITHIUM CARBONATE PROCESSING PLANT RESULTS")
     print("="*60)
     
-    if hasattr(m.fs, 'annual_soda_ash_input') or hasattr(m.fs, 'annual_lime_input') or hasattr(m.fs, 'max_total_impurity_mass_fraction_li_product'):
+    if hasattr(m.fs, 'annual_soda_ash_input') or hasattr(m.fs, 'annual_lime_input') or hasattr(m.fs, 'max_total_impurity_mass_fraction_li_product') or hasattr(m.fs, 'soda_ash_split_fraction'):
         print(f"\nFLOWSHEET-LEVEL VARIABLES:")
         
         if hasattr(m.fs, 'annual_soda_ash_input'):
@@ -251,10 +251,18 @@ def display_results(m, show_costing=False):
             print(f"  Annual Water Input: {annual_water_tonnes:.1f} tonnes/year")
             print(f"  Secondly Water Input: {secondly_water_moles:.6f} mol/s")
 
-        if hasattr(m.fs, 'soda_ash_split_fraction'):
-            split_fraction = value(m.fs.soda_ash_split_fraction)
-            print(f"  Soda Ash Split Fraction (to Soda Ash Reactor): {split_fraction*100:.1f}%")
-            print(f"  Soda Ash to Lithium Reactor: {(1-split_fraction)*100:.1f}%")
+        if hasattr(m.fs, 'soda_ash_solution_molality'):
+            molality = value(m.fs.soda_ash_solution_molality)
+            print(f"  Soda Ash Solution Molality: {molality:.4f} mol/kg")
+
+        if hasattr(m.fs, 'lime_solution_molality'):
+            molality = value(m.fs.lime_solution_molality)
+            print(f"  Lime Solution Molality: {molality:.4f} mol/kg")
+
+        if hasattr(m.fs, 'soda_ash_input_split_fraction'):
+            split_fraction = value(m.fs.soda_ash_input_split_fraction)
+            print(f"  Soda Ash Split Fraction (to Soda Ash Reactor): {split_fraction*100:.2f}%")
+            print(f"  Soda Ash to Lithium Reactor: {(1-split_fraction)*100:.2f}%")
         
         if hasattr(m.fs, 'target_li_recovery'):
             target_recovery = value(m.fs.target_li_recovery)
@@ -264,189 +272,107 @@ def display_results(m, show_costing=False):
             max_impurity = value(m.fs.max_total_product_impurity)
             print(f"  Max Total Impurity (Na+Mg+Ca) in Li2CO3 Product: {max_impurity*100:.3f}% mass fraction")
     
-    if hasattr(m.fs, 'stoich_coeff_a'):
-        print(f"\nSTOICHIOMETRIC COEFFICIENTS AND RELATED MASS FLOWS:")
+    if hasattr(m.fs, 'magnesium_removal_fraction_soda_ash_reactor'):
+        print(f"\nREMOVAL FRACTIONS AND ION SPLIT FRACTIONS:")
         print("="*60)
         
-        # Coefficient a: Na2CO3 to MgCO3 in soda ash reactor
-        print(f"\n  Coefficient a (Na2CO3 to MgCO3 in soda ash reactor): {value(m.fs.stoich_coeff_a):.6f}")
-        if hasattr(m.fs, 'soda_ash_reactor'):
-            try:
-                na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent['Na2CO3'])
-                mgco3_flow = value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])
-                print(f"    Na2CO3 reagent: {na2co3_flow:.6f} kg/s")
-                print(f"    MgCO3 precipitate: {mgco3_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient b: Na2CO3 to CaCO3 in soda ash reactor
-        print(f"\n  Coefficient b (Na2CO3 to CaCO3 in soda ash reactor): {value(m.fs.stoich_coeff_b):.6f}")
-        if hasattr(m.fs, 'soda_ash_reactor'):
-            try:
-                na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent['Na2CO3'])
-                caco3_flow = value(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'])
-                print(f"    Na2CO3 reagent: {na2co3_flow:.6f} kg/s")
-                print(f"    CaCO3 precipitate: {caco3_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient c: Ca(OH)2 to Brucite (Mg(OH)2)
-        print(f"\n  Coefficient c (Ca(OH)2 to Brucite): {value(m.fs.stoich_coeff_c):.6f}")
-        if hasattr(m.fs, 'lime_reactor'):
-            try:
-                caoh2_flow = value(m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2'])
-                brucite_flow = value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])
-                print(f"    Ca(OH)2 reagent: {caoh2_flow:.6f} kg/s")
-                print(f"    Brucite precipitate: {brucite_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient d: Ca(OH)2 to CaCO3
-        print(f"\n  Coefficient d (Ca(OH)2 to CaCO3): {value(m.fs.stoich_coeff_d):.6f}")
-        if hasattr(m.fs, 'lime_reactor'):
-            try:
-                caoh2_flow = value(m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2'])
-                caco3_flow = value(m.fs.lime_reactor.flow_mass_precipitate['CaCO3'])
-                print(f"    Ca(OH)2 reagent: {caoh2_flow:.6f} kg/s")
-                print(f"    CaCO3 precipitate: {caco3_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient e: Ca(OH)2 to Gypsum (CaSO4)
-        print(f"\n  Coefficient e (Ca(OH)2 to Gypsum): {value(m.fs.stoich_coeff_e):.6f}")
-        if hasattr(m.fs, 'lime_reactor'):
-            try:
-                caoh2_flow = value(m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2'])
-                gypsum_flow = value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])
-                print(f"    Ca(OH)2 reagent: {caoh2_flow:.6f} kg/s")
-                print(f"    Gypsum precipitate: {gypsum_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient f: SO4 to Gypsum
-        print(f"\n  Coefficient f (SO4 to Gypsum): {value(m.fs.stoich_coeff_f):.6f}")
-        if hasattr(m.fs, 'lime_reactor'):
-            try:
-                so4_feed = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "SO4"])
-                so4_mw = 96.06e-3  # kg/mol
-                so4_flow_kg_s = so4_feed * so4_mw
-                gypsum_flow = value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])
-                print(f"    SO4 feed: {so4_flow_kg_s:.6f} kg/s")
-                print(f"    Gypsum precipitate: {gypsum_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient g: Mg feed to total Mg precipitates
-        print(f"\n  Coefficient g (Mg feed to total Mg precipitates): {value(m.fs.stoich_coeff_g):.6f}")
-        try:
-            mg_feed = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Mg"])
-            mg_mw = 24.3e-3  # kg/mol
-            mg_feed_kg_s = mg_feed * mg_mw
-            if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs, 'lime_reactor'):
-                mgco3_flow = value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])
-                brucite_flow = value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])
-                total_mg_precip = mgco3_flow + brucite_flow
-                print(f"    Mg feed: {mg_feed_kg_s:.6f} kg/s")
-                print(f"    Total Mg precipitates (MgCO3 + Brucite): {total_mg_precip:.6f} kg/s")
-        except (AttributeError, TypeError, KeyError):
-            pass
-        
-        # Coefficient h: Li feed to Li2CO3
-        print(f"\n  Coefficient h (Li feed to Li2CO3): {value(m.fs.stoich_coeff_h):.6f}")
-        try:
-            li_feed = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"])
-            li_mw = 6.94e-3  # kg/mol
-            li_feed_kg_s = li_feed * li_mw
-            if hasattr(m.fs, 'lithium_carbonate_reactor'):
-                li2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
-                print(f"    Li feed: {li_feed_kg_s:.6f} kg/s")
-                print(f"    Li2CO3 precipitate: {li2co3_flow:.6f} kg/s")
-        except (AttributeError, TypeError, KeyError):
-            pass
-        
-        # Coefficient i: Na2CO3 to Li2CO3 in lithium reactor
-        print(f"\n  Coefficient i (Na2CO3 to Li2CO3 in lithium reactor): {value(m.fs.stoich_coeff_i):.6f}")
-        if hasattr(m.fs, 'lithium_carbonate_reactor'):
-            try:
-                na2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent['Na2CO3'])
-                li2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
-                print(f"    Na2CO3 reagent: {na2co3_flow:.6f} kg/s")
-                print(f"    Li2CO3 precipitate: {li2co3_flow:.6f} kg/s")
-            except (AttributeError, TypeError, KeyError):
-                pass
-        
-        # Coefficient j: Total Na2CO3 to soda ash reactor
-        print(f"\n  Coefficient j (Total Na2CO3 to soda ash reactor): {value(m.fs.stoich_coeff_j):.6f}")
-        try:
-            total_na2co3 = value(pyunits.convert(m.fs.annual_soda_ash_input, to_units=pyunits.kg/pyunits.s))
-            if hasattr(m.fs, 'soda_ash_reactor'):
-                na2co3_soda_ash = value(m.fs.soda_ash_reactor.flow_mass_reagent['Na2CO3'])
-                print(f"    Total Na2CO3 annual input: {value(m.fs.annual_soda_ash_input):,.0f} kg/year")
-                print(f"    Na2CO3 to soda ash reactor: {na2co3_soda_ash:.6f} kg/s")
-        except (AttributeError, TypeError, KeyError):
-            pass
-        
-        # Coefficient k: Total Na2CO3 to lithium reactor
-        print(f"\n  Coefficient k (Total Na2CO3 to lithium reactor): {value(m.fs.stoich_coeff_k):.6f}")
-        try:
-            total_na2co3 = value(pyunits.convert(m.fs.annual_soda_ash_input, to_units=pyunits.kg/pyunits.s))
-            if hasattr(m.fs, 'lithium_carbonate_reactor'):
-                na2co3_lithium = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent['Na2CO3'])
-                print(f"    Total Na2CO3 annual input: {value(m.fs.annual_soda_ash_input):,.0f} kg/year")
-                print(f"    Na2CO3 to lithium reactor: {na2co3_lithium:.6f} kg/s")
-        except (AttributeError, TypeError, KeyError):
-            pass
-        
-        # Coefficient l: Na2CO3 to H2O in soda ash reactor
-        if hasattr(m.fs, 'stoich_coeff_l'):
-            print(f"\n  Coefficient l (Na2CO3 to H2O in soda ash reactor): {value(m.fs.stoich_coeff_l):.6f}")
+        if hasattr(m.fs, 'magnesium_removal_fraction_soda_ash_reactor'):
+            print(f"\n  Magnesium Removal Fraction (Soda Ash Reactor): {value(m.fs.magnesium_removal_fraction_soda_ash_reactor):.6f}")
             if hasattr(m.fs, 'soda_ash_reactor'):
                 try:
-                    na2co3_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent['Na2CO3'])
-                    if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
-                        h2o_flow = value(m.fs.soda_ash_reactor.flow_mass_reagent['H2O'])
-                        print(f"    Na2CO3 reagent: {na2co3_flow:.6f} kg/s")
-                        print(f"    H2O reagent: {h2o_flow:.6f} kg/s")
-                except (AttributeError, TypeError, KeyError):
-                    pass
-        
-        # Coefficient m: Ca(OH)2 to H2O in lime reactor
-        if hasattr(m.fs, 'stoich_coeff_m'):
-            print(f"\n  Coefficient m (Ca(OH)2 to H2O in lime reactor): {value(m.fs.stoich_coeff_m):.6f}")
-            if hasattr(m.fs, 'lime_reactor'):
-                try:
-                    caoh2_flow = value(m.fs.lime_reactor.flow_mass_reagent['Ca(OH)2'])
-                    if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
-                        h2o_flow = value(m.fs.lime_reactor.flow_mass_reagent['H2O'])
-                        print(f"    Ca(OH)2 reagent: {caoh2_flow:.6f} kg/s")
-                        print(f"    H2O reagent: {h2o_flow:.6f} kg/s")
-                except (AttributeError, TypeError, KeyError):
-                    pass
-        
-        # Coefficient n: Na2CO3 to H2O in lithium reactor
-        if hasattr(m.fs, 'stoich_coeff_n'):
-            print(f"\n  Coefficient n (Na2CO3 to H2O in lithium reactor): {value(m.fs.stoich_coeff_n):.6f}")
-            if hasattr(m.fs, 'lithium_carbonate_reactor'):
-                try:
-                    na2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent['Na2CO3'])
-                    if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
-                        h2o_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_reagent['H2O'])
-                        print(f"    Na2CO3 reagent: {na2co3_flow:.6f} kg/s")
-                        print(f"    H2O reagent: {h2o_flow:.6f} kg/s")
-                except (AttributeError, TypeError, KeyError):
-                    pass
-        
-        # Coefficient o: CaCO3 to MgCO3 in soda ash reactor
-        if hasattr(m.fs, 'stoich_coeff_o'):
-            print(f"\n  Coefficient o (CaCO3 to MgCO3 in soda ash reactor): {value(m.fs.stoich_coeff_o):.6f}")
-            if hasattr(m.fs, 'soda_ash_reactor'):
-                try:
-                    caco3_flow = value(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'])
+                    mg_in = value(m.fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"])
+                    mg_mw = 24.3e-3
+                    mg_in_kg_s = mg_in * mg_mw
                     mgco3_flow = value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])
-                    print(f"    CaCO3 precipitate: {caco3_flow:.6f} kg/s")
+                    print(f"    Mg inlet: {mg_in_kg_s:.6f} kg/s")
                     print(f"    MgCO3 precipitate: {mgco3_flow:.6f} kg/s")
                 except (AttributeError, TypeError, KeyError):
                     pass
+        
+        if hasattr(m.fs, 'magnesium_removal_fraction_lime_reactor'):
+            print(f"\n  Magnesium Removal Fraction (Lime Reactor): {value(m.fs.magnesium_removal_fraction_lime_reactor):.6f}")
+            if hasattr(m.fs, 'lime_reactor'):
+                try:
+                    mg_in = value(m.fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"])
+                    mg_mw = 24.3e-3
+                    mg_in_kg_s = mg_in * mg_mw
+                    brucite_flow = value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])
+                    print(f"    Mg inlet: {mg_in_kg_s:.6f} kg/s")
+                    print(f"    Brucite precipitate: {brucite_flow:.6f} kg/s")
+                except (AttributeError, TypeError, KeyError):
+                    pass
+        
+        if hasattr(m.fs, 'calcium_removal_fraction_soda_ash_reactor'):
+            print(f"\n  Calcium Removal Fraction (Soda Ash Reactor): {value(m.fs.calcium_removal_fraction_soda_ash_reactor):.6f}")
+            if hasattr(m.fs, 'soda_ash_reactor'):
+                try:
+                    ca_in = value(m.fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"])
+                    ca_mw = 40.08e-3
+                    ca_in_kg_s = ca_in * ca_mw
+                    caco3_flow = value(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'])
+                    print(f"    Ca inlet: {ca_in_kg_s:.6f} kg/s")
+                    print(f"    CaCO3 precipitate: {caco3_flow:.6f} kg/s")
+                except (AttributeError, TypeError, KeyError):
+                    pass
+        
+        if hasattr(m.fs, 'calcium_removal_fraction_lime_reactor'):
+            print(f"\n  Calcium Removal Fraction (Lime Reactor): {value(m.fs.calcium_removal_fraction_lime_reactor):.6f}")
+            if hasattr(m.fs, 'lime_reactor'):
+                try:
+                    ca_in = value(m.fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"])
+                    ca_mw = 40.08e-3
+                    ca_in_kg_s = ca_in * ca_mw
+                    caco3_flow = value(m.fs.lime_reactor.flow_mass_precipitate['CaCO3'])
+                    print(f"    Ca inlet: {ca_in_kg_s:.6f} kg/s")
+                    print(f"    CaCO3 precipitate: {caco3_flow:.6f} kg/s")
+                except (AttributeError, TypeError, KeyError):
+                    pass
+        
+        if hasattr(m.fs, 'sulfate_removal_fraction_lime_reactor'):
+            print(f"\n  Sulfate Removal Fraction (Lime Reactor): {value(m.fs.sulfate_removal_fraction_lime_reactor):.6f}")
+            if hasattr(m.fs, 'lime_reactor'):
+                try:
+                    so4_in = value(m.fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "SO4"])
+                    so4_mw = 96.06e-3
+                    so4_in_kg_s = so4_in * so4_mw
+                    gypsum_flow = value(m.fs.lime_reactor.flow_mass_precipitate['Gypsum'])
+                    print(f"    SO4 inlet: {so4_in_kg_s:.6f} kg/s")
+                    print(f"    Gypsum precipitate: {gypsum_flow:.6f} kg/s")
+                except (AttributeError, TypeError, KeyError):
+                    pass
+        
+        if hasattr(m.fs, 'lithium_removal_fraction_lithium_reactor'):
+            print(f"\n  Lithium Removal Fraction (Lithium Reactor): {value(m.fs.lithium_removal_fraction_lithium_reactor):.6f}")
+            if hasattr(m.fs, 'lithium_carbonate_reactor'):
+                try:
+                    li_in = value(m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"])
+                    li_mw = 6.94e-3
+                    li_in_kg_s = li_in * li_mw
+                    li2co3_flow = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
+                    print(f"    Li inlet: {li_in_kg_s:.6f} kg/s")
+                    print(f"    Li2CO3 precipitate: {li2co3_flow:.6f} kg/s")
+                except (AttributeError, TypeError, KeyError):
+                    pass
+        
+        if hasattr(m.fs, 'soda_ash_vacuum_filter_ion_split_fraction'):
+            print(f"\n  Ion Split Fraction (Soda Ash Vacuum Filter): {value(m.fs.soda_ash_vacuum_filter_ion_split_fraction):.6f} to overflow")
+            print(f"    ({value(1-m.fs.soda_ash_vacuum_filter_ion_split_fraction):.6f} to underflow)")
+        
+        if hasattr(m.fs, 'soda_ash_centrifuge_ion_split_fraction'):
+            print(f"\n  Ion Split Fraction (Soda Ash Centrifuge): {value(m.fs.soda_ash_centrifuge_ion_split_fraction):.6f} to overflow")
+            print(f"    ({value(1-m.fs.soda_ash_centrifuge_ion_split_fraction):.6f} to underflow)")
+        
+        if hasattr(m.fs, 'lime_press_filter_ion_split_fraction'):
+            print(f"\n  Ion Split Fraction (Lime Press Filter): {value(m.fs.lime_press_filter_ion_split_fraction):.6f} to overflow")
+            print(f"    ({value(1-m.fs.lime_press_filter_ion_split_fraction):.6f} to underflow)")
+        
+        if hasattr(m.fs, 'lime_centrifuge_ion_split_fraction'):
+            print(f"\n  Ion Split Fraction (Lime Centrifuge): {value(m.fs.lime_centrifuge_ion_split_fraction):.6f} to overflow")
+            print(f"    ({value(1-m.fs.lime_centrifuge_ion_split_fraction):.6f} to underflow)")
+        
+        if hasattr(m.fs, 'lithium_dewatering_ion_split_fraction'):
+            print(f"\n  Ion Split Fraction (Lithium Dewatering): {value(m.fs.lithium_dewatering_ion_split_fraction):.6f} to overflow")
+            print(f"    ({value(1-m.fs.lithium_dewatering_ion_split_fraction):.6f} to underflow)")
         
         print("="*60)
     
@@ -543,6 +469,11 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
         try:
+            if hasattr(m.fs.soda_ash_reactor, 'waste_mass_frac_precipitate'):
+                print(f"  Waste solids fraction: {value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)*100:.10f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
             mgco3_flow_kg_s = value(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'])
             mgco3_flow_g_s = value(pyunits.convert(m.fs.soda_ash_reactor.flow_mass_precipitate['MgCO3'], to_units=pyunits.g/pyunits.s))
             print(f"  MgCO3 formation: {mgco3_flow_g_s:.3f} g/s ({mgco3_flow_kg_s:.6f} kg/s)")
@@ -552,10 +483,6 @@ def display_results(m, show_costing=False):
             caco3_flow_kg_s = value(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'])
             caco3_flow_g_s = value(pyunits.convert(m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3'], to_units=pyunits.g/pyunits.s))
             print(f"  CaCO3 formation: {caco3_flow_g_s:.3f} g/s ({caco3_flow_kg_s:.6f} kg/s)")
-        except (AttributeError, TypeError, KeyError):
-            pass
-        try:
-            print(f"  Waste solids fraction: {value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)*100:.1f}%")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -588,6 +515,11 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
         try:
+            if hasattr(m.fs.lime_reactor, 'waste_mass_frac_precipitate'):
+                print(f"  Waste solids fraction: {value(m.fs.lime_reactor.waste_mass_frac_precipitate)*100:.4f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
             brucite_flow_kg_s = value(m.fs.lime_reactor.flow_mass_precipitate['Brucite'])
             brucite_flow_g_s = value(pyunits.convert(m.fs.lime_reactor.flow_mass_precipitate['Brucite'], to_units=pyunits.g/pyunits.s))
             print(f"  Brucite formation: {brucite_flow_g_s:.3f} g/s ({brucite_flow_kg_s:.6f} kg/s)")
@@ -603,10 +535,6 @@ def display_results(m, show_costing=False):
             caco3_flow_kg_s = value(m.fs.lime_reactor.flow_mass_precipitate['CaCO3'])
             caco3_flow_g_s = value(pyunits.convert(m.fs.lime_reactor.flow_mass_precipitate['CaCO3'], to_units=pyunits.g/pyunits.s))
             print(f"  CaCO3 formation: {caco3_flow_g_s:.3f} g/s ({caco3_flow_kg_s:.6f} kg/s)")
-        except (AttributeError, TypeError, KeyError):
-            pass
-        try:
-            print(f"  Waste solids fraction: {value(m.fs.lime_reactor.waste_mass_frac_precipitate)*100:.1f}%")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -638,13 +566,14 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            li2co3_flow_kg_s = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
-            li2co3_flow_g_s = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.g/pyunits.s))
-            print(f"  Li2CO3 formation: {li2co3_flow_g_s:.3f} g/s ({li2co3_flow_kg_s:.6f} kg/s)")
+            if hasattr(m.fs.lithium_carbonate_reactor, 'waste_mass_frac_precipitate'):
+                print(f"  Waste solids fraction: {value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.4f}%")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
-            print(f"  Waste solids fraction: {value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)*100:.1f}%")
+            li2co3_flow_kg_s = value(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'])
+            li2co3_flow_g_s = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.g/pyunits.s))
+            print(f"  Li2CO3 formation: {li2co3_flow_g_s:.3f} g/s ({li2co3_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
         
