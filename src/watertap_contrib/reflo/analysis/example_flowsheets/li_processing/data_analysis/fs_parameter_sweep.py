@@ -22,24 +22,24 @@ def build_sweep_params(m, **kwargs):
     """Define the parameters to sweep."""
     sweep_params = dict()
 
-    sweep_params['Annual soda ash (kg/year)'] = LinearSample(
-        m.fs.annual_soda_ash_input_param, 100000000, 200000000, 3
-    )
+    # sweep_params['Annual soda ash (kg/year)'] = LinearSample(
+    #     m.fs.annual_soda_ash_input_param, 100000000, 200000000, 3
+    # )
     
-    sweep_params['Annual lime (kg/year)'] = LinearSample(
-        m.fs.annual_lime_input_param, 2000000, 5000000, 3
-    )
+    # sweep_params['Annual lime (kg/year)'] = LinearSample(
+    #     m.fs.annual_lime_input_param, 2000000, 5000000, 3
+    # )
     
-    sweep_params['Soda ash molality (mol/kg)'] = LinearSample(
-        m.fs.soda_ash_solution_molality_param, 20, 40, 3
-    )
+    # sweep_params['Soda ash molality (mol/kg)'] = LinearSample(
+    #     m.fs.soda_ash_solution_molality_param, 20, 40, 3
+    # )
     
-    sweep_params['Lime molality (mol/kg)'] = LinearSample(
-        m.fs.lime_solution_molality_param, 1.0, 2.0, 3
-    )
+    # sweep_params['Lime molality (mol/kg)'] = LinearSample(
+    #     m.fs.lime_solution_molality_param, 1.0, 2.0, 3
+    # )
     
     sweep_params['Mg removal fraction (soda ash)'] = LinearSample(
-        m.fs.magnesium_removal_fraction_soda_ash_reactor_param, 0.1, 0.5, 3
+        m.fs.magnesium_removal_fraction_soda_ash_reactor_param, 0.10, 0.80, 71
     )
     
     # sweep_params['Mg removal fraction (lime)'] = LinearSample(
@@ -68,16 +68,16 @@ def build_outputs(m, **kwargs):
     """Define the outputs to track."""
     outputs = dict()
     
-    outputs['Annual soda ash (kg/year)'] = m.fs.annual_soda_ash_input
-    outputs['Annual lime (kg/year)'] = m.fs.annual_lime_input
-    outputs['Soda ash molality (mol/kg)'] = m.fs.soda_ash_solution_molality
-    outputs['Lime molality (mol/kg)'] = m.fs.lime_solution_molality
+    # outputs['Annual soda ash (kg/year)'] = m.fs.annual_soda_ash_input
+    # outputs['Annual lime (kg/year)'] = m.fs.annual_lime_input
+    # outputs['Soda ash molality (mol/kg)'] = m.fs.soda_ash_solution_molality
+    # outputs['Lime molality (mol/kg)'] = m.fs.lime_solution_molality
     outputs['Mg removal fraction (soda ash)'] = m.fs.magnesium_removal_fraction_soda_ash_reactor
-    outputs['Mg removal fraction (lime)'] = m.fs.magnesium_removal_fraction_lime_reactor
-    outputs['Ca removal fraction (soda ash)'] = m.fs.calcium_removal_fraction_soda_ash_reactor
-    outputs['Ca removal fraction (lime)'] = m.fs.calcium_removal_fraction_lime_reactor
-    outputs['SO4 removal fraction (lime)'] = m.fs.sulfate_removal_fraction_lime_reactor
-    outputs['Li removal fraction'] = m.fs.lithium_removal_fraction_lithium_reactor
+    # outputs['Mg removal fraction (lime)'] = m.fs.magnesium_removal_fraction_lime_reactor
+    # outputs['Ca removal fraction (soda ash)'] = m.fs.calcium_removal_fraction_soda_ash_reactor
+    # outputs['Ca removal fraction (lime)'] = m.fs.calcium_removal_fraction_lime_reactor
+    # outputs['SO4 removal fraction (lime)'] = m.fs.sulfate_removal_fraction_lime_reactor
+    # outputs['Li removal fraction'] = m.fs.lithium_removal_fraction_lithium_reactor
     
     outputs['Li2CO3 production (kg/s)'] = m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"]
     outputs['MgCO3 production (kg/s)'] = m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"]
@@ -151,7 +151,7 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep10526_1.csv', 
+        csv_results_file_name='parameter_sweep10726_0.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )

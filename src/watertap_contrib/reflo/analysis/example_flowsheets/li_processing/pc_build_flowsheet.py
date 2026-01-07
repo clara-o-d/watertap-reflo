@@ -317,7 +317,7 @@ def modify_flowsheet(m):
         doc="Molar magnesium removal fraction from soda ash reactor"
     )
     m.fs.magnesium_removal_fraction_soda_ash_reactor_param = pyo.Param(
-        initialize=0.1,
+        initialize=0.45,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Parameter for magnesium removal fraction from soda ash reactor"
@@ -331,7 +331,7 @@ def modify_flowsheet(m):
         doc="Molar magnesium removal fraction from lime reactor"
     )
     m.fs.magnesium_removal_fraction_lime_reactor_param = pyo.Param(
-        initialize=0.7,
+        initialize=0.9,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Parameter for magnesium removal fraction from lime reactor"
@@ -387,12 +387,12 @@ def modify_flowsheet(m):
         doc="Molar lithium removal fraction from lithium reactor"
     )
     m.fs.lithium_removal_fraction_lithium_reactor_param = pyo.Param(
-        initialize=0.95,
+        initialize=0.4,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Parameter for lithium removal fraction from lithium reactor"
     )
-    # m.fs.lithium_removal_fraction_lithium_reactor.fix(m.fs.lithium_removal_fraction_lithium_reactor_param)
+    m.fs.lithium_removal_fraction_lithium_reactor.fix(m.fs.lithium_removal_fraction_lithium_reactor_param)
 
     if hasattr(m.fs, 'soda_ash_reactor'):
         @m.fs.Constraint(doc="Soda ash annual input constraint")
@@ -442,7 +442,7 @@ def modify_flowsheet(m):
         
         @m.fs.Constraint(doc="Lithium removal fraction from lithium reactor")
         def lithium_removal_fraction_lithium_reactor_constraint(fs):
-            return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] == li2co3_mw * fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"]
+            return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] == li2co3_mw * fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"] / 2
         
         @m.fs.Constraint(doc="Water reagent to soda ash reagent ratio 1")
         def soda_ash_solution_molality_constraint_1(fs):
@@ -500,7 +500,7 @@ def fix_unit_model_variables(m):
     
     if hasattr(m.fs, 'soda_ash_reactor'):
         # Waste stream solids fraction (50% solids in slurry)
-        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.260380913333)
+        # m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.5)
         m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.5)
     
@@ -1034,27 +1034,15 @@ def check_unfixed_variables(block, name="block"):
 
 def set_objective(m):
     """
-    Set objective to minimize all alphabetical stoichiometric coefficients (a through o).
-    This unfixes all coefficients if they were fixed and sets the objective.
+    Set objective to maximize the flow of lithium (as waste) out of the lithium carbonate reactor.
+    This unfixes the lithium removal fraction if it was fixed and sets the objective.
     """
-    if hasattr(m.fs, 'soda_ash_reactor'):
-        # List of all alphabetical stoichiometric coefficients
-        coeff_list = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o']
-        
-        # Unfix all coefficients if they were fixed
-        for coeff in coeff_list:
-            coeff_name = f'stoich_coeff_{coeff}'
-            if hasattr(m.fs, coeff_name):
-                coeff_var = getattr(m.fs, coeff_name)
-                if coeff_var.is_fixed():
-                    coeff_var.unfix()
-        
-        # Set objective to minimize the sum of all coefficients
-        objective_expr = sum(getattr(m.fs, f'stoich_coeff_{coeff}') for coeff in coeff_list if hasattr(m.fs, f'stoich_coeff_{coeff}'))
-        m.fs.objective = pyo.Objective(expr=objective_expr, sense=pyo.minimize)
-        print("\nObjective set: minimize sum of all alphabetical stoichiometric coefficients (a-o)")
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        li_waste_flow = m.fs.lithium_carbonate_reactor.waste_state[0].flow_mol_phase_comp["Liq", "Li"]
+        m.fs.objective = pyo.Objective(expr=li_waste_flow, sense=pyo.maximize)
+        print("\nObjective set: maximize lithium waste flow from lithium carbonate reactor")
     else:
-        print("\nWarning: soda_ash_reactor not found in flowsheet, cannot set objective")
+        print("\nWarning: lithium_carbonate_reactor not found in flowsheet, cannot set objective")
 
 def main():
     print("Building lithium carbonate plant flowsheet...")
@@ -1064,8 +1052,7 @@ def main():
     print(f"Number of variables: {len(list(m.fs.component_data_objects(pyo.Var)))}")
     print(f"Number of constraints: {len(list(m.fs.component_data_objects(pyo.Constraint)))}")
     
-    # Set objective to minimize all alphabetical stoichiometric coefficients
-    # set_objective(m)
+    set_objective(m)
     
     return m
 
