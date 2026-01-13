@@ -1,32 +1,6 @@
 #################################################################################
 # Lithium Carbonate Plant Flowsheet
 # Salar de Carmen (Antofagasta) Process
-#
-# This module implements a staged flowsheet build approach for developing and
-# debugging the lithium carbonate processing plant. The flowsheet can be built
-# in 5 progressive stages:
-#
-# Stage 1: Feed, storage tank, and pump only
-#          - Establishes basic brine feed conditions and pumping
-#
-# Stage 2: Stage 1 + soda ash reactor
-#          - Adds first softening stage (MgCO3 and CaCO3 precipitation)
-#          - Uses Na2CO3 as reagent
-#
-# Stage 3: Stage 2 + lime reactor  
-#          - Adds second softening stage (Brucite, Gypsum, and CaCO3 precipitation)
-#          - Uses Ca(OH)2 as reagent
-#
-# Stage 4: Stage 3 + lithium carbonate reactor
-#          - Adds lithium precipitation stage (Li2CO3 precipitation)
-#          - Uses Na2CO3 as reagent
-#
-# Stage 5: Stage 4 + dewatering units (complete flowsheet)
-#          - Adds all dewatering/solid-liquid separation units
-#          - Includes vacuum filter, centrifuges, and press filters
-#
-# This staged approach allows for incremental development, easier debugging,
-# and better understanding of how each unit affects the overall system.
 #################################################################################
 
 import pyomo.environ as pyo
@@ -421,38 +395,43 @@ def modify_flowsheet(m):
     m.fs.lithium_removal_fraction_lithium_reactor.fix(m.fs.lithium_removal_fraction_lithium_reactor_param)
 
     if hasattr(m.fs, 'soda_ash_reactor'):
-        @m.fs.Constraint(doc="Soda ash reactor input constraint")
+        @m.fs.Constraint(doc="Soda ash annual input constraint")
+        def soda_ash_annual_input_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] + fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(
+                fs.annual_soda_ash_input,
+                to_units=pyunits.kg / pyunits.second
+            )
+
+        @m.fs.Constraint(doc="Soda ash input split fraction constraint")
         def soda_ash_input_split_fraction_constraint(fs):
             return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * fs.soda_ash_input_split_fraction, to_units=pyunits.kg / pyunits.second)
-    
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        @m.fs.Constraint(doc="Lithium reactor input constraint")
-        def lithium_input_split_fraction_constraint(fs):
-            return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * (1 - fs.soda_ash_input_split_fraction), to_units=pyunits.kg / pyunits.second)
-
-        @m.fs.Constraint(doc="Magnesium removal fraction from soda ash reactor")
-        def magnesium_removal_fraction_soda_ash_reactor_constraint(fs):
-            return fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] == mgco3_mw * fs.magnesium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
         
-        @m.fs.Constraint(doc="Calcium removal fraction from soda ash reactor")
-        def calcium_removal_fraction_soda_ash_reactor_constraint(fs):
-            return fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] == caco3_mw * fs.calcium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
-        
-        @m.fs.Constraint(doc="Water reagent to soda ash reagent ratio 1")
-        def soda_ash_solution_molality_constraint_1(fs):
-            return fs.soda_ash_solution_molality * fs.soda_ash_reactor.flow_mass_reagent["H2O"] * na2co3_mw == fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"]
-
-    if hasattr(m.fs, 'lime_reactor'):
         @m.fs.Constraint(doc="Lime annual input constraint")
         def lime_annual_input_constraint(fs):
             return fs.lime_reactor.flow_mass_reagent["Ca(OH)2"] == pyunits.convert(
                 fs.annual_lime_input,
+
                 to_units=pyunits.kg / pyunits.second
             )
+
+        # @m.fs.Constraint(doc="Water annual input constraint")
+        # def water_annual_input_constraint(fs):
+        #     return fs.soda_ash_reactor.flow_mass_reagent["H2O"] + fs.lime_reactor.flow_mass_reagent["H2O"] + fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] == pyunits.convert(
+        #         fs.annual_water_input,
+        #         to_units=pyunits.kg / pyunits.second
+        #     )
+
+        @m.fs.Constraint(doc="Magnesium removal fraction from soda ash reactor")
+        def magnesium_removal_fraction_soda_ash_reactor_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"] == mgco3_mw * fs.magnesium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
 
         @m.fs.Constraint(doc="Magnesium removal fraction from lime reactor")
         def magnesium_removal_fraction_lime_reactor_constraint(fs):
             return fs.lime_reactor.flow_mass_precipitate["Brucite"] == brucite_mw * fs.magnesium_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Mg"]
+        
+        @m.fs.Constraint(doc="Calcium removal fraction from soda ash reactor")
+        def calcium_removal_fraction_soda_ash_reactor_constraint(fs):
+            return fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"] == caco3_mw * fs.calcium_removal_fraction_soda_ash_reactor * fs.soda_ash_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Ca"]
         
         @m.fs.Constraint(doc="Calcium removal fraction from lime reactor")
         def calcium_removal_fraction_lime_reactor_constraint(fs):
@@ -465,18 +444,21 @@ def modify_flowsheet(m):
         def sulfate_removal_fraction_lime_reactor_constraint(fs):
             return fs.lime_reactor.flow_mass_precipitate["Gypsum"] == gypsum_mw * fs.sulfate_removal_fraction_lime_reactor * fs.lime_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "SO4"]
         
-        @m.fs.Constraint(doc="Water reagent to lime reagent ratio")
-        def lime_solution_molality_constraint(fs):
-            return fs.lime_solution_molality * fs.lime_reactor.flow_mass_reagent["H2O"] * caoh2_mw == fs.lime_reactor.flow_mass_reagent["Ca(OH)2"]
-
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
         @m.fs.Constraint(doc="Lithium removal fraction from lithium reactor")
         def lithium_removal_fraction_lithium_reactor_constraint(fs):
             return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] * 2 == li2co3_mw * fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"]
         
+        @m.fs.Constraint(doc="Water reagent to soda ash reagent ratio 1")
+        def soda_ash_solution_molality_constraint_1(fs):
+            return fs.soda_ash_solution_molality * fs.soda_ash_reactor.flow_mass_reagent["H2O"] * na2co3_mw == fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"]
+
         @m.fs.Constraint(doc="Water reagent to soda ash reagent ratio 2")
         def soda_ash_solution_molality_constraint_2(fs):
             return fs.soda_ash_solution_molality * fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] * na2co3_mw == fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"]
+        
+        @m.fs.Constraint(doc="Water reagent to lime reagent ratio")
+        def lime_solution_molality_constraint(fs):
+            return fs.lime_solution_molality * fs.lime_reactor.flow_mass_reagent["H2O"] * caoh2_mw == fs.lime_reactor.flow_mass_reagent["Ca(OH)2"]
         
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         m.fs.soda_ash_vacuum_filter_ion_split_fraction = pyo.Param(
@@ -521,12 +503,9 @@ def fix_unit_model_variables(m):
     m.fs.brine_pump.efficiency_pump[0].fix(0.75)
     
     if hasattr(m.fs, 'soda_ash_reactor'):
+        # Waste stream solids fraction (50% solids in slurry)
         m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(.068697109323)
-    
-    if hasattr(m.fs, 'lime_reactor'):
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.5)
-    
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
         m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.5)
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
@@ -592,15 +571,13 @@ def initialize_flowsheet(m):
         m.fs.soda_ash_reactor.initialize()
         m.fs.soda_ash_reactor.report()
         print(f"DOF after soda ash reactor: {degrees_of_freedom(m)}")
-    
-    if hasattr(m.fs, 'lime_reactor'):
+        
         print("\n5. Propagating state to lime reactor...")
         propagate_state(m.fs.soda_ash_to_lime)
         m.fs.lime_reactor.initialize()
         m.fs.lime_reactor.report()
         print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
-    
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        
         print("\n6. Propagating state to lithium carbonate reactor...")
         propagate_state(m.fs.lime_to_lithium)
         m.fs.lithium_carbonate_reactor.initialize()
@@ -833,16 +810,14 @@ def run_diagnostics(m, report_scaling=False, analyze_jacobian=False,
             print("or if there are issues evaluating the Jacobian.")
             print("="*80 + "\n")
         
-def build_flowsheet(stage=5):
+def build_flowsheet(stage=3):
     """Build lithium carbonate plant flowsheet.
     
     Args:
         stage: Stage of flowsheet to build
             1 - Feed, storage tank, and pump only
-            2 - Stage 1 + soda ash reactor
-            3 - Stage 2 + lime reactor
-            4 - Stage 3 + lithium carbonate reactor
-            5 - Stage 4 + dewaterers (complete flowsheet)
+            2 - Stage 1 + stoichiometric reactors
+            3 - Stage 2 + dewaterers (complete flowsheet)
     """
     m = pyo.ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -909,8 +884,7 @@ def build_flowsheet(stage=5):
             reagent=soda_ash_reagents,
             precipitate=soda_ash_precipitates,
         )
-    
-    if stage >= 3:
+        
         # Lime reactor: precipitates Brucite (Mg(OH)2), Gypsum (CaSO4), and CaCO3
         lime_reagents = {
             "Ca(OH)2": {
@@ -945,8 +919,7 @@ def build_flowsheet(stage=5):
             reagent=lime_reagents,
             precipitate=lime_precipitates,
         )
-    
-    if stage >= 4:
+        
         # Lithium carbonate reactor: precipitates Li2CO3
         lithium_reagents = {
             "Na2CO3": {
@@ -975,7 +948,7 @@ def build_flowsheet(stage=5):
             precipitate=lithium_precipitants,
         )
     
-    if stage >= 5:
+    if stage >= 3:
         # Dewatering units: separate precipitates from clarified liquid
         m.fs.soda_ash_vacuum_filter = Separator(
             property_package=m.fs.brine_props,
@@ -1012,11 +985,7 @@ def build_flowsheet(stage=5):
     
     if hasattr(m.fs, 'soda_ash_reactor'):
         m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
-    
-    if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs, 'lime_reactor'):
         m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
-    
-    if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs, 'lithium_carbonate_reactor'):
         m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):

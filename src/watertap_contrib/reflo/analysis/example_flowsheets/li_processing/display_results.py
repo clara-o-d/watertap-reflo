@@ -24,34 +24,34 @@ def display_costing_results(m):
     
     print(f"\nUNIT MODEL CAPITAL COSTS:")
     
-    if hasattr(m.fs.brine_storage, 'costing'):
+    if hasattr(m.fs, 'brine_storage') and hasattr(m.fs.brine_storage, 'costing'):
         print(f"  Storage Tank Capital Cost: ${value(m.fs.brine_storage.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.brine_pump, 'costing'):
+    if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump, 'costing'):
         print(f"  Pump Capital Cost: ${value(m.fs.brine_pump.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.soda_ash_reactor, 'costing'):
+    if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'costing'):
         print(f"  Soda Ash Reactor Capital Cost: ${value(m.fs.soda_ash_reactor.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.lime_reactor, 'costing'):
+    if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'costing'):
         print(f"  Lime Reactor Capital Cost: ${value(m.fs.lime_reactor.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
+    if hasattr(m.fs, 'lithium_carbonate_reactor') and hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
         print(f"  Lithium Carbonate Reactor Capital Cost: ${value(m.fs.lithium_carbonate_reactor.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.soda_ash_vacuum_filter, 'costing'):
+    if hasattr(m.fs, 'soda_ash_vacuum_filter') and hasattr(m.fs.soda_ash_vacuum_filter, 'costing'):
         print(f"  Soda Ash Vacuum Filter Unit Capital Cost: ${value(m.fs.soda_ash_vacuum_filter.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
+    if hasattr(m.fs, 'soda_ash_centrifuge') and hasattr(m.fs.soda_ash_centrifuge, 'costing'):
         print(f"  Soda Ash Centrifuge Dewatering Unit Capital Cost: ${value(m.fs.soda_ash_centrifuge.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.lime_press_filter, 'costing'):
+    if hasattr(m.fs, 'lime_press_filter') and hasattr(m.fs.lime_press_filter, 'costing'):
         print(f"  Lime Press Filter Unit Capital Cost: ${value(m.fs.lime_press_filter.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.lime_centrifuge, 'costing'):
+    if hasattr(m.fs, 'lime_centrifuge') and hasattr(m.fs.lime_centrifuge, 'costing'):
         print(f"  Lime Centrifuge Unit Capital Cost: ${value(m.fs.lime_centrifuge.costing.capital_cost):,.0f}")
     
-    if hasattr(m.fs.li_dewatering, 'costing'):
+    if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'costing'):
         print(f"  Lithium Dewatering Unit Capital Cost: ${value(m.fs.li_dewatering.costing.capital_cost):,.0f}")
     
     # Total capital cost (flowsheet level)
@@ -60,25 +60,25 @@ def display_costing_results(m):
         print(f"\n  TOTAL CAPITAL COST: ${total_capital_cost:,.0f}")
     else:
         total_capital_cost = 0
-        if hasattr(m.fs.brine_storage, 'costing'):
+        if hasattr(m.fs, 'brine_storage') and hasattr(m.fs.brine_storage, 'costing'):
             total_capital_cost += value(m.fs.brine_storage.costing.capital_cost)
-        if hasattr(m.fs.brine_pump, 'costing'):
+        if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump, 'costing'):
             total_capital_cost += value(m.fs.brine_pump.costing.capital_cost)
-        if hasattr(m.fs.soda_ash_reactor, 'costing'):
+        if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'costing'):
             total_capital_cost += value(m.fs.soda_ash_reactor.costing.capital_cost)
-        if hasattr(m.fs.lime_reactor, 'costing'):
+        if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'costing'):
             total_capital_cost += value(m.fs.lime_reactor.costing.capital_cost)
-        if hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
+        if hasattr(m.fs, 'lithium_carbonate_reactor') and hasattr(m.fs.lithium_carbonate_reactor, 'costing'):
             total_capital_cost += value(m.fs.lithium_carbonate_reactor.costing.capital_cost)
-        if hasattr(m.fs.soda_ash_vacuum_filter, 'costing'):
+        if hasattr(m.fs, 'soda_ash_vacuum_filter') and hasattr(m.fs.soda_ash_vacuum_filter, 'costing'):
             total_capital_cost += value(m.fs.soda_ash_vacuum_filter.costing.capital_cost)
-        if hasattr(m.fs.soda_ash_centrifuge, 'costing'):
+        if hasattr(m.fs, 'soda_ash_centrifuge') and hasattr(m.fs.soda_ash_centrifuge, 'costing'):
             total_capital_cost += value(m.fs.soda_ash_centrifuge.costing.capital_cost)
-        if hasattr(m.fs.lime_press_filter, 'costing'):
+        if hasattr(m.fs, 'lime_press_filter') and hasattr(m.fs.lime_press_filter, 'costing'):
             total_capital_cost += value(m.fs.lime_press_filter.costing.capital_cost)
-        if hasattr(m.fs.lime_centrifuge, 'costing'):
+        if hasattr(m.fs, 'lime_centrifuge') and hasattr(m.fs.lime_centrifuge, 'costing'):
             total_capital_cost += value(m.fs.lime_centrifuge.costing.capital_cost)
-        if hasattr(m.fs.li_dewatering, 'costing'):
+        if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'costing'):
             total_capital_cost += value(m.fs.li_dewatering.costing.capital_cost)
         
         print(f"\n  TOTAL CAPITAL COST: ${total_capital_cost:,.0f}")

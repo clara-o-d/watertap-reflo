@@ -3,13 +3,13 @@ from idaes.core.scaling import AutoScaler
 from pyomo.environ import value
 
 
-def set_scaling_factors(m, stage=3):
+def set_scaling_factors(m, stage=5):
     """
     Set scaling factors for the lithium processing flowsheet.
     
     Args:
         m: The flowsheet model
-        stage: Stage of flowsheet (1, 2, or 3) - kept for backward compatibility, but uses hasattr internally
+        stage: Stage of flowsheet (1-5) - kept for backward compatibility, but uses hasattr internally
     """
     
     reference_li = 1E+01 
@@ -355,7 +355,8 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","B"], 1E+01 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","HCO3"], 1E+06 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.soda_ash_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","CO3"], 1E+03 / reference_li * mol_flow_li)
-            
+        
+        if hasattr(m.fs, 'lime_reactor'):
             # Lime reactor variables
             iscale.set_scaling_factor(m.fs.lime_reactor.reagent_dose["Ca(OH)2"], 1E-04 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"], 1E-02 / reference_li * mol_flow_li)
@@ -559,7 +560,8 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","H"], 1E+09 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","HCO3"], 1E+03 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lime_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","CO3"], 1E-01 / reference_li * mol_flow_li)
-            
+        
+        if hasattr(m.fs, 'lithium_carbonate_reactor'):
             # Lithium carbonate reactor variables
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.reagent_dose["Na2CO3"], 1E-02 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], 1E-02 / reference_li * mol_flow_li)
@@ -755,8 +757,8 @@ def set_scaling_factors(m, stage=3):
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","H"], 1E+10 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","HCO3"], 1E+05 / reference_li * mol_flow_li)
             iscale.set_scaling_factor(m.fs.lithium_carbonate_reactor.separator.waste_state[0.0].flow_mass_phase_comp["Liq","CO3"], 1E-01 / reference_li * mol_flow_li)
-            
-            if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        
+        if hasattr(m.fs, 'soda_ash_vacuum_filter'):
                 # Soda ash dewatering mixed_state properties
                 iscale.set_scaling_factor(m.fs.soda_ash_vacuum_filter.mixed_state[0.0].flow_mol_phase_comp["Liq","H2O"], 1E+01 / reference_li * mol_flow_li)
                 iscale.set_scaling_factor(m.fs.soda_ash_vacuum_filter.mixed_state[0.0].flow_mol_phase_comp["Liq","Na"], 1E+02 / reference_li * mol_flow_li)

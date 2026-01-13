@@ -39,7 +39,7 @@ def solve(m, solver=None):
             "acceptable_tol": 1e-4,
             "bound_push": 1e-5,
             "bound_frac": 1e-5,
-            "max_iter": 5000,
+            "max_iter": 10000,
             "linear_solver": "ma27",
             "hessian_approximation": "limited-memory",
             "mu_strategy": "adaptive",

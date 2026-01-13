@@ -84,40 +84,40 @@ def add_flow_costs(m):
         original_lb = m.fs.brine_pump.control_volume.work[0].lb
         m.fs.brine_pump.control_volume.work[0].setlb(0)
     
-    if hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
+    if hasattr(m.fs, 'soda_ash_reactor'):
         if "Na2CO3" in m.fs.soda_ash_reactor.flow_mass_reagent:
             original_lb = m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"].lb
             m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"].setlb(0)
     
-    if hasattr(m.fs.lime_reactor, 'flow_mass_reagent'):
+    if hasattr(m.fs, 'lime_reactor'):
         if "CaO" in m.fs.lime_reactor.flow_mass_reagent:
             original_lb = m.fs.lime_reactor.flow_mass_reagent["CaO"].lb
             m.fs.lime_reactor.flow_mass_reagent["CaO"].setlb(0)
     
-    if hasattr(m.fs.lithium_carbonate_reactor, 'flow_mass_reagent'):
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
         if "Na2CO3" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
             original_lb = m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"].lb
             m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"].setlb(0)
     
     m.fs.costing.cost_flow(m.fs.brine_pump.control_volume.work[0], "electricity")
     
-    if hasattr(m.fs.soda_ash_vacuum_filter, 'electricity_consumption'):
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         m.fs.soda_ash_vacuum_filter.electricity_consumption[0].setlb(0)
         m.fs.costing.cost_flow(m.fs.soda_ash_vacuum_filter.electricity_consumption[0], "electricity")
     
-    if hasattr(m.fs.soda_ash_centrifuge, 'electricity_consumption'):
+    if hasattr(m.fs, 'soda_ash_centrifuge'):
         m.fs.soda_ash_centrifuge.electricity_consumption[0].setlb(0)
         m.fs.costing.cost_flow(m.fs.soda_ash_centrifuge.electricity_consumption[0], "electricity")
     
-    if hasattr(m.fs.lime_press_filter, 'electricity_consumption'):
+    if hasattr(m.fs, 'lime_press_filter'):
         m.fs.lime_press_filter.electricity_consumption[0].setlb(0)
         m.fs.costing.cost_flow(m.fs.lime_press_filter.electricity_consumption[0], "electricity")
     
-    if hasattr(m.fs.lime_centrifuge, 'electricity_consumption'):
+    if hasattr(m.fs, 'lime_centrifuge'):
         m.fs.lime_centrifuge.electricity_consumption[0].setlb(0)
         m.fs.costing.cost_flow(m.fs.lime_centrifuge.electricity_consumption[0], "electricity")
     
-    if hasattr(m.fs.li_dewatering, 'electricity_consumption'):
+    if hasattr(m.fs, 'li_dewatering'):
         m.fs.li_dewatering.electricity_consumption[0].setlb(0)
         m.fs.costing.cost_flow(m.fs.li_dewatering.electricity_consumption[0], "electricity")
     
@@ -146,17 +146,20 @@ def add_flow_costs(m):
     m.fs.costing.register_flow_type("lime", m.fs.lime_cost)
     m.fs.costing.register_flow_type("process_water", m.fs.process_water_cost)
     
-    m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
-    if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
-        m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"], "process_water")
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
+        if "H2O" in m.fs.soda_ash_reactor.flow_mass_reagent:
+            m.fs.costing.cost_flow(m.fs.soda_ash_reactor.flow_mass_reagent["H2O"], "process_water")
     
-    m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"], "lime")
-    if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
-        m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["H2O"], "process_water")
+    if hasattr(m.fs, 'lime_reactor'):
+        m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"], "lime")
+        if "H2O" in m.fs.lime_reactor.flow_mass_reagent:
+            m.fs.costing.cost_flow(m.fs.lime_reactor.flow_mass_reagent["H2O"], "process_water")
     
-    m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
-    if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
-        m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"], "process_water")
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"], "soda_ash")
+        if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
+            m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"], "process_water")
 
 def add_costing(m):
     """Add costing blocks to all unit models and register flow costs."""
@@ -168,7 +171,11 @@ def add_costing(m):
     
     if hasattr(m.fs, 'soda_ash_reactor'):
         m.fs.soda_ash_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    
+    if hasattr(m.fs, 'lime_reactor'):
         m.fs.lime_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
         m.fs.lithium_carbonate_reactor.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
@@ -218,8 +225,8 @@ def add_costing(m):
     
     add_flow_costs(m)
     
-    if hasattr(m.fs, 'soda_ash_reactor'):
-        for reactor_name in ['soda_ash_reactor', 'lime_reactor', 'lithium_carbonate_reactor']:
+    for reactor_name in ['soda_ash_reactor', 'lime_reactor', 'lithium_carbonate_reactor']:
+        if hasattr(m.fs, reactor_name):
             reactor = getattr(m.fs, reactor_name)
             if hasattr(reactor, 'costing') and hasattr(reactor.costing, 'capital_cost_constraint'):
                 print(f"Modifying capital cost constraint for {reactor_name} to exclude H2O from reagent sum")
