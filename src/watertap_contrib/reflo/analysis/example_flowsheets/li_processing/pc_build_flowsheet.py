@@ -25,8 +25,6 @@
 #          - Adds all dewatering/solid-liquid separation units
 #          - Includes vacuum filter, centrifuges, and press filters
 #
-# This staged approach allows for incremental development, easier debugging,
-# and better understanding of how each unit affects the overall system.
 #################################################################################
 
 import pyomo.environ as pyo
@@ -218,7 +216,7 @@ def set_brine_feed_conditions(m):
         "Cl": 351000,
         "SO4": 220,
         "B": 6270,
-        "HCO3": 150000,# 164000, #230*1/(1-0.986),
+        "HCO3": 164000, #230*1/(1-0.986),
         "CO3": 50,
     }
     
@@ -314,7 +312,7 @@ def modify_flowsheet(m):
         doc="Molality of soda ash solution"
     )
     m.fs.soda_ash_solution_molality_param = pyo.Param(
-        initialize=30,
+        initialize=4,
         mutable=True,
         units=pyunits.mol / pyunits.kg,
         doc="Parameter for soda ash solution molality"
@@ -424,11 +422,6 @@ def modify_flowsheet(m):
         @m.fs.Constraint(doc="Soda ash reactor input constraint")
         def soda_ash_input_split_fraction_constraint(fs):
             return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * fs.soda_ash_input_split_fraction, to_units=pyunits.kg / pyunits.second)
-    
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        @m.fs.Constraint(doc="Lithium reactor input constraint")
-        def lithium_input_split_fraction_constraint(fs):
-            return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * (1 - fs.soda_ash_input_split_fraction), to_units=pyunits.kg / pyunits.second)
 
         @m.fs.Constraint(doc="Magnesium removal fraction from soda ash reactor")
         def magnesium_removal_fraction_soda_ash_reactor_constraint(fs):
@@ -470,6 +463,10 @@ def modify_flowsheet(m):
             return fs.lime_solution_molality * fs.lime_reactor.flow_mass_reagent["H2O"] * caoh2_mw == fs.lime_reactor.flow_mass_reagent["Ca(OH)2"]
 
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        @m.fs.Constraint(doc="Lithium reactor input constraint")
+        def lithium_input_split_fraction_constraint(fs):
+            return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * (1 - fs.soda_ash_input_split_fraction), to_units=pyunits.kg / pyunits.second)
+
         @m.fs.Constraint(doc="Lithium removal fraction from lithium reactor")
         def lithium_removal_fraction_lithium_reactor_constraint(fs):
             return fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"] * 2 == li2co3_mw * fs.lithium_removal_fraction_lithium_reactor * fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp["Liq", "Li"]
@@ -521,7 +518,7 @@ def fix_unit_model_variables(m):
     m.fs.brine_pump.efficiency_pump[0].fix(0.75)
     
     if hasattr(m.fs, 'soda_ash_reactor'):
-        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(.068697109323)
+        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)
     
     if hasattr(m.fs, 'lime_reactor'):
         m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.5)
