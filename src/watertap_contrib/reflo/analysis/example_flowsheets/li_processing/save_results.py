@@ -86,6 +86,17 @@ def save_results(m, filename="li_processing_results.csv"):
                     results["Soda Ash Reactor"]["CaCO3 Formation (kg/s)"] = value(
                         m.fs.soda_ash_reactor.flow_mass_precipitate['CaCO3']
                     )
+            if hasattr(m.fs.soda_ash_reactor, 'reaction_rate_constant_mg'):
+                results["Soda Ash Reactor"]["Reaction Rate Constant Mg (1/s)"] = value(
+                    m.fs.soda_ash_reactor.reaction_rate_constant_mg
+                )
+            if hasattr(m.fs.soda_ash_reactor, 'reactor_volume'):
+                results["Soda Ash Reactor"]["Reactor Volume (m3)"] = value(
+                    m.fs.soda_ash_reactor.reactor_volume
+                )
+                results["Soda Ash Reactor"]["Reactor Volume (L)"] = value(
+                    pyunits.convert(m.fs.soda_ash_reactor.reactor_volume, to_units=pyunits.L)
+                )
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -118,6 +129,17 @@ def save_results(m, filename="li_processing_results.csv"):
                     results["Lime Reactor"]["CaCO3 Formation (kg/s)"] = value(
                         m.fs.lime_reactor.flow_mass_precipitate['CaCO3']
                     )
+            if hasattr(m.fs.lime_reactor, 'reaction_rate_constant_mg'):
+                results["Lime Reactor"]["Reaction Rate Constant Mg (1/s)"] = value(
+                    m.fs.lime_reactor.reaction_rate_constant_mg
+                )
+            if hasattr(m.fs.lime_reactor, 'reactor_volume'):
+                results["Lime Reactor"]["Reactor Volume (m3)"] = value(
+                    m.fs.lime_reactor.reactor_volume
+                )
+                results["Lime Reactor"]["Reactor Volume (L)"] = value(
+                    pyunits.convert(m.fs.lime_reactor.reactor_volume, to_units=pyunits.L)
+                )
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -144,6 +166,17 @@ def save_results(m, filename="li_processing_results.csv"):
                     results["Lithium Carbonate Reactor"]["Li2CO3 Annual (tonnes/year)"] = value(
                         pyunits.convert(li2co3_flow, to_units=pyunits.tonne/pyunits.year)
                     )
+            if hasattr(m.fs.lithium_carbonate_reactor, 'reaction_rate_constant_li'):
+                results["Lithium Carbonate Reactor"]["Reaction Rate Constant Li (1/s)"] = value(
+                    m.fs.lithium_carbonate_reactor.reaction_rate_constant_li
+                )
+            if hasattr(m.fs.lithium_carbonate_reactor, 'reactor_volume'):
+                results["Lithium Carbonate Reactor"]["Reactor Volume (m3)"] = value(
+                    m.fs.lithium_carbonate_reactor.reactor_volume
+                )
+                results["Lithium Carbonate Reactor"]["Reactor Volume (L)"] = value(
+                    pyunits.convert(m.fs.lithium_carbonate_reactor.reactor_volume, to_units=pyunits.L)
+                )
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -180,6 +213,16 @@ def save_results(m, filename="li_processing_results.csv"):
             results["Process Metrics"]["Lithium Recovery (%)"] = value(li_recovery)
         except (AttributeError, TypeError, KeyError):
             pass
+    
+    total_reactor_volume = 0
+    if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'reactor_volume'):
+        total_reactor_volume += value(m.fs.soda_ash_reactor.reactor_volume)
+    if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'reactor_volume'):
+        total_reactor_volume += value(m.fs.lime_reactor.reactor_volume)
+    if hasattr(m.fs, 'lithium_carbonate_reactor') and hasattr(m.fs.lithium_carbonate_reactor, 'reactor_volume'):
+        total_reactor_volume += value(m.fs.lithium_carbonate_reactor.reactor_volume)
+    if total_reactor_volume > 0:
+        results["Process Metrics"]["Total Reactor Volume (m3)"] = total_reactor_volume
     
     total_power = 0 * pyunits.W
     if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump.control_volume, 'work'):

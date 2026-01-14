@@ -1,0 +1,28 @@
+# Costing parameters for lithium processing flowsheet
+
+# RDVF (Rotary Drum Vacuum Filter) parameters
+rdvf:
+  capital_a_parameter: 2.31  # dimensionless
+  drum_unit_cost: 27500  # USD_2007
+  number_of_drums: 2  # dimensionless
+  cost_electricity_flow: true
+
+# Reactor cost parameters for volume-based correlation: C_cap = a + b*V^n
+reactor_cost:
+  capital_a_parameter: 50000  # USD_2023 (fixed cost)
+  capital_b_parameter: 10000  # USD_2023 / (m³)^0.6 (variable cost coefficient)
+  capital_n_exponent: 0.6  # dimensionless (exponent)
+
+# Material flow costs
+flow_costs:
+  soda_ash_cost: 0.5  # USD_2023/kg
+  lime_cost: 0.3  # USD_2023/kg
+  process_water_cost: 0.001  # USD_2023/kg
+
+# General costing parameters
+general:
+  plant_lifetime: 35  # years
+  wacc: 0.10  # dimensionless (weighted average cost of capital)
+  electricity_cost: 0.15  # USD_2023/kWh
+  electrical_carbon_intensity: 0.229  # dimensionless
+  utilization_factor: 0.98  # dimensionless

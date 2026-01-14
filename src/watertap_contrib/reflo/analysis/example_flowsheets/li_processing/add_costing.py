@@ -13,6 +13,8 @@ Adds capital and operating costs for:
 - Lithium dewatering unit (belt filter press)
 """
 
+import yaml
+from pathlib import Path
 from idaes.core import UnitModelCostingBlock
 from watertap_contrib.reflo.costing.watertap_reflo_costing_package import REFLOCosting
 from watertap.costing.unit_models.dewatering import cost_dewatering, DewateringType
@@ -22,27 +24,44 @@ from pyomo.environ import units as pyunits
 from pyomo.environ import value
 from idaes.core.util.model_statistics import degrees_of_freedom
 
-def build_rdvf_cost_params(costing_package):
+def load_costing_parameters(yaml_path=None):
+    """Load costing parameters from YAML file."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parent / "costing_parameters.yaml"
+    else:
+        yaml_path = Path(yaml_path)
+    
+    with open(yaml_path, 'r') as f:
+        params = yaml.safe_load(f)
+    return params
+
+def build_rdvf_cost_params(costing_package, params=None):
+    if params is None:
+        params = load_costing_parameters()
+    rdvf_params = params['rdvf']
+    
     if not hasattr(costing_package, 'rdvf'):
         costing_package.rdvf = Block()
         
         costing_package.rdvf.capital_a_parameter = Var(
-            initialize=2.31,
+            initialize=rdvf_params['capital_a_parameter'],
             doc="A parameter for capital cost",
             units=pyunits.dimensionless,
         )
         costing_package.rdvf.capital_a_parameter.fix()
         
         costing_package.rdvf.drum_unit_cost = Var(
-            initialize=27500,
+            initialize=rdvf_params['drum_unit_cost'],
             doc="Unit cost per drum",
             units=pyunits.USD_2007,
         )
         costing_package.rdvf.drum_unit_cost.fix()
 
-def cost_rdvf_custom(blk, number_of_drums=2, cost_electricity_flow=True):
+def cost_rdvf_custom(blk, number_of_drums=2, cost_electricity_flow=True, params=None):
     """Custom RDVF costing method for soda ash dewatering unit."""
-    build_rdvf_cost_params(blk.costing_package)
+    if params is None:
+        params = load_costing_parameters()
+    build_rdvf_cost_params(blk.costing_package, params)
     
     make_capital_cost_var(blk)
     blk.costing_package.add_cost_factor(blk, "TIC")
@@ -74,12 +93,22 @@ def cost_rdvf_custom(blk, number_of_drums=2, cost_electricity_flow=True):
             "electricity",
         )
 
-def make_rdvf_costing_method(number_of_drums=2, cost_electricity_flow=True):
+def make_rdvf_costing_method(number_of_drums=2, cost_electricity_flow=True, params=None):
+    if params is None:
+        params = load_costing_parameters()
+    rdvf_params = params['rdvf']
+    number_of_drums = rdvf_params.get('number_of_drums', number_of_drums)
+    cost_electricity_flow = rdvf_params.get('cost_electricity_flow', cost_electricity_flow)
+    
     def costing_method(blk):
-        cost_rdvf_custom(blk, number_of_drums, cost_electricity_flow)
+        cost_rdvf_custom(blk, number_of_drums, cost_electricity_flow, params)
     return costing_method
 
-def add_flow_costs(m):
+def add_flow_costs(m, params=None):
+    if params is None:
+        params = load_costing_parameters()
+    flow_costs = params['flow_costs']
+    
     if hasattr(m.fs.brine_pump.control_volume, 'work'):
         original_lb = m.fs.brine_pump.control_volume.work[0].lb
         m.fs.brine_pump.control_volume.work[0].setlb(0)
@@ -122,21 +151,21 @@ def add_flow_costs(m):
         m.fs.costing.cost_flow(m.fs.li_dewatering.electricity_consumption[0], "electricity")
     
     m.fs.soda_ash_cost = Param(
-        initialize=0.5,
+        initialize=flow_costs['soda_ash_cost'],
         mutable=True,
         units=pyunits.USD_2023/pyunits.kg,
         doc="Soda ash (Na2CO3) cost per kg"
     )
     
     m.fs.lime_cost = Param(
-        initialize=0.3,
+        initialize=flow_costs['lime_cost'],
         mutable=True,
         units=pyunits.USD_2023/pyunits.kg,
         doc="Lime (CaO) cost per kg"
     )
     
     m.fs.process_water_cost = Param(
-        initialize=0.001,
+        initialize=flow_costs['process_water_cost'],
         mutable=True,
         units=pyunits.USD_2023/pyunits.kg,
         doc="Process water cost per kg"
@@ -161,38 +190,45 @@ def add_flow_costs(m):
         if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
             m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"], "process_water")
 
-def build_reactor_cost_params(costing_package):
+def build_reactor_cost_params(costing_package, params=None):
     """Build cost parameters for reactor capital cost correlation C_cap = a + b*V^n"""
+    if params is None:
+        params = load_costing_parameters()
+    reactor_params = params['reactor_cost']
+    
     if not hasattr(costing_package, 'reactor_cost_params'):
         costing_package.reactor_cost_params = Block()
         
         costing_package.reactor_cost_params.capital_a_parameter = Var(
-            initialize=50000,
+            initialize=reactor_params['capital_a_parameter'],
             doc="Fixed cost parameter (a) in reactor capital cost correlation",
             units=pyunits.USD_2023,
         )
         costing_package.reactor_cost_params.capital_a_parameter.fix()
         
         costing_package.reactor_cost_params.capital_b_parameter = Var(
-            initialize=10000,
+            initialize=reactor_params['capital_b_parameter'],
             doc="Variable cost parameter (b) in reactor capital cost correlation",
             units=pyunits.USD_2023 / (pyunits.m**3)**0.6,
         )
         costing_package.reactor_cost_params.capital_b_parameter.fix()
         
         costing_package.reactor_cost_params.capital_n_exponent = Var(
-            initialize=0.6,
+            initialize=reactor_params['capital_n_exponent'],
             doc="Exponent (n) in reactor capital cost correlation",
             units=pyunits.dimensionless,
         )
         costing_package.reactor_cost_params.capital_n_exponent.fix()
 
-def add_costing(m):
+def add_costing(m, yaml_path=None):
     """Add costing blocks to all unit models and register flow costs."""
+    params = load_costing_parameters(yaml_path)
+    general_params = params['general']
+    
     m.fs.costing = REFLOCosting()
     m.fs.costing.base_currency = pyunits.USD_2023
     
-    build_reactor_cost_params(m.fs.costing)
+    build_reactor_cost_params(m.fs.costing, params)
 
     m.fs.brine_storage.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.brine_pump.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
@@ -227,10 +263,7 @@ def add_costing(m):
         
         m.fs.soda_ash_vacuum_filter.costing = UnitModelCostingBlock(
             flowsheet_costing_block=m.fs.costing,
-            costing_method=make_rdvf_costing_method(
-                number_of_drums=2,
-                cost_electricity_flow=True,
-            ),
+            costing_method=make_rdvf_costing_method(params=params),
         )
         
         m.fs.soda_ash_centrifuge.costing = UnitModelCostingBlock(
@@ -251,7 +284,7 @@ def add_costing(m):
             },
         )
     
-    add_flow_costs(m)
+    add_flow_costs(m, params)
     
     for reactor_name in ['soda_ash_reactor', 'lime_reactor', 'lithium_carbonate_reactor']:
         if hasattr(m.fs, reactor_name):
@@ -278,11 +311,11 @@ def add_costing(m):
                     print(f"  → Warning: reactor_volume not found for {reactor_name}, keeping original constraint")
                     blk.capital_cost_constraint.activate()
     
-    m.fs.costing.plant_lifetime.fix(35)
-    m.fs.costing.wacc.fix(0.10)
-    m.fs.costing.electricity_cost.fix(value(pyunits.convert(0.15 * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
-    m.fs.costing.electrical_carbon_intensity.fix(0.229)
-    m.fs.costing.utilization_factor.fix(0.98)
+    m.fs.costing.plant_lifetime.fix(general_params['plant_lifetime'])
+    m.fs.costing.wacc.fix(general_params['wacc'])
+    m.fs.costing.electricity_cost.fix(value(pyunits.convert(general_params['electricity_cost'] * pyunits.USD_2023 / pyunits.kWh, to_units=m.fs.costing.base_currency / pyunits.kWh)))
+    m.fs.costing.electrical_carbon_intensity.fix(general_params['electrical_carbon_intensity'])
+    m.fs.costing.utilization_factor.fix(general_params['utilization_factor'])
 
     dof = degrees_of_freedom(m)
     if dof != 0:

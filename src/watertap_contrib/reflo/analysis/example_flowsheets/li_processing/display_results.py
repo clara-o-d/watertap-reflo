@@ -485,6 +485,19 @@ def display_results(m, show_costing=False):
             print(f"  CaCO3 formation: {caco3_flow_g_s:.3f} g/s ({caco3_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
+        try:
+            if hasattr(m.fs.soda_ash_reactor, 'reaction_rate_constant_mg'):
+                k_mg = value(m.fs.soda_ash_reactor.reaction_rate_constant_mg)
+                print(f"  First-order reaction rate constant (Mg): {k_mg:.6f} s⁻¹")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.soda_ash_reactor, 'reactor_volume'):
+                vol_m3 = value(m.fs.soda_ash_reactor.reactor_volume)
+                vol_L = value(pyunits.convert(m.fs.soda_ash_reactor.reactor_volume, to_units=pyunits.L))
+                print(f"  Reactor volume: {vol_m3:.2f} m³ ({vol_L:,.0f} L)")
+        except (AttributeError, TypeError, KeyError):
+            pass
     
     if hasattr(m.fs, 'lime_reactor'):
         print(f"\nLIME REACTOR (SECOND SOFTENING STAGE):")
@@ -537,6 +550,19 @@ def display_results(m, show_costing=False):
             print(f"  CaCO3 formation: {caco3_flow_g_s:.3f} g/s ({caco3_flow_kg_s:.6f} kg/s)")
         except (AttributeError, TypeError, KeyError):
             pass
+        try:
+            if hasattr(m.fs.lime_reactor, 'reaction_rate_constant_mg'):
+                k_mg = value(m.fs.lime_reactor.reaction_rate_constant_mg)
+                print(f"  First-order reaction rate constant (Mg): {k_mg:.6f} s⁻¹")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.lime_reactor, 'reactor_volume'):
+                vol_m3 = value(m.fs.lime_reactor.reactor_volume)
+                vol_L = value(pyunits.convert(m.fs.lime_reactor.reactor_volume, to_units=pyunits.L))
+                print(f"  Reactor volume: {vol_m3:.2f} m³ ({vol_L:,.0f} L)")
+        except (AttributeError, TypeError, KeyError):
+            pass
     
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         print(f"\nLITHIUM CARBONATE PRECIPITATION REACTOR:")
@@ -581,6 +607,19 @@ def display_results(m, show_costing=False):
             li2co3_flow_kg_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.kg/pyunits.year))
             li2co3_flow_tonne_yr = value(pyunits.convert(m.fs.lithium_carbonate_reactor.flow_mass_precipitate['Li2CO3'], to_units=pyunits.tonne/pyunits.year))
             print(f"  Annual Li2CO3 production: {li2co3_flow_tonne_yr:.1f} tonnes/year ({li2co3_flow_kg_yr:,.0f} kg/year)")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.lithium_carbonate_reactor, 'reaction_rate_constant_li'):
+                k_li = value(m.fs.lithium_carbonate_reactor.reaction_rate_constant_li)
+                print(f"  First-order reaction rate constant (Li): {k_li:.6f} s⁻¹")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.lithium_carbonate_reactor, 'reactor_volume'):
+                vol_m3 = value(m.fs.lithium_carbonate_reactor.reactor_volume)
+                vol_L = value(pyunits.convert(m.fs.lithium_carbonate_reactor.reactor_volume, to_units=pyunits.L))
+                print(f"  Reactor volume: {vol_m3:.2f} m³ ({vol_L:,.0f} L)")
         except (AttributeError, TypeError, KeyError):
             pass
     
@@ -688,6 +727,29 @@ def display_results(m, show_costing=False):
         li_out_mass = li2co3_out * (2 * li_mw / li2co3_mw)
         li_recovery = (li_out_mass / li_in_mass) * 100 if li_in_mass > 0 else 0
         print(f"  Lithium recovery: {li_recovery:.1f}%")
+    
+    print(f"\n  REACTOR KINETICS AND SIZING:")
+    total_reactor_volume = 0
+    if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'reactor_volume'):
+        vol_m3 = value(m.fs.soda_ash_reactor.reactor_volume)
+        total_reactor_volume += vol_m3
+        if hasattr(m.fs.soda_ash_reactor, 'reaction_rate_constant_mg'):
+            k_mg = value(m.fs.soda_ash_reactor.reaction_rate_constant_mg)
+            print(f"    Soda ash reactor: {vol_m3:.2f} m³, k_Mg = {k_mg:.6f} s⁻¹")
+    if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'reactor_volume'):
+        vol_m3 = value(m.fs.lime_reactor.reactor_volume)
+        total_reactor_volume += vol_m3
+        if hasattr(m.fs.lime_reactor, 'reaction_rate_constant_mg'):
+            k_mg = value(m.fs.lime_reactor.reaction_rate_constant_mg)
+            print(f"    Lime reactor: {vol_m3:.2f} m³, k_Mg = {k_mg:.6f} s⁻¹")
+    if hasattr(m.fs, 'lithium_carbonate_reactor') and hasattr(m.fs.lithium_carbonate_reactor, 'reactor_volume'):
+        vol_m3 = value(m.fs.lithium_carbonate_reactor.reactor_volume)
+        total_reactor_volume += vol_m3
+        if hasattr(m.fs.lithium_carbonate_reactor, 'reaction_rate_constant_li'):
+            k_li = value(m.fs.lithium_carbonate_reactor.reaction_rate_constant_li)
+            print(f"    Lithium carbonate reactor: {vol_m3:.2f} m³, k_Li = {k_li:.6f} s⁻¹")
+    if total_reactor_volume > 0:
+        print(f"    Total reactor volume: {total_reactor_volume:.2f} m³")
     
     total_na2co3_flow = 0 * pyunits.kg / pyunits.s
     if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'flow_mass_reagent'):
