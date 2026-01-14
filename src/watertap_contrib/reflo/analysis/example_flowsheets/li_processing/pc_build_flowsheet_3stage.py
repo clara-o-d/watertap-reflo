@@ -247,7 +247,7 @@ def modify_flowsheet(m):
 
     m.fs.soda_ash_input_split_fraction = pyo.Var(
         initialize=0.6895,
-        bounds=(0, None),
+        bounds=(0, 1),
         units=pyunits.dimensionless,
         doc="Fraction of soda ash input to soda ash reactor"
     )

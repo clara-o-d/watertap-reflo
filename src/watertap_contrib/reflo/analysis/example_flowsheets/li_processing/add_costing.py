@@ -161,10 +161,38 @@ def add_flow_costs(m):
         if "H2O" in m.fs.lithium_carbonate_reactor.flow_mass_reagent:
             m.fs.costing.cost_flow(m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"], "process_water")
 
+def build_reactor_cost_params(costing_package):
+    """Build cost parameters for reactor capital cost correlation C_cap = a + b*V^n"""
+    if not hasattr(costing_package, 'reactor_cost_params'):
+        costing_package.reactor_cost_params = Block()
+        
+        costing_package.reactor_cost_params.capital_a_parameter = Var(
+            initialize=50000,
+            doc="Fixed cost parameter (a) in reactor capital cost correlation",
+            units=pyunits.USD_2023,
+        )
+        costing_package.reactor_cost_params.capital_a_parameter.fix()
+        
+        costing_package.reactor_cost_params.capital_b_parameter = Var(
+            initialize=10000,
+            doc="Variable cost parameter (b) in reactor capital cost correlation",
+            units=pyunits.USD_2023 / (pyunits.m**3)**0.6,
+        )
+        costing_package.reactor_cost_params.capital_b_parameter.fix()
+        
+        costing_package.reactor_cost_params.capital_n_exponent = Var(
+            initialize=0.6,
+            doc="Exponent (n) in reactor capital cost correlation",
+            units=pyunits.dimensionless,
+        )
+        costing_package.reactor_cost_params.capital_n_exponent.fix()
+
 def add_costing(m):
     """Add costing blocks to all unit models and register flow costs."""
     m.fs.costing = REFLOCosting()
     m.fs.costing.base_currency = pyunits.USD_2023
+    
+    build_reactor_cost_params(m.fs.costing)
 
     m.fs.brine_storage.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.brine_pump.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
@@ -229,25 +257,26 @@ def add_costing(m):
         if hasattr(m.fs, reactor_name):
             reactor = getattr(m.fs, reactor_name)
             if hasattr(reactor, 'costing') and hasattr(reactor.costing, 'capital_cost_constraint'):
-                print(f"Modifying capital cost constraint for {reactor_name} to exclude H2O from reagent sum")
+                print(f"Replacing capital cost constraint for {reactor_name} with volume-based correlation")
                 blk = reactor.costing
-                blk.del_component(blk.capital_cost_constraint)
                 
-                blk.capital_cost_constraint = Constraint(
-                    expr=blk.capital_cost
-                    == blk.cost_factor
-                    * pyunits.convert(
-                        blk.costing_package.stoichiometric_reactor.capital_cost_softening,
-                        to_units=blk.costing_package.base_currency / (pyunits.lb / pyunits.day),
-                    )
-                    * sum(
-                        pyunits.convert(
-                            obj,
-                            to_units=pyunits.lb / pyunits.day,
+                blk.capital_cost_constraint.deactivate()
+                
+                if hasattr(reactor, 'reactor_volume'):
+                    blk.capital_cost_constraint_volume = Constraint(
+                        expr=blk.capital_cost
+                        == blk.cost_factor
+                        * (
+                            blk.costing_package.reactor_cost_params.capital_a_parameter
+                            + blk.costing_package.reactor_cost_params.capital_b_parameter
+                            * pyunits.convert(reactor.reactor_volume, to_units=pyunits.m**3)
+                            ** blk.costing_package.reactor_cost_params.capital_n_exponent
                         )
-                        for reagent, obj in blk.unit_model.flow_mass_reagent.items() if reagent != "H2O"
-                    ),
-                )
+                    )
+                    print(f"  → Volume-based cost constraint created for {reactor_name}")
+                else:
+                    print(f"  → Warning: reactor_volume not found for {reactor_name}, keeping original constraint")
+                    blk.capital_cost_constraint.activate()
     
     m.fs.costing.plant_lifetime.fix(35)
     m.fs.costing.wacc.fix(0.10)

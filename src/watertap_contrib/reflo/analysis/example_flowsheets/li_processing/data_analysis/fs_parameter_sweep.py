@@ -5,15 +5,17 @@ Parameter sweep for lithium extraction flowsheet (fs.py)
 from parameter_sweep import parameter_sweep, LinearSample
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_build_flowsheet import build_flowsheet
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve import solve
+from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.add_costing import add_costing
+from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.process_costing import process_costing
 from pyomo.environ import TerminationCondition
 from watertap.core.solvers import get_solver
 
 def build_model(**kwargs): 
     """Build the lithium extraction flowsheet model with parameter sweep capability."""
     
-    m = build_flowsheet(stage=2)
-
-    # Solve the base flowsheet
+    m = build_flowsheet(stage=5)
+    add_costing(m)
+    process_costing(m)
     results = solve(m)
 
     return m
@@ -23,44 +25,56 @@ def build_sweep_params(m, **kwargs):
     sweep_params = dict()
 
     # sweep_params['Annual soda ash (kg/year)'] = LinearSample(
-    #     m.fs.annual_soda_ash_input_param, 100000000, 200000000, 3
+    #     m.fs.annual_soda_ash_input, 100000000, 200000000, 3
     # )
     
     # sweep_params['Annual lime (kg/year)'] = LinearSample(
-    #     m.fs.annual_lime_input_param, 2000000, 5000000, 3
+    #     m.fs.annual_lime_input, 2000000, 5000000, 3
     # )
     
     # sweep_params['Soda ash molality (mol/kg)'] = LinearSample(
-    #     m.fs.soda_ash_solution_molality_param, 20, 40, 3
+    #     m.fs.soda_ash_solution_molality, 20, 40, 3
     # )
     
     # sweep_params['Lime molality (mol/kg)'] = LinearSample(
-    #     m.fs.lime_solution_molality_param, 1.0, 2.0, 3
+    #     m.fs.lime_solution_molality, 1.0, 5.0, 5
     # )
     
-    sweep_params['Mg removal fraction (soda ash)'] = LinearSample(
-        m.fs.magnesium_removal_fraction_soda_ash_reactor_param, 0.10, 0.80, 71
-    )
+    # sweep_params['Mg removal fraction (soda ash)'] = LinearSample(
+    #     m.fs.magnesium_removal_fraction_soda_ash_reactor, 0.20, 0.70, 3
+    # )
     
     # sweep_params['Mg removal fraction (lime)'] = LinearSample(
-    #     m.fs.magnesium_removal_fraction_lime_reactor_param, 0.7, 0.99, 3
+    #     m.fs.magnesium_removal_fraction_lime_reactor, 0.7, 0.99, 3
     # )
     
     # sweep_params['Ca removal fraction (soda ash)'] = LinearSample(
-    #     m.fs.calcium_removal_fraction_soda_ash_reactor_param, 0.1, 0.4, 3
+    #     m.fs.calcium_removal_fraction_soda_ash_reactor, 0.1, 0.4, 3
     # )
     
     # sweep_params['Ca removal fraction (lime)'] = LinearSample(
-    #     m.fs.calcium_removal_fraction_lime_reactor_param, 0.3, 0.7, 3
+    #     m.fs.calcium_removal_fraction_lime_reactor, 0.3, 0.7, 3
     # )
     
     # sweep_params['SO4 removal fraction (lime)'] = LinearSample(
-    #     m.fs.sulfate_removal_fraction_lime_reactor_param, 0.7, 0.99, 3
+    #     m.fs.sulfate_removal_fraction_lime_reactor, 0.7, 0.99, 3
     # )
     
     # sweep_params['Li removal fraction'] = LinearSample(
-    #     m.fs.lithium_removal_fraction_lithium_reactor_param, 0.85, 0.99, 3
+    #     m.fs.lithium_removal_fraction_lithium_reactor, 0.3, 0.7, 5
     # )
+
+    sweep_params['Pump efficiency'] = LinearSample(
+        m.fs.brine_pump.efficiency_pump[0], 0.7, 0.8, 3
+    )
+
+    sweep_params['Inlet Li+ flow'] = LinearSample(
+        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"], 100, 150, 5
+    )
+
+    sweep_params['Soda ash waste mass fraction'] = LinearSample(
+        m.fs.soda_ash_reactor.waste_mass_frac_precipitate, 0.3, 0.7, 3
+    )
 
     return sweep_params
 
@@ -68,39 +82,32 @@ def build_outputs(m, **kwargs):
     """Define the outputs to track."""
     outputs = dict()
     
-    # outputs['Annual soda ash (kg/year)'] = m.fs.annual_soda_ash_input
-    # outputs['Annual lime (kg/year)'] = m.fs.annual_lime_input
-    # outputs['Soda ash molality (mol/kg)'] = m.fs.soda_ash_solution_molality
-    # outputs['Lime molality (mol/kg)'] = m.fs.lime_solution_molality
-    outputs['Mg removal fraction (soda ash)'] = m.fs.magnesium_removal_fraction_soda_ash_reactor
-    # outputs['Mg removal fraction (lime)'] = m.fs.magnesium_removal_fraction_lime_reactor
-    # outputs['Ca removal fraction (soda ash)'] = m.fs.calcium_removal_fraction_soda_ash_reactor
-    # outputs['Ca removal fraction (lime)'] = m.fs.calcium_removal_fraction_lime_reactor
-    # outputs['SO4 removal fraction (lime)'] = m.fs.sulfate_removal_fraction_lime_reactor
-    # outputs['Li removal fraction'] = m.fs.lithium_removal_fraction_lithium_reactor
+    # outputs['Output annual soda ash (kg/year)'] = m.fs.annual_soda_ash_input
+    # outputs['Output annual lime (kg/year)'] = m.fs.annual_lime_input
+    # outputs['Output soda ash molality (mol/kg)'] = m.fs.soda_ash_solution_molality
+    # outputs['Output lime molality (mol/kg)'] = m.fs.lime_solution_molality
+    # outputs['Output magnesium removal fraction (soda ash)'] = m.fs.magnesium_removal_fraction_soda_ash_reactor_param
+    # outputs['Output magnesium removal fraction (lime)'] = m.fs.magnesium_removal_fraction_lime_reactor
+    # outputs['Output calcium removal fraction (soda ash)'] = m.fs.calcium_removal_fraction_soda_ash_reactor
+    # outputs['Output calcium removal fraction (lime)'] = m.fs.calcium_removal_fraction_lime_reactor
+    # outputs['Output sulfate removal fraction (lime)'] = m.fs.sulfate_removal_fraction_lime_reactor
+    # outputs['Output lithium removal fraction'] = m.fs.lithium_removal_fraction_lithium_reactor
     
+    outputs['Pump efficiency'] = m.fs.brine_pump.efficiency_pump[0]
+    outputs['Inlet Li+ flow'] = m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
+    outputs['Soda ash waste mass fraction'] = m.fs.soda_ash_reactor.waste_mass_frac_precipitate
+
     outputs['Li2CO3 production (kg/s)'] = m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"]
-    outputs['MgCO3 production (kg/s)'] = m.fs.soda_ash_reactor.flow_mass_precipitate["MgCO3"]
-    outputs['CaCO3 production from soda ash (kg/s)'] = m.fs.soda_ash_reactor.flow_mass_precipitate["CaCO3"]
-    outputs['Brucite production (kg/s)'] = m.fs.lime_reactor.flow_mass_precipitate["Brucite"]
-    outputs['Gypsum production (kg/s)'] = m.fs.lime_reactor.flow_mass_precipitate["Gypsum"]
-    outputs['CaCO3 production from lime (kg/s)'] = m.fs.lime_reactor.flow_mass_precipitate["CaCO3"]
-    
-    outputs['Soda ash reagent (soda ash reactor) (kg/s)'] = m.fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"]
-    outputs['Soda ash reagent (li reactor) (kg/s)'] = m.fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"]
-    outputs['Lime reagent (kg/s)'] = m.fs.lime_reactor.flow_mass_reagent["Ca(OH)2"]
-    outputs['Water reagent (soda ash reactor) (kg/s)'] = m.fs.soda_ash_reactor.flow_mass_reagent["H2O"]
-    outputs['Water reagent (lime reactor) (kg/s)'] = m.fs.lime_reactor.flow_mass_reagent["H2O"]
-    outputs['Water reagent (li reactor) (kg/s)'] = m.fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"]
+    outputs['Capital cost (USD)'] = m.fs.costing.total_capital_cost
+    outputs['Operating cost (USD/year)'] = m.fs.costing.total_operating_cost
+    outputs['LCOLi (USD/t)'] = m.fs.costing.LCOLi_mass
+    outputs['Specific energy consumption (kWh/t)'] = m.fs.costing.specific_energy_consumption
     
     return outputs
 
 def optimize_function(m, **kwargs):
     """Optimize the flowsheet with fallback solver options."""
     solver = get_solver()
-    # m.fs.feed.initialize()
-    # propagate_state(m.fs.feed_to_pond)
-    # m.fs.pond.initialize()
 
     # Try with default settings first
     print("Attempting solve with default solver settings...")
@@ -151,9 +158,8 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep10726_0.csv', 
+        csv_results_file_name='parameter_sweep011426_1.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'processing_parameter_sweep1.csv'") 

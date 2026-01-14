@@ -3,6 +3,7 @@ from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve impo
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.add_costing import add_costing
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.process_costing import process_costing
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.display_results import display_results
+from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.save_results import save_results
 from pyomo.environ import assert_optimal_termination
 from idaes.core.util import DiagnosticsToolbox
 
@@ -92,6 +93,8 @@ def main():
     assert_optimal_termination(results)
     print("\n=== FINAL FLOWSHEET RESULTS (WITH COSTING) ===")
     display_results(m, show_costing=True)
+    
+    save_results(m)
     
     return m
 

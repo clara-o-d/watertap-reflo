@@ -253,6 +253,93 @@ def modify_flowsheet(m):
     brucite_mw = 58.3197e-3 * pyunits.kg / pyunits.mol
     gypsum_mw = 136.14e-3 * pyunits.kg / pyunits.mol
     li2co3_mw = 73.89e-3 * pyunits.kg / pyunits.mol
+    
+    if hasattr(m.fs, 'soda_ash_reactor'):
+        m.fs.soda_ash_reactor.reaction_rate_mg = pyo.Var(
+            initialize=0.001,
+            bounds=(1e-6, 0.1),
+            units=pyunits.mol / (pyunits.m**3 * pyunits.s),
+            doc="Reaction rate for magnesium precipitation in soda ash reactor"
+        )
+        m.fs.soda_ash_reactor.reaction_rate_mg_param = pyo.Param(
+            initialize=0.001,
+            mutable=True,
+            units=pyunits.mol / (pyunits.m**3 * pyunits.s),
+            doc="Parameter for magnesium precipitation reaction rate"
+        )
+        m.fs.soda_ash_reactor.reaction_rate_mg.fix(m.fs.soda_ash_reactor.reaction_rate_mg_param)
+        
+        m.fs.soda_ash_reactor.reactor_volume = pyo.Var(
+            initialize=100,
+            bounds=(1, 10000),
+            units=pyunits.m**3,
+            doc="Volume of soda ash reactor"
+        )
+        
+        @m.fs.soda_ash_reactor.Constraint(doc="Soda ash reactor volume sizing based on Mg removal")
+        def reactor_volume_constraint(blk):
+            inlet_vol_flow = blk.precipitation_reactor.properties_in[0].flow_vol
+            inlet_mg_conc = blk.precipitation_reactor.properties_in[0].conc_mol_phase_comp["Liq", "Mg"]
+            mg_removal_rate = m.fs.magnesium_removal_fraction_soda_ash_reactor * inlet_mg_conc * inlet_vol_flow
+            return blk.reactor_volume * blk.reaction_rate_mg == mg_removal_rate
+    
+    if hasattr(m.fs, 'lime_reactor'):
+        m.fs.lime_reactor.reaction_rate_mg = pyo.Var(
+            initialize=0.002,
+            bounds=(1e-6, 0.1),
+            units=pyunits.mol / (pyunits.m**3 * pyunits.s),
+            doc="Reaction rate for magnesium precipitation in lime reactor"
+        )
+        m.fs.lime_reactor.reaction_rate_mg_param = pyo.Param(
+            initialize=0.002,
+            mutable=True,
+            units=pyunits.mol / (pyunits.m**3 * pyunits.s),
+            doc="Parameter for magnesium precipitation reaction rate"
+        )
+        m.fs.lime_reactor.reaction_rate_mg.fix(m.fs.lime_reactor.reaction_rate_mg_param)
+        
+        m.fs.lime_reactor.reactor_volume = pyo.Var(
+            initialize=100,
+            bounds=(1, 10000),
+            units=pyunits.m**3,
+            doc="Volume of lime reactor"
+        )
+        
+        @m.fs.lime_reactor.Constraint(doc="Lime reactor volume sizing based on Mg removal")
+        def reactor_volume_constraint(blk):
+            inlet_vol_flow = blk.precipitation_reactor.properties_in[0].flow_vol
+            inlet_mg_conc = blk.precipitation_reactor.properties_in[0].conc_mol_phase_comp["Liq", "Mg"]
+            mg_removal_rate = m.fs.magnesium_removal_fraction_lime_reactor * inlet_mg_conc * inlet_vol_flow
+            return blk.reactor_volume * blk.reaction_rate_mg == mg_removal_rate
+    
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        m.fs.lithium_carbonate_reactor.reaction_rate_li = pyo.Var(
+            initialize=0.0005,
+            bounds=(1e-6, 0.1),
+            units=pyunits.mol / (pyunits.m**3 * pyunits.s),
+            doc="Reaction rate for lithium precipitation in lithium carbonate reactor"
+        )
+        m.fs.lithium_carbonate_reactor.reaction_rate_li_param = pyo.Param(
+            initialize=0.0005,
+            mutable=True,
+            units=pyunits.mol / (pyunits.m**3 * pyunits.s),
+            doc="Parameter for lithium precipitation reaction rate"
+        )
+        m.fs.lithium_carbonate_reactor.reaction_rate_li.fix(m.fs.lithium_carbonate_reactor.reaction_rate_li_param)
+        
+        m.fs.lithium_carbonate_reactor.reactor_volume = pyo.Var(
+            initialize=500,
+            bounds=(1, 10000),
+            units=pyunits.m**3,
+            doc="Volume of lithium carbonate reactor"
+        )
+        
+        @m.fs.lithium_carbonate_reactor.Constraint(doc="Lithium reactor volume sizing based on Li removal")
+        def reactor_volume_constraint(blk):
+            inlet_vol_flow = blk.precipitation_reactor.properties_in[0].flow_vol
+            inlet_li_conc = blk.precipitation_reactor.properties_in[0].conc_mol_phase_comp["Liq", "Li"]
+            li_removal_rate = m.fs.lithium_removal_fraction_lithium_reactor * inlet_li_conc * inlet_vol_flow
+            return blk.reactor_volume * blk.reaction_rate_li == li_removal_rate
 
     # Annual reagent inputs (based on industrial-scale operation)
     m.fs.annual_soda_ash_input = pyo.Var(
@@ -271,7 +358,7 @@ def modify_flowsheet(m):
 
     m.fs.soda_ash_input_split_fraction = pyo.Var(
         initialize=0.6895,
-        bounds=(0, None),
+        bounds=(0, 1),
         units=pyunits.dimensionless,
         doc="Fraction of soda ash input to soda ash reactor"
     )
@@ -420,7 +507,7 @@ def modify_flowsheet(m):
 
     if hasattr(m.fs, 'soda_ash_reactor'):
         @m.fs.Constraint(doc="Soda ash reactor input constraint")
-        def soda_ash_input_split_fraction_constraint(fs):
+        def soda_ash_input_soda_ash_reactor_constraint(fs):
             return fs.soda_ash_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * fs.soda_ash_input_split_fraction, to_units=pyunits.kg / pyunits.second)
 
         @m.fs.Constraint(doc="Magnesium removal fraction from soda ash reactor")
@@ -464,7 +551,7 @@ def modify_flowsheet(m):
 
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         @m.fs.Constraint(doc="Lithium reactor input constraint")
-        def lithium_input_split_fraction_constraint(fs):
+        def soda_ash_input_lithium_reactor_constraint(fs):
             return fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"] == pyunits.convert(fs.annual_soda_ash_input * (1 - fs.soda_ash_input_split_fraction), to_units=pyunits.kg / pyunits.second)
 
         @m.fs.Constraint(doc="Lithium removal fraction from lithium reactor")

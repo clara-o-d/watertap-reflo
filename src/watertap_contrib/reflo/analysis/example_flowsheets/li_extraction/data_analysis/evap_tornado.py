@@ -27,8 +27,24 @@ def load_and_process_data(filename):
     if isinstance(first_col, str) and first_col.startswith('# '):
         new_col = first_col.lstrip('# ').strip()
         df = df.rename(columns={first_col: new_col})
-        if df[new_col].dtype == object:
-            df[new_col] = df[new_col].str.lstrip('# ').str.strip()
+        # Use iloc to access first column by position to avoid issues with duplicate names
+        first_col_data = df.iloc[:, 0]
+        if isinstance(first_col_data, pd.Series) and first_col_data.dtype == object:
+            df.iloc[:, 0] = first_col_data.str.lstrip('# ').str.strip()
+    
+    # Handle duplicate column names by making them unique
+    # This happens when input parameters appear both as inputs and outputs
+    seen = {}
+    new_columns = []
+    for col in df.columns:
+        if col in seen:
+            seen[col] += 1
+            new_columns.append(f"{col} (output)" if seen[col] == 1 else f"{col} ({seen[col]})")
+        else:
+            seen[col] = 0
+            new_columns.append(col)
+    
+    df.columns = new_columns
     
     return df
 
@@ -83,11 +99,15 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
     sensitivity_data = []
     
     for var in input_params:
+        # Use the exact column name (first occurrence, before duplicates were renamed)
+        # Duplicate columns will have suffixes like "(output)", so exact match gets the input
         if var not in df.columns:
             print(f"  Warning: Parameter '{var}' not found in data columns, skipping")
             continue
+        
+        var_col = var
 
-        valid_mask = df[var].notna() & df[target_col].notna()
+        valid_mask = df[var_col].notna() & df[target_col].notna()
         valid_data = df[valid_mask]
         
         if valid_data.empty:
@@ -95,10 +115,11 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
             continue
         
         # Calculate mean values for reference point
-        x_mean = valid_data[var].mean()
+        x_mean = valid_data[var_col].mean()
         y_mean = valid_data[target_col].mean()
         
         # Find valid one-at-a-time (OAT) pairs where only this parameter differs
+        # Use exact column names for other parameters (first occurrence, before duplicates were renamed)
         other_params = [p for p in input_params if p != var and p in df.columns]
         
         oat_sensitivities_increase = []
@@ -119,8 +140,8 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
                         break
                 
                 if is_oat_pair:
-                    x1, y1 = row1[var], row1[target_col]
-                    x2, y2 = row2[var], row2[target_col]
+                    x1, y1 = row1[var_col], row1[target_col]
+                    x2, y2 = row2[var_col], row2[target_col]
                     
                     # Calculate increase direction: from lower to higher parameter value
                     if x1 < x2:
@@ -154,9 +175,9 @@ def oat_sensitivity(df, target_col='LCOLi (USD/mt)', input_params=None):
         abs_avg_sensitivity = np.mean([abs(s) for s in all_oat_sensitivities])
         
         # Get basic statistics for reference
-        x_min, x_max = valid_data[var].min(), valid_data[var].max()
+        x_min, x_max = valid_data[var_col].min(), valid_data[var_col].max()
         y_min, y_max = valid_data[target_col].min(), valid_data[target_col].max()
-        x_median, y_median = valid_data[var].median(), valid_data[target_col].median()
+        x_median, y_median = valid_data[var_col].median(), valid_data[target_col].median()
         
         sensitivity_data.append({
             'variable': var,
@@ -279,8 +300,8 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
 
 def main():
     """Main function to run the sensitivity analysis."""
-    target_col = 'LCOLi2CO3 (USD/kg)'
-    possible_files = ['processing_parameter_sweep1.csv']
+    target_col = 'LCOLi (USD/t)'
+    possible_files = ['parameter_sweep011426_1.csv']
     df = None
     
     for filename in possible_files:
@@ -300,22 +321,19 @@ def main():
 
     # Define the specific model inputs being swept in the current parameter sweep
     input_vars = [
-        'Water flow rate',
-        'Brine storage time',
+        # 'Soda ash molality (mol/kg)',
+        # 'Lime molality (mol/kg)',
+        # 'Mg removal fraction (soda ash)',
+        # 'Li removal fraction',
         'Pump efficiency',
+        'Inlet Li+ flow',
+        'Soda ash waste mass fraction',
     ]
     
     # Confirm input/output match for each parameter
     for var in input_vars:
-        resultant_var = f"Resultant {var}"
-        if resultant_var in df.columns and var in df.columns:
-            mismatch = (df[var] != df[resultant_var]) & ~(df[var].isna() | df[resultant_var].isna())
-            if mismatch.any():
-                print(f"WARNING: Mismatch found between '{var}' and '{resultant_var}' in {mismatch.sum()} rows.")
-            else:
-                print(f"OK: '{var}' matches '{resultant_var}' for all valid rows.")
-        elif var in df.columns:
-            print(f"OK: '{var}' found in data (no resultant variable expected).")
+        if var in df.columns:
+            print(f"OK: '{var}' found in data columns.")
         else:
             print(f"WARNING: '{var}' not found in data columns.")
     
@@ -338,22 +356,26 @@ def main():
     if not sensitivity_df.empty:
         # Define custom parameter name mapping for display
         param_name_mapping = {
-            'Water flow rate': 'Water flow rate',
-            'Brine storage time': 'Brine storage time',
+            # 'Soda ash molality (mol/kg)': 'Soda ash molality (mol/kg)',
+            # 'Lime molality (mol/kg)': 'Lime molality (mol/kg)',
+            # 'Mg removal fraction (soda ash)': 'Mg removal fraction (soda ash)',
+            # 'Li removal fraction': 'Li removal fraction',
             'Pump efficiency': 'Pump efficiency',
+            'Inlet Li+ flow': 'Inlet Li+ flow',
+            'Soda ash waste mass fraction': 'Soda ash\nwaste mass fraction',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
                                     title=f"Parameter sensitivity",
                                     param_name_mapping=param_name_mapping)
         if fig is not None:
-            plt.savefig('tornado_plot_processing_lcoli2co3.png', dpi=300, bbox_inches='tight')
-            print("Tornado plot saved as 'tornado_plot_processing_lcoli2co3.png'")
+            plt.savefig('tornado_plot_processing_lcoli.png', dpi=300, bbox_inches='tight')
+            print("Tornado plot saved as 'tornado_plot_processing_lcoli.png'")
             plt.show()
         
         # Save sensitivity data with additional info
-        sensitivity_df.to_csv('sensitivity_analysis_pond_lcoli.csv', index=False)
-        print("Sensitivity analysis results saved to 'sensitivity_analysis_pond_lcoli.csv'")
+        sensitivity_df.to_csv('sensitivity_analysis_processing_lcoli.csv', index=False)
+        print("Sensitivity analysis results saved to 'sensitivity_analysis_processing_lcoli.csv'")
         
         # Print summary of findings
         print(f"\nSensitivity Analysis Summary:")
