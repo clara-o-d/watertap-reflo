@@ -8,10 +8,14 @@ rdvf:
   cost_electricity_flow: true
 
 # Reactor cost parameters for volume-based correlation: C_cap = a + b*V^n
+# Data-driven parameters from reactor_costing.py analysis (Stainless steel 300 lb/in²)
 reactor_cost:
-  capital_a_parameter: 50000  # USD_2023 (fixed cost)
-  capital_b_parameter: 10000  # USD_2023 / (m³)^0.6 (variable cost coefficient)
-  capital_n_exponent: 0.6  # dimensionless (exponent)
+  capital_a_parameter: 0  # USD_1991 (fixed cost)
+  capital_b_parameter: 497984.9  # USD_1991 / (m³)^n (variable cost coefficient)
+  capital_n_exponent: 0.161172  # dimensionless (exponent)
+  # Material: Stainless steel, Surface density: 300 lb/in²
+  # Capacity range: 70-972 gallons (0.27-3.7 m³)
+  # Cost range: $402k-$614k
 
 # Material flow costs
 flow_costs:

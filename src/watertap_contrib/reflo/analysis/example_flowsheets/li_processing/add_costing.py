@@ -202,14 +202,21 @@ def build_reactor_cost_params(costing_package, params=None):
         costing_package.reactor_cost_params.capital_a_parameter = Var(
             initialize=reactor_params['capital_a_parameter'],
             doc="Fixed cost parameter (a) in reactor capital cost correlation",
-            units=pyunits.USD_2023,
+            units=pyunits.USD_1991,
         )
         costing_package.reactor_cost_params.capital_a_parameter.fix()
         
+        costing_package.reactor_cost_params.capital_n_exponent = Var(
+            initialize=reactor_params['capital_n_exponent'],
+            doc="Exponent (n) in reactor capital cost correlation",
+            units=pyunits.dimensionless,
+        )
+        costing_package.reactor_cost_params.capital_n_exponent.fix()
+
         costing_package.reactor_cost_params.capital_b_parameter = Var(
             initialize=reactor_params['capital_b_parameter'],
             doc="Variable cost parameter (b) in reactor capital cost correlation",
-            units=pyunits.USD_2023 / (pyunits.m**3)**0.6,
+            units=pyunits.USD_1991 / (pyunits.m**3)**reactor_params['capital_n_exponent'],
         )
         costing_package.reactor_cost_params.capital_b_parameter.fix()
         
