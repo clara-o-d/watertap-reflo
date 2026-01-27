@@ -60,37 +60,37 @@ def solve(m, solver=None):
             results = None
             tc = None
     
-    # If still not optimal, run diagnostics to identify issues
-    if tc != TerminationCondition.optimal:
-        print("\n" + "="*80)
-        print("SOLVER FAILED - Running IDAES Diagnostics to identify issues...")
-        print("="*80)
+    # # If still not optimal, run diagnostics to identify issues
+    # if tc != TerminationCondition.optimal:
+    #     print("\n" + "="*80)
+    #     print("SOLVER FAILED - Running IDAES Diagnostics to identify issues...")
+    #     print("="*80)
         
-        try:
-            dt = DiagnosticsToolbox(m)
+    #     try:
+    #         dt = DiagnosticsToolbox(m)
             
-            print("\n1. Degrees of Freedom:")
-            print(f"   DOF = {degrees_of_freedom(m)}")
+    #         print("\n1. Degrees of Freedom:")
+    #         print(f"   DOF = {degrees_of_freedom(m)}")
             
-            print("\n2. Checking for numerical warnings...")
-            dt.report_numerical_issues()
+    #         print("\n2. Checking for numerical warnings...")
+    #         dt.report_numerical_issues()
             
-            print("\n3. Displaying constraints with largest residuals...")
-            dt.display_constraints_with_large_residuals()
+    #         print("\n3. Displaying constraints with largest residuals...")
+    #         dt.display_constraints_with_large_residuals()
             
-            print("\n4. Computing infeasibility explanation...")
-            dt.display_near_parallel_constraints()
+    #         print("\n4. Computing infeasibility explanation...")
+    #         dt.display_near_parallel_constraints()
             
-            print("\n5. Analyzing constraint/variable interactions...")
-            print("\nVariables involved in violated constraints:")
-            dt.display_variables_with_extreme_jacobians()
+    #         print("\n5. Analyzing constraint/variable interactions...")
+    #         print("\nVariables involved in violated constraints:")
+    #         dt.display_variables_with_extreme_jacobians()
             
-            print("\n" + "="*80)
-            print("Diagnostics complete!")
-            print("="*80 + "\n")
-        except Exception as e:
-            print(f"Diagnostic analysis failed: {e}")
-            import traceback
-            traceback.print_exc()
+    #         print("\n" + "="*80)
+    #         print("Diagnostics complete!")
+    #         print("="*80 + "\n")
+    #     except Exception as e:
+    #         print(f"Diagnostic analysis failed: {e}")
+    #         import traceback
+    #         traceback.print_exc()
 
     return results

@@ -36,20 +36,31 @@ except ImportError:
     PYOMO_AVAILABLE = False
     print("Warning: Pyomo not available. Some unit conversion features may be limited.")
 
+def psi_to_atm(psi):
+    """Convert pressure from psi (lb/in²) to atmospheres.
+    
+    Args:
+        psi: Pressure in lb/in² (psi)
+        
+    Returns:
+        atm: Pressure in atmospheres
+    """
+    return psi * 0.068046
+
 def parse_filename(filename):
-    """Extract material type and surface density from filename.
+    """Extract material type and pressure capacity from filename.
     
     Args:
         filename: Filename like 'Stainless_300.csv'
         
     Returns:
-        tuple: (material_type, surface_density_lb_in2)
+        tuple: (material_type, pressure_capacity_psi)
     """
     stem = Path(filename).stem
     parts = stem.split('_')
     material = parts[0]
-    density = float(parts[1])
-    return material, density
+    pressure_psi = float(parts[1])
+    return material, pressure_psi
 
 def read_reactor_data(csv_path):
     """Read reactor costing data from CSV file.
@@ -64,35 +75,64 @@ def read_reactor_data(csv_path):
     return data
 
 def fit_power_law(volumes_gal, costs_usd):
-    """Fit power law model to reactor costing data from log-log plot.
+    """Fit power law model to reactor costing data using log-log linear regression.
     
-    For two points from a log-log plot:
-        Cost = b * V^n
-        log(Cost) = log(b) + n * log(V)
+    Power law model: Cost = b * V^n
+    In log-log space: log(Cost) = log(b) + n * log(V)
+    
+    Uses linear regression in log-log space to fit all available data points.
     
     Args:
-        volumes_gal: Reactor capacities in gallons
-        costs_usd: Purchased costs in USD
+        volumes_gal: Reactor capacities in gallons (array)
+        costs_usd: Purchased costs in USD (array)
         
     Returns:
-        tuple: (b, n, r_squared)
-            b: cost coefficient
-            n: scaling exponent
-            r_squared: goodness of fit
+        tuple: (b, n, r_squared, std_err_n, std_err_log_b, n_points)
+            b: cost coefficient (USD/gal^n)
+            n: scaling exponent (dimensionless)
+            r_squared: coefficient of determination in log-log space
+            std_err_n: standard error of the exponent n
+            std_err_log_b: standard error of log(b)
+            n_points: number of data points used in fit
     """
     log_V = np.log(volumes_gal)
     log_Cost = np.log(costs_usd)
+    n_points = len(volumes_gal)
     
-    n = (log_Cost[1] - log_Cost[0]) / (log_V[1] - log_V[0])
-    log_b = log_Cost[0] - n * log_V[0]
+    if n_points < 2:
+        raise ValueError("Need at least 2 data points to fit power law")
+    
+    # Linear regression in log-log space: log(Cost) = log(b) + n * log(V)
+    # Using numpy polyfit (degree 1 polynomial)
+    coeffs = np.polyfit(log_V, log_Cost, deg=1)
+    n = coeffs[0]  # slope
+    log_b = coeffs[1]  # intercept
     b = np.exp(log_b)
     
-    Cost_pred = b * volumes_gal ** n
-    ss_res = np.sum((costs_usd - Cost_pred) ** 2)
-    ss_tot = np.sum((costs_usd - np.mean(costs_usd)) ** 2)
+    # Calculate R² in log-log space
+    log_Cost_pred = log_b + n * log_V
+    ss_res = np.sum((log_Cost - log_Cost_pred) ** 2)
+    ss_tot = np.sum((log_Cost - np.mean(log_Cost)) ** 2)
     r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 1.0
     
-    return b, n, r_squared
+    # Calculate standard errors
+    if n_points > 2:
+        # Residual standard error
+        s = np.sqrt(ss_res / (n_points - 2))
+        
+        # Standard error of slope (n)
+        x_mean = np.mean(log_V)
+        sxx = np.sum((log_V - x_mean) ** 2)
+        std_err_n = s / np.sqrt(sxx)
+        
+        # Standard error of intercept (log_b)
+        std_err_log_b = s * np.sqrt(1/n_points + x_mean**2 / sxx)
+    else:
+        # Perfect fit with 2 points
+        std_err_n = 0.0
+        std_err_log_b = 0.0
+    
+    return b, n, r_squared, std_err_n, std_err_log_b, n_points
 
 def convert_units_to_m3(b_gal, n):
     """Convert cost coefficient from gallons to cubic meters.
@@ -121,22 +161,32 @@ def process_all_data(data_dir):
     results = []
     
     for csv_file in sorted(data_dir.glob('*.csv')):
-        material, density = parse_filename(csv_file.name)
+        material, pressure_psi = parse_filename(csv_file.name)
         data = read_reactor_data(csv_file)
         
         volumes_gal = data['capacity_gal'].values
         costs_usd = data['cost_usd'].values
         
-        b_gal, n, r2 = fit_power_law(volumes_gal, costs_usd)
+        b_gal, n, r2, std_err_n, std_err_log_b, n_points = fit_power_law(volumes_gal, costs_usd)
         b_m3 = convert_units_to_m3(b_gal, n)
+        
+        # Calculate 95% confidence interval for n
+        ci_95_n = 1.96 * std_err_n if n_points > 2 else 0.0
+        
+        # Convert pressure capacity to atmospheres
+        pressure_atm = psi_to_atm(pressure_psi)
         
         results.append({
             'material': material,
-            'surface_density_lb_in2': density,
+            'pressure_capacity_psi': pressure_psi,
+            'pressure_capacity_atm': pressure_atm,
             'b_gal': b_gal,
             'b_m3': b_m3,
             'n': n,
             'r_squared': r2,
+            'std_err_n': std_err_n,
+            'ci_95_n': ci_95_n,
+            'n_points': n_points,
             'v_min_gal': volumes_gal.min(),
             'v_max_gal': volumes_gal.max(),
             'cost_min_usd': costs_usd.min(),
@@ -146,14 +196,14 @@ def process_all_data(data_dir):
     
     return pd.DataFrame(results)
 
-def calculate_recommended_parameters(results_df, material='Stainless', method='median', surface_density=None):
+def calculate_recommended_parameters(results_df, material='Stainless', method='median', pressure_capacity_psi=None):
     """Calculate recommended costing parameters from analysis results.
     
     Args:
         results_df: DataFrame from process_all_data
         material: Material type to use (default: 'Stainless')
         method: Aggregation method ('median', 'mean', 'conservative', 'specific')
-        surface_density: If method='specific', the specific surface density to use (lb/in²)
+        pressure_capacity_psi: If method='specific', the specific pressure capacity to use (psi)
         
     Returns:
         dict with recommended parameters
@@ -164,20 +214,20 @@ def calculate_recommended_parameters(results_df, material='Stainless', method='m
         print(f"Warning: No data for material '{material}', using all materials")
         material_data = results_df
     
-    if method == 'specific' and surface_density is not None:
-        specific_data = material_data[material_data['surface_density_lb_in2'] == surface_density]
+    if method == 'specific' and pressure_capacity_psi is not None:
+        specific_data = material_data[material_data['pressure_capacity_psi'] == pressure_capacity_psi]
         if len(specific_data) == 0:
-            print(f"Warning: No data for {material} at {surface_density} lb/in², using median instead")
+            print(f"Warning: No data for {material} at {pressure_capacity_psi} psi ({psi_to_atm(pressure_capacity_psi):.1f} atm), using median instead")
             method = 'median'
         elif len(specific_data) > 1:
-            print(f"Warning: Multiple datasets for {material} at {surface_density} lb/in², using first")
+            print(f"Warning: Multiple datasets for {material} at {pressure_capacity_psi} psi ({psi_to_atm(pressure_capacity_psi):.1f} atm), using first")
             n_rec = specific_data['n'].iloc[0]
             b_rec = specific_data['b_m3'].iloc[0]
         else:
             n_rec = specific_data['n'].iloc[0]
             b_rec = specific_data['b_m3'].iloc[0]
     
-    if method == 'median' or (method == 'specific' and surface_density is None):
+    if method == 'median' or (method == 'specific' and pressure_capacity_psi is None):
         n_rec = material_data['n'].median()
         b_rec = material_data['b_m3'].median()
     elif method == 'mean':
@@ -200,8 +250,9 @@ def calculate_recommended_parameters(results_df, material='Stainless', method='m
         'n_datasets': len(material_data)
     }
     
-    if surface_density is not None:
-        param_dict['surface_density'] = surface_density
+    if pressure_capacity_psi is not None:
+        param_dict['pressure_capacity_psi'] = pressure_capacity_psi
+        param_dict['pressure_capacity_atm'] = psi_to_atm(pressure_capacity_psi)
     
     return param_dict
 
@@ -226,16 +277,18 @@ def plot_all_fits(results_df, data_dir, output_path=None):
         costs_usd = data['cost_usd'].values
         
         color = colors.get(row['material'], 'gray')
-        marker = markers.get(row['surface_density_lb_in2'], 'x')
-        label = f"{row['material']} {row['surface_density_lb_in2']} lb/in²"
+        marker = markers.get(row['pressure_capacity_psi'], 'x')
+        n_pts = int(row['n_points'])
+        label = f"{row['material']} {row['pressure_capacity_psi']:.0f} psi ({row['pressure_capacity_atm']:.1f} atm, n={n_pts})"
         
         v_plot = np.logspace(np.log10(volumes_gal.min() * 0.8), 
                              np.log10(volumes_gal.max() * 1.2), 100)
         cost_plot = row['b_gal'] * v_plot ** row['n']
         
         ax1.loglog(volumes_gal, costs_usd, marker=marker, color=color, 
-                   markersize=8, linestyle='', label=f'{label} (data)')
-        ax1.loglog(v_plot, cost_plot, color=color, linestyle='--', alpha=0.6, linewidth=1)
+                   markersize=8, linestyle='', label=f'{label} (R²={row["r_squared"]:.3f})', 
+                   alpha=0.7, markeredgewidth=1.5, markeredgecolor='black')
+        ax1.loglog(v_plot, cost_plot, color=color, linestyle='--', alpha=0.5, linewidth=2)
     
     ax1.set_xlabel('Reactor Capacity (gallons)', fontsize=12)
     ax1.set_ylabel('Purchased Cost (USD)', fontsize=12)
@@ -250,7 +303,7 @@ def plot_all_fits(results_df, data_dir, output_path=None):
     for i, material in enumerate(materials):
         mat_data = results_df[results_df['material'] == material]
         n_values = mat_data['n'].values
-        densities = mat_data['surface_density_lb_in2'].values
+        pressures_psi = mat_data['pressure_capacity_psi'].values
         
         color = colors.get(material, 'gray')
         ax2.bar(x_pos[i], mat_data['n'].mean(), width, 
@@ -284,7 +337,8 @@ def print_summary(results_df):
     
     print(f"\nTotal datasets processed: {len(results_df)}")
     print(f"Materials: {', '.join(results_df['material'].unique())}")
-    print(f"Surface densities: {sorted(results_df['surface_density_lb_in2'].unique())} lb/in²")
+    pressure_capacities = sorted(results_df['pressure_capacity_psi'].unique())
+    print(f"Pressure capacities: {pressure_capacities} psi ({[f'{psi_to_atm(p):.1f}' for p in pressure_capacities]} atm)")
     
     print("\n" + "-"*80)
     print("DETAILED RESULTS BY DATASET")
@@ -293,9 +347,11 @@ def print_summary(results_df):
     for idx, row in results_df.iterrows():
         print(f"\n{row['csv_file']}:")
         print(f"  Material: {row['material']}")
-        print(f"  Surface Density: {row['surface_density_lb_in2']} lb/in²")
+        print(f"  Pressure Capacity: {row['pressure_capacity_psi']:.0f} psi ({row['pressure_capacity_atm']:.1f} atm)")
+        print(f"  Data points: {int(row['n_points'])}")
         print(f"  Cost = {row['b_gal']:.2e} * V^{row['n']:.4f}  (V in gallons)")
         print(f"  Cost = {row['b_m3']:.2e} * V^{row['n']:.4f}  (V in m³)")
+        print(f"  Exponent n = {row['n']:.4f} ± {row['ci_95_n']:.4f} (95% CI)")
         print(f"  R² = {row['r_squared']:.6f}")
         print(f"  Capacity range: {row['v_min_gal']:.1f} - {row['v_max_gal']:.1f} gallons")
         print(f"  Cost range: ${row['cost_min_usd']:,.0f} - ${row['cost_max_usd']:,.0f}")
@@ -306,8 +362,12 @@ def print_summary(results_df):
     
     for material in results_df['material'].unique():
         mat_data = results_df[results_df['material'] == material]
+        total_points = mat_data['n_points'].sum()
+        avg_r2 = mat_data['r_squared'].mean()
         print(f"\n{material}:")
         print(f"  Datasets: {len(mat_data)}")
+        print(f"  Total data points: {int(total_points)} (avg: {total_points/len(mat_data):.1f} per dataset)")
+        print(f"  Average R²: {avg_r2:.6f}")
         print(f"  Scaling exponent (n):")
         print(f"    Mean ± Std: {mat_data['n'].mean():.4f} ± {mat_data['n'].std():.4f}")
         print(f"    Median: {mat_data['n'].median():.4f}")
@@ -332,8 +392,8 @@ def update_yaml_parameters(yaml_path, recommended_params):
         print(f"  capital_b_parameter: {recommended_params['capital_b_parameter']:.6e}")
         print(f"  capital_n_exponent: {recommended_params['capital_n_exponent']:.6f}")
         material_info = f"Material: {recommended_params['material']}"
-        if 'surface_density' in recommended_params:
-            material_info += f" ({recommended_params['surface_density']} lb/in²)"
+        if 'pressure_capacity_psi' in recommended_params:
+            material_info += f" ({recommended_params['pressure_capacity_psi']:.0f} psi / {recommended_params['pressure_capacity_atm']:.1f} atm)"
         print(f"  # {material_info}, Method: {recommended_params['method']}")
         print(f"  # Based on {recommended_params['n_datasets']} datasets")
         return
@@ -361,8 +421,9 @@ def update_yaml_parameters(yaml_path, recommended_params):
         'generated_by': 'reactor_costing.py'
     }
     
-    if 'surface_density' in recommended_params:
-        metadata['surface_density_lb_in2'] = recommended_params['surface_density']
+    if 'pressure_capacity_psi' in recommended_params:
+        metadata['pressure_capacity_psi'] = recommended_params['pressure_capacity_psi']
+        metadata['pressure_capacity_atm'] = recommended_params['pressure_capacity_atm']
     
     params['reactor_cost']['_metadata'] = metadata
     
@@ -404,11 +465,11 @@ def main():
     
     default_material = 'Stainless'
     default_method = 'specific'
-    default_surface_density = 300.0
-    rec_params = calculate_recommended_parameters(results_df, default_material, default_method, default_surface_density)
+    default_pressure_psi = 300.0
+    rec_params = calculate_recommended_parameters(results_df, default_material, default_method, default_pressure_psi)
     
     print(f"\n" + "="*80)
-    print(f"SELECTED FOR YAML UPDATE: {default_material} {default_surface_density} lb/in² ({default_method})")
+    print(f"SELECTED FOR YAML UPDATE: {default_material} {default_pressure_psi:.0f} psi ({psi_to_atm(default_pressure_psi):.1f} atm) - {default_method}")
     print("="*80)
     print(f"  capital_a_parameter: {rec_params['capital_a_parameter']:.2e} USD")
     print(f"  capital_b_parameter: {rec_params['capital_b_parameter']:.2e} USD/m³^n")

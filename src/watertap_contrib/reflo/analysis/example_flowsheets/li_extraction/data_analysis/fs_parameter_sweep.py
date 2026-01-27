@@ -50,10 +50,10 @@ def build_sweep_params(m, **kwargs):
     # )
 
     sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.4, 2.56, 25
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.4, 2.56, 5
     )
     sweep_params['Inlet TDS concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 25
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 5
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -185,9 +185,9 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep3.csv', 
+        csv_results_file_name='parameter_sweep012726_1_no_init_lower_bound.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'parameter_sweep3.csv'") 
+    print("Results saved to 'parameter_sweep012726_1.csv'") 

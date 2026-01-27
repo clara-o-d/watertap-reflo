@@ -51,34 +51,81 @@ def create_heat_map(csv_file_path, flow_volume):
     # Convert levelized cost to thousands per metric ton
     df_filtered['levelized_cost_thousands'] = df_filtered['LCOLi (USD/mt)'] / 1000
     
-    # Remove rows with NaN values in levelized cost
-    df_filtered = df_filtered.dropna(subset=['levelized_cost_thousands'])
+    # Create binned heat map data
+    num_bins = 10  # Number of bins for each axis
     
-    # Calculate baseline values for percentage calculations (using maximum values)
-    baseline_li = df_filtered['inlet_li_conc'].max()
-    baseline_tds = df_filtered['inlet_tds_conc'].max()
-    baseline_mask = (df_filtered['inlet_li_conc'] == baseline_li) & (df_filtered['inlet_tds_conc'] == baseline_tds)
-    baseline_cost_data = df_filtered[baseline_mask]['levelized_cost_thousands']
-    if len(baseline_cost_data) == 0:
-        baseline_cost = df_filtered['levelized_cost_thousands'].max()
-    else:
-        baseline_cost = baseline_cost_data.iloc[0]
+    # Create bins for Li+ and TDS concentrations
+    li_bins = np.linspace(df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max(), num_bins + 1)
+    tds_bins = np.linspace(df_filtered['inlet_tds_conc'].min(), df_filtered['inlet_tds_conc'].max(), num_bins + 1)
     
-    # Create the scatter plot with raw data
+    # Assign each data point to bins
+    df_filtered['li_bin'] = pd.cut(df_filtered['inlet_li_conc'], bins=li_bins, labels=False, include_lowest=True)
+    df_filtered['tds_bin'] = pd.cut(df_filtered['inlet_tds_conc'], bins=tds_bins, labels=False, include_lowest=True)
+    
+    # Create binned pivot table
+    pivot_data = df_filtered.pivot_table(
+        values='levelized_cost_thousands',
+        index='li_bin',
+        columns='tds_bin',
+        aggfunc='mean'
+    )
+    
+    # Create bin center values for plotting
+    li_centers = (li_bins[:-1] + li_bins[1:]) / 2
+    tds_centers = (tds_bins[:-1] + tds_bins[1:]) / 2
+    
+    # Interpolate to fill missing values in the binned grid
+    pivot_filled = (
+        pivot_data
+            .interpolate(method='linear', axis=1, limit_direction='both')
+            .interpolate(method='linear', axis=0, limit_direction='both')
+            .ffill(axis=1).bfill(axis=1)
+            .ffill(axis=0).bfill(axis=0)
+    )
+    if pivot_filled.isna().any().any():
+        pivot_filled = pivot_filled.fillna(pivot_filled.stack().mean())
+
+    # Calculate baseline values for percentage calculations (using bin centers)
+    baseline_li = li_centers[-1]  # Use highest bin center as baseline
+    baseline_tds = tds_centers[-1]  # Use highest bin center as baseline
+    baseline_cost = pivot_data.iloc[-1, -1]  # Use highest bin value as baseline
+    
+    # Create percentage variation labels for x-axis (TDS concentrations)
+    x_labels = []
+    for col in tds_centers:
+        if abs(col - baseline_tds) < 0.01:  # Use small tolerance for float comparison
+            x_labels.append(f"{col:.2f}\n(0%)")
+        else:
+            pct_change = ((col - baseline_tds) / baseline_tds) * 100
+            sign = "+" if pct_change > 0 else ""
+            x_labels.append(f"{col:.2f}\n({sign}{pct_change:.0f}%)")
+    
+    # Create percentage variation labels for y-axis (Li+ concentrations)
+    y_labels = []
+    for idx in li_centers:
+        if abs(idx - baseline_li) < 0.01:  # Use small tolerance for float comparison
+            y_labels.append(f"{idx:.4f}\n(0%)")
+        else:
+            pct_change = ((idx - baseline_li) / baseline_li) * 100
+            sign = "+" if pct_change > 0 else ""
+            y_labels.append(f"{idx:.4f}\n({sign}{pct_change:.0f}%)")
+    
+    # Create the heat map
     plt.figure(figsize=(10, 8))
     
-    # Create scatter plot with raw data points colored by levelized cost
-    scatter = plt.scatter(df_filtered['inlet_tds_conc'], df_filtered['inlet_li_conc'], 
-                         c=df_filtered['levelized_cost_thousands'], 
-                         cmap='viridis', s=50, alpha=0.7, vmin=baseline_cost)
+    # Create heat map using imshow (with binned data)
+    heatmap = plt.imshow(pivot_data.values, cmap='viridis', aspect='auto', 
+                         extent=[tds_centers.min(), tds_centers.max(), 
+                                li_centers.min(), li_centers.max()],
+                         origin='lower', vmin=baseline_cost)
     
     # Add colorbar with the same styling
-    cbar = plt.colorbar(scatter, label='Levelized cost (thousands $/t Li⁺)')
+    cbar = plt.colorbar(heatmap, label='Levelized cost (thousands $/t Li⁺)')
     cbar.ax.set_ylabel('Levelized cost (thousands $/t Li⁺)', fontsize=14)
     cbar.ax.tick_params(labelsize=12)
     
     # Colorbar ticks: start at base case (0% at bottom)
-    vmax = df_filtered['levelized_cost_thousands'].max()
+    vmax = np.nanmax(pivot_data.values)
     num_ticks = 6
     cbar_ticks = np.linspace(baseline_cost, vmax, num=num_ticks)
     cbar.set_ticks(cbar_ticks)
@@ -90,9 +137,9 @@ def create_heat_map(csv_file_path, flow_volume):
     # Set custom x and y tick labels with percentage variations (evenly spaced ticks)
     max_ticks = 6
     
-    # Create evenly spaced tick positions across the full range
-    x_tick_positions = np.linspace(df_filtered['inlet_tds_conc'].min(), df_filtered['inlet_tds_conc'].max(), num=max_ticks)
-    y_tick_positions = np.linspace(df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max(), num=max_ticks)
+    # Create evenly spaced tick positions across the full range using bin centers
+    x_tick_positions = np.linspace(tds_centers.min(), tds_centers.max(), num=max_ticks)
+    y_tick_positions = np.linspace(li_centers.min(), li_centers.max(), num=max_ticks)
     
     # Create tick labels for these evenly spaced positions
     x_tick_labels = []
@@ -134,9 +181,9 @@ def create_heat_map(csv_file_path, flow_volume):
         # 'Geothermal': {'li_range': [0.3959, 0.5], 'tds_range': [166.1, 300], 'color': 'red'}
     }
     
-    # Get data boundaries
-    heatmap_li_min, heatmap_li_max = df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max()
-    heatmap_tds_min, heatmap_tds_max = df_filtered['inlet_tds_conc'].min(), df_filtered['inlet_tds_conc'].max()
+    # Get heat map boundaries
+    heatmap_li_min, heatmap_li_max = li_centers.min(), li_centers.max()
+    heatmap_tds_min, heatmap_tds_max = tds_centers.min(), tds_centers.max()
     
     # Add colored range indicators on x and y axes for each brine source
     legend_elements = []
@@ -242,7 +289,7 @@ def create_heat_map(csv_file_path, flow_volume):
     
     plt.show()
     
-    return df_filtered
+    return pivot_filled
 
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
@@ -252,5 +299,5 @@ if __name__ == "__main__":
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME)
     print("Heat map created successfully!")
-    print(f"Number of data points: {len(result_data)}")
-    print(f"Number of valid data points: {len(result_data.dropna(subset=['levelized_cost_thousands']))}")
+    print(f"Data shape: {result_data.shape}")
+    print(f"Number of valid data points: {len(result_data.dropna().values.flatten())}")

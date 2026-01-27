@@ -1,32 +1,27 @@
-# Costing parameters for lithium processing flowsheet
-
-# RDVF (Rotary Drum Vacuum Filter) parameters
 rdvf:
-  capital_a_parameter: 2.31  # dimensionless
-  drum_unit_cost: 27500  # USD_2007
-  number_of_drums: 2  # dimensionless
+  capital_a_parameter: 2.31
+  drum_unit_cost: 27500
+  number_of_drums: 2
   cost_electricity_flow: true
-
-# Reactor cost parameters for volume-based correlation: C_cap = a + b*V^n
-# Data-driven parameters from reactor_costing.py analysis (Stainless steel 300 lb/in²)
 reactor_cost:
-  capital_a_parameter: 0  # USD_1991 (fixed cost)
-  capital_b_parameter: 497984.9  # USD_1991 / (m³)^n (variable cost coefficient)
-  capital_n_exponent: 0.161172  # dimensionless (exponent)
-  # Material: Stainless steel, Surface density: 300 lb/in²
-  # Capacity range: 70-972 gallons (0.27-3.7 m³)
-  # Cost range: $402k-$614k
-
-# Material flow costs
+  capital_a_parameter: 0.0
+  capital_b_parameter: 33443.530748339814
+  capital_n_exponent: 0.5584671382207098
+  _metadata:
+    material: Stainless
+    method: specific
+    n_datasets: 3
+    description: "Capital cost correlation: C_cap = a + b*V^n where V is in m\xB3"
+    generated_by: reactor_costing.py
+    pressure_capacity_psi: 300.0
+    pressure_capacity_atm: 20.4138
 flow_costs:
-  soda_ash_cost: 0.5  # USD_2023/kg
-  lime_cost: 0.3  # USD_2023/kg
-  process_water_cost: 0.001  # USD_2023/kg
-
-# General costing parameters
+  soda_ash_cost: 0.5
+  lime_cost: 0.3
+  process_water_cost: 0.001
 general:
-  plant_lifetime: 35  # years
-  wacc: 0.10  # dimensionless (weighted average cost of capital)
-  electricity_cost: 0.15  # USD_2023/kWh
-  electrical_carbon_intensity: 0.229  # dimensionless
-  utilization_factor: 0.98  # dimensionless
+  plant_lifetime: 35
+  wacc: 0.1
+  electricity_cost: 0.15
+  electrical_carbon_intensity: 0.229
+  utilization_factor: 0.98

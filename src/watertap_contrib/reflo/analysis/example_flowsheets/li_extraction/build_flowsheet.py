@@ -123,8 +123,8 @@ def build_flowsheet():
 
     # Set feed conditions - brine composition and operating parameters
     flow_vol = 1.280 # m^3/s
-    tds_conc = 354 # kg/m^3
-    li_conc = 2 # kg/m^3
+    tds_conc = 250 # kg/m^3
+    li_conc = 1.3 # kg/m^3
     water_conc = 873 # kg/m^3
 
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(tds_conc*flow_vol)
@@ -150,8 +150,8 @@ def build_flowsheet():
 
     # Propagate state to pond and initialize
     propagate_state(m.fs.feed_to_pond)
-    m.fs.pond.initialize()
-    m.fs.pond.report()
+    # m.fs.pond.initialize()
+    # m.fs.pond.report()
     print(f"DOF after build_flowsheet: {degrees_of_freedom(m)}")
     assert_degrees_of_freedom(m, 0)
 
