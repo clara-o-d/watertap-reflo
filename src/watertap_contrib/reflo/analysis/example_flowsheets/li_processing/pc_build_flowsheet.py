@@ -278,13 +278,13 @@ def modify_flowsheet(m):
     
     if hasattr(m.fs, 'lime_reactor'):
         m.fs.lime_reactor.reaction_rate_constant_mg = pyo.Var(
-            initialize=3e-2,
+            initialize=2e-3,
             bounds=(1e-6, 1.0),
             units=pyunits.s**-1,
             doc="First-order reaction rate constant for magnesium precipitation in lime reactor"
         )
         m.fs.lime_reactor.reaction_rate_constant_mg_param = pyo.Param(
-            initialize=3e-2,
+            initialize=2e-3,
             mutable=True,
             units=pyunits.s**-1,
             doc="Parameter for first-order magnesium precipitation reaction rate constant"
@@ -300,13 +300,13 @@ def modify_flowsheet(m):
     
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         m.fs.lithium_carbonate_reactor.reaction_rate_constant_li = pyo.Var(
-            initialize=2e-3,
+            initialize=4e-3,
             bounds=(1e-6, 1.0),
             units=pyunits.s**-1,
             doc="First-order reaction rate constant for lithium precipitation in lithium carbonate reactor"
         )
         m.fs.lithium_carbonate_reactor.reaction_rate_constant_li_param = pyo.Param(
-            initialize=2e-3,
+            initialize=4e-3,
             mutable=True,
             units=pyunits.s**-1,
             doc="Parameter for first-order lithium precipitation reaction rate constant"

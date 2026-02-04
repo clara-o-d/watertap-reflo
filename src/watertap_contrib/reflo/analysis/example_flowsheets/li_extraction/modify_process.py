@@ -147,7 +147,7 @@ def flow_variables(m):
     
     m.fs.fraction_evaporated = Var(
         initialize=0.987,
-        bounds=(0, 0.989),
+        bounds=(0, 0.99),
         units=pyunits.dimensionless,
         doc="Fraction of water that is evaporated"
     )

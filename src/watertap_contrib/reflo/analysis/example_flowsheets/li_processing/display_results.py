@@ -1,8 +1,6 @@
-"""Display module for lithium processing flowsheet results.
+"""Display module for lithium processing flowsheet results."""
 
-Prints comprehensive results from the lithium carbonate processing flowsheet simulation.
-"""
-
+from math import log
 from pyomo.environ import units as pyunits, value
 
 def display_costing_results(m):
@@ -489,6 +487,10 @@ def display_results(m, show_costing=False):
             if hasattr(m.fs.soda_ash_reactor, 'reaction_rate_constant_mg'):
                 k_mg = value(m.fs.soda_ash_reactor.reaction_rate_constant_mg)
                 print(f"  First-order reaction rate constant (Mg): {k_mg:.6f} s⁻¹")
+                if k_mg > 0:
+                    t_half_s = log(2) / k_mg
+                    t_half_h = t_half_s / 3600
+                    print(f"  Half-life (Mg): {t_half_s:.1f} s ({t_half_h:.2f} h)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
@@ -554,6 +556,10 @@ def display_results(m, show_costing=False):
             if hasattr(m.fs.lime_reactor, 'reaction_rate_constant_mg'):
                 k_mg = value(m.fs.lime_reactor.reaction_rate_constant_mg)
                 print(f"  First-order reaction rate constant (Mg): {k_mg:.6f} s⁻¹")
+                if k_mg > 0:
+                    t_half_s = log(2) / k_mg
+                    t_half_h = t_half_s / 3600
+                    print(f"  Half-life (Mg): {t_half_s:.1f} s ({t_half_h:.2f} h)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
@@ -572,6 +578,34 @@ def display_results(m, show_costing=False):
                 flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
                 flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
                 print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
+
+            # Li molarity at lithium carbonate reactor inlet (mol/L)
+            try:
+                li_mol_s = None
+                flow_vol = None
+
+                if hasattr(m.fs.lithium_carbonate_reactor, "precipitation_reactor"):
+                    li_mol_s = m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp[
+                        "Liq", "Li"
+                    ]
+                    flow_vol = m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_vol
+                elif hasattr(m.fs.lithium_carbonate_reactor, "dissolution_reactor"):
+                    li_mol_s = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_mol_phase_comp[
+                        "Liq", "Li"
+                    ]
+                    # Prefer total volumetric flow if present, otherwise use liquid-phase volumetric flow
+                    if hasattr(m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0], "flow_vol"):
+                        flow_vol = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol
+                    else:
+                        flow_vol = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
+
+                if li_mol_s is not None and flow_vol is not None:
+                    flow_vol_L_s = pyunits.convert(flow_vol, to_units=pyunits.L / pyunits.s)
+                    if value(flow_vol_L_s) > 0:
+                        li_conc = pyunits.convert(li_mol_s / flow_vol_L_s, to_units=pyunits.mol / pyunits.L)
+                        print(f"  Li molarity entering reactor: {value(li_conc):.4f} mol/L")
+            except (AttributeError, TypeError, KeyError, ZeroDivisionError):
+                pass
             
             if hasattr(m.fs.lithium_carbonate_reactor, 'flow_mass_reagent'):
                 reagent_flow = m.fs.lithium_carbonate_reactor.flow_mass_reagent['Na2CO3']
@@ -613,6 +647,10 @@ def display_results(m, show_costing=False):
             if hasattr(m.fs.lithium_carbonate_reactor, 'reaction_rate_constant_li'):
                 k_li = value(m.fs.lithium_carbonate_reactor.reaction_rate_constant_li)
                 print(f"  First-order reaction rate constant (Li): {k_li:.6f} s⁻¹")
+                if k_li > 0:
+                    t_half_s = log(2) / k_li
+                    t_half_h = t_half_s / 3600
+                    print(f"  Half-life (Li): {t_half_s:.1f} s ({t_half_h:.2f} h)")
         except (AttributeError, TypeError, KeyError):
             pass
         try:
@@ -736,18 +774,30 @@ def display_results(m, show_costing=False):
         if hasattr(m.fs.soda_ash_reactor, 'reaction_rate_constant_mg'):
             k_mg = value(m.fs.soda_ash_reactor.reaction_rate_constant_mg)
             print(f"    Soda ash reactor: {vol_m3:.2f} m³, k_Mg = {k_mg:.6f} s⁻¹")
+            if k_mg > 0:
+                t_half_s = log(2) / k_mg
+                t_half_h = t_half_s / 3600
+                print(f"      Half-life: {t_half_s:.1f} s ({t_half_h:.2f} h)")
     if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'reactor_volume'):
         vol_m3 = value(m.fs.lime_reactor.reactor_volume)
         total_reactor_volume += vol_m3
         if hasattr(m.fs.lime_reactor, 'reaction_rate_constant_mg'):
             k_mg = value(m.fs.lime_reactor.reaction_rate_constant_mg)
             print(f"    Lime reactor: {vol_m3:.2f} m³, k_Mg = {k_mg:.6f} s⁻¹")
+            if k_mg > 0:
+                t_half_s = log(2) / k_mg
+                t_half_h = t_half_s / 3600
+                print(f"      Half-life: {t_half_s:.1f} s ({t_half_h:.2f} h)")
     if hasattr(m.fs, 'lithium_carbonate_reactor') and hasattr(m.fs.lithium_carbonate_reactor, 'reactor_volume'):
         vol_m3 = value(m.fs.lithium_carbonate_reactor.reactor_volume)
         total_reactor_volume += vol_m3
         if hasattr(m.fs.lithium_carbonate_reactor, 'reaction_rate_constant_li'):
             k_li = value(m.fs.lithium_carbonate_reactor.reaction_rate_constant_li)
             print(f"    Lithium carbonate reactor: {vol_m3:.2f} m³, k_Li = {k_li:.6f} s⁻¹")
+            if k_li > 0:
+                t_half_s = log(2) / k_li
+                t_half_h = t_half_s / 3600
+                print(f"      Half-life: {t_half_s:.1f} s ({t_half_h:.2f} h)")
     if total_reactor_volume > 0:
         print(f"    Total reactor volume: {total_reactor_volume:.2f} m³")
     

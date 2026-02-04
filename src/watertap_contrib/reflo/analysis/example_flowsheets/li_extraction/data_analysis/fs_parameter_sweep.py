@@ -50,10 +50,10 @@ def build_sweep_params(m, **kwargs):
     # )
 
     sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.4, 2.56, 5
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.4, 2.56, 25
     )
     sweep_params['Inlet TDS concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 5
+        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 25
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -68,7 +68,7 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.friction_head, 800, 1000, 3
     # )
     sweep_params['Final Li+ concentration'] = LinearSample(
-        m.fs.final_li_conc, 0.03, 0.03, 1
+        m.fs.final_li_conc, 0.030, 0.030, 1
     )
     sweep_params['Final TDS concentration'] = LinearSample(
         m.fs.final_tds_conc, 0.400, 0.400, 1
@@ -105,6 +105,7 @@ def build_outputs(m, **kwargs):
     outputs['total_capital_cost (USD)'] = m.fs.costing.total_capital_cost
     outputs['total_operating_cost (USD/year)'] = m.fs.costing.total_operating_cost
     outputs['fraction_evaporated'] = m.fs.fraction_evaporated
+    outputs['mass_inlet_h2o (kg/s)'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"]
     
     # Input parameter (for verification that it matches)
     # outputs['Resultant government agreements cost'] = m.fs.government_agreements_unit_cost
@@ -185,9 +186,9 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep012726_1_no_init_lower_bound.csv', 
+        csv_results_file_name='parameter_sweep020426_1.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'parameter_sweep012726_1.csv'") 
+    print("Results saved to 'parameter_sweep020426_1.csv'") 

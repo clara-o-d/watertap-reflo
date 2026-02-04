@@ -31,25 +31,11 @@ def create_heat_map(csv_file_path, flow_volume):
     df.columns = expected_columns
     print("Set column names:", df.columns.tolist())
     
-    # Filter for only rows with final Li+ concentration = 2.0e-02 and final TDS concentration = 2.0e-01
-    # df_filtered = df[
-    #     (df['Final Li+ concentration'] == 2.0e-02) & 
-    #     (df['Final TDS concentration'] == 2.0e-01)
-    # ].copy()
     df_filtered = df.copy()
-    
-    # Filter inlet TDS concentrations up to 3.967778e+02
-    # df_filtered = df_filtered[df_filtered['Inlet TDS concentration'] < 3.967778e+02].copy()
-    
-    # Remove rows with NaN values in LCOLi
-    # df_filtered = df_filtered.dropna(subset=['LCOLi (USD/mt)'])
     
     # Calculate inlet concentrations in g/L (avoid rounding to preserve distinct levels)
     df_filtered['inlet_li_conc'] = (df_filtered['Inlet Li+ concentration'] / (flow_volume))
     df_filtered['inlet_tds_conc'] = (df_filtered['Inlet TDS concentration'] / (flow_volume))
-    
-    # Convert levelized cost to thousands per metric ton
-    df_filtered['levelized_cost_thousands'] = df_filtered['LCOLi (USD/mt)'] / 1000
     
     # Create binned heat map data
     num_bins = 10  # Number of bins for each axis
@@ -62,9 +48,9 @@ def create_heat_map(csv_file_path, flow_volume):
     df_filtered['li_bin'] = pd.cut(df_filtered['inlet_li_conc'], bins=li_bins, labels=False, include_lowest=True)
     df_filtered['tds_bin'] = pd.cut(df_filtered['inlet_tds_conc'], bins=tds_bins, labels=False, include_lowest=True)
     
-    # Create binned pivot table
+    # Create binned pivot table using fraction_evaporated
     pivot_data = df_filtered.pivot_table(
-        values='levelized_cost_thousands',
+        values='fraction_evaporated',
         index='li_bin',
         columns='tds_bin',
         aggfunc='mean'
@@ -88,7 +74,7 @@ def create_heat_map(csv_file_path, flow_volume):
     # Calculate baseline values for percentage calculations (using bin centers)
     baseline_li = li_centers[-1]  # Use highest bin center as baseline
     baseline_tds = tds_centers[-1]  # Use highest bin center as baseline
-    baseline_cost = pivot_data.iloc[-1, -1]  # Use highest bin value as baseline
+    baseline_evap_frac = pivot_data.iloc[-1, -1]  # Use highest bin value as baseline
     
     # Create percentage variation labels for x-axis (TDS concentrations)
     x_labels = []
@@ -118,24 +104,24 @@ def create_heat_map(csv_file_path, flow_volume):
     heatmap = plt.imshow(pivot_data.values, cmap='viridis', aspect='auto', 
                          extent=[tds_bins[0], tds_bins[-1], 
                                 li_bins[0], li_bins[-1]],
-                         origin='lower', vmin=baseline_cost)
+                         origin='lower')
     
     # Add colorbar with the same styling
-    cbar = plt.colorbar(heatmap, label='Levelized cost (thousands $/t Li⁺)')
-    cbar.ax.set_ylabel('Levelized cost (thousands $/t Li⁺)', fontsize=14)
+    cbar = plt.colorbar(heatmap, label='Fraction evaporated')
+    cbar.ax.set_ylabel('Fraction evaporated', fontsize=14)
     cbar.ax.tick_params(labelsize=10)
     
-    # Colorbar ticks: use unique averaged bin values from lowest to highest, every 10th tick
+    # Colorbar ticks: use unique averaged bin values from lowest to highest, every 20th tick
     unique_values = np.unique(pivot_data.values[~np.isnan(pivot_data.values)])
     unique_values = np.sort(unique_values)  # Sort from lowest to highest
     
-    # Use every 10th unique bin value as colorbar ticks, ensuring highest is included
+    # Use every 20th unique bin value as colorbar ticks, ensuring highest is included
     cbar_ticks = unique_values[::20]
     if unique_values[-1] not in cbar_ticks:
         cbar_ticks = np.append(cbar_ticks, unique_values[-1])
     cbar.set_ticks(cbar_ticks)
     cbar.set_ticklabels([
-        f"{t:.3g}\n(0%)" if abs(t - baseline_cost) < 0.01 else f"{t:.3g}\n({'+' if t > baseline_cost else ''}{((t-baseline_cost)/baseline_cost)*100:.0f}%)"
+        f"{t:.3g}\n(0%)" if abs(t - baseline_evap_frac) < 0.01 else f"{t:.3g}\n({'+' if t > baseline_evap_frac else ''}{((t-baseline_evap_frac)/baseline_evap_frac)*100:.0f}%)"
         for t in cbar_ticks
     ])
     
@@ -170,7 +156,7 @@ def create_heat_map(csv_file_path, flow_volume):
     # Set labels and title
     plt.xlabel('Inlet TDS concentration (g/L)', fontsize=14)
     plt.ylabel('Inlet Li$^+$ concentration (g/L)', fontsize=14)
-    plt.title('Li$^+$ brine levelized cost estimates and % change', fontsize=16, fontweight='bold')
+    plt.title('Evaporation fraction and % change', fontsize=16, fontweight='bold')
     
     # Grid off for cleaner heat map
     plt.grid(False)
@@ -181,7 +167,6 @@ def create_heat_map(csv_file_path, flow_volume):
         'Salar de Hombre Muerto': {'li_range': [0.69, 1.05], 'tds_range': [166.1, 200], 'color': 'cyan'},
         'Salar de Uyuni': {'li_range': [1.1, 1.35], 'tds_range': [250, 290], 'color': 'yellow'},
         'Produced waters': {'li_range': [0.3959, 0.5], 'tds_range': [166.1, 245], 'color': 'orange'},
-        # 'Geothermal': {'li_range': [0.3959, 0.5], 'tds_range': [166.1, 300], 'color': 'red'}
     }
     
     # Get heat map boundaries
@@ -194,28 +179,6 @@ def create_heat_map(csv_file_path, flow_volume):
         li_min, li_max = ranges['li_range']
         tds_min, tds_max = ranges['tds_range']
         color = ranges['color']
-        
-        # Add colored range indicators on x-axis (TDS concentrations)
-        # if tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min:
-        #     # Draw colored line segment directly on x-axis
-        #     tds_start = max(tds_min, heatmap_tds_min)
-        #     tds_end = min(tds_max, heatmap_tds_max)
-        #     if tds_start < tds_end:
-        #         # Draw thick colored line on x-axis at y=0 (bottom of heat map)
-        #         plt.plot([tds_start, tds_end], 
-        #                 [heatmap_li_min, heatmap_li_min], 
-        #                 color=color, linewidth=10, alpha=1)
-        
-        # Add colored range indicators on y-axis (Li+ concentrations)
-        # if li_min <= heatmap_li_max and li_max >= heatmap_li_min:
-        #     # Draw colored line segment directly on y-axis
-        #     li_start = max(li_min, heatmap_li_min)
-        #     li_end = min(li_max, heatmap_li_max)
-        #     if li_start < li_end:
-        #         # Draw thick colored line on y-axis at x=0 (left of heat map)
-        #         plt.plot([heatmap_tds_min, heatmap_tds_min], 
-        #                 [li_start, li_end], 
-        #                 color=color, linewidth=10, alpha=1)
         
         # Draw dotted outline of the range rectangle on the heat map
         # Extend edges that are at the graph boundary, keep boxes otherwise
@@ -306,9 +269,6 @@ def create_heat_map(csv_file_path, flow_volume):
     legend_elements.append(plt.Line2D([0], [0], marker='*', color='black', 
                                      markerfacecolor='white', markeredgecolor='black',
                                      markersize=8, linestyle='', label='WaterTAP model'))
-    
-    # Add legend
-    # plt.legend(handles=legend_elements, loc='upper left', fontsize=12, bbox_to_anchor=(0.02, 0.98))
     
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
