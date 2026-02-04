@@ -24,7 +24,7 @@ def create_heat_map(csv_file_path, flow_volume):
         'Final TDS concentration', 'LCOLi (USD/mt)', 'aggregate_capital_cost (USD)',
         'aggregate_fixed_operating_cost (USD/year)', 'aggregate_variable_operating_cost (USD/year)',
         'total_capital_cost (USD)', 'total_operating_cost (USD/year)', 'fraction_evaporated',
-        'Resultant inlet Li+ concentration', 'Resultant inlet TDS concentration',
+        'mass_inlet_h2o (kg/s)', 'Resultant inlet Li+ concentration', 'Resultant inlet TDS concentration',
         'Resultant final Li+ concentration', 'Resultant final TDS concentration',
     ]
     
@@ -48,6 +48,12 @@ def create_heat_map(csv_file_path, flow_volume):
     df_filtered['inlet_li_conc'] = (df_filtered['Inlet Li+ concentration'] / (flow_volume))
     df_filtered['inlet_tds_conc'] = (df_filtered['Inlet TDS concentration'] / (flow_volume))
     
+    # Calculate full range from all data (including NaN values) before filtering
+    full_li_min = df_filtered['inlet_li_conc'].min()
+    full_li_max = df_filtered['inlet_li_conc'].max()
+    full_tds_min = df_filtered['inlet_tds_conc'].min()
+    full_tds_max = df_filtered['inlet_tds_conc'].max()
+    
     # Convert levelized cost to thousands per metric ton
     df_filtered['levelized_cost_thousands'] = df_filtered['LCOLi (USD/mt)'] / 1000
     
@@ -65,17 +71,17 @@ def create_heat_map(csv_file_path, flow_volume):
         baseline_cost = baseline_cost_data.iloc[0]
     
     # Create the scatter plot with raw data
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(7, 6))
     
     # Create scatter plot with raw data points colored by levelized cost
     scatter = plt.scatter(df_filtered['inlet_tds_conc'], df_filtered['inlet_li_conc'], 
                          c=df_filtered['levelized_cost_thousands'], 
-                         cmap='viridis', s=50, alpha=0.7, vmin=baseline_cost)
+                         cmap='viridis', s=30, alpha=0.7, vmin=baseline_cost)
     
     # Add colorbar with the same styling
     cbar = plt.colorbar(scatter, label='Levelized cost (thousands $/t Li⁺)')
-    cbar.ax.set_ylabel('Levelized cost (thousands $/t Li⁺)', fontsize=14)
-    cbar.ax.tick_params(labelsize=12)
+    cbar.ax.set_ylabel('Levelized cost (thousands $/t Li⁺)', fontsize=13)
+    cbar.ax.tick_params(labelsize=11)
     
     # Colorbar ticks: start at base case (0% at bottom)
     vmax = df_filtered['levelized_cost_thousands'].max()
@@ -90,9 +96,9 @@ def create_heat_map(csv_file_path, flow_volume):
     # Set custom x and y tick labels with percentage variations (evenly spaced ticks)
     max_ticks = 6
     
-    # Create evenly spaced tick positions across the full range
-    x_tick_positions = np.linspace(df_filtered['inlet_tds_conc'].min(), df_filtered['inlet_tds_conc'].max(), num=max_ticks)
-    y_tick_positions = np.linspace(df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max(), num=max_ticks)
+    # Create evenly spaced tick positions across the full range (including null values)
+    x_tick_positions = np.linspace(full_tds_min, full_tds_max, num=max_ticks)
+    y_tick_positions = np.linspace(full_li_min, full_li_max, num=max_ticks)
     
     # Create tick labels for these evenly spaced positions
     x_tick_labels = []
@@ -114,13 +120,17 @@ def create_heat_map(csv_file_path, flow_volume):
             sign = "+" if pct_change > 0 else ""
             y_tick_labels.append(f"{y_pos:.4f}\n({sign}{pct_change:.0f}%)")
     
-    plt.xticks(x_tick_positions, x_tick_labels, rotation=45, ha='right', fontsize=12)
-    plt.yticks(y_tick_positions, y_tick_labels, fontsize=12)
+    plt.xticks(x_tick_positions, x_tick_labels, rotation=45, ha='right', fontsize=11)
+    plt.yticks(y_tick_positions, y_tick_labels, fontsize=11)
+    
+    # Set axis limits to show full range (including areas with null/empty values)
+    plt.xlim(full_tds_min, full_tds_max)
+    plt.ylim(full_li_min, full_li_max)
     
     # Set labels and title
-    plt.xlabel('Inlet TDS concentration (g/L)', fontsize=14)
-    plt.ylabel('Inlet Li$^+$ concentration (g/L)', fontsize=14)
-    plt.title('Li$^+$ brine levelized cost estimates and % change', fontsize=16, fontweight='bold')
+    plt.xlabel('Inlet TDS concentration (g/L)', fontsize=13)
+    plt.ylabel('Inlet Li$^+$ concentration (g/L)', fontsize=13)
+    plt.title('Li$^+$ brine cost estimates and % change', fontsize=13, fontweight='bold')
     
     # Grid off for cleaner heat map
     plt.grid(False)
@@ -134,105 +144,105 @@ def create_heat_map(csv_file_path, flow_volume):
         # 'Geothermal': {'li_range': [0.3959, 0.5], 'tds_range': [166.1, 300], 'color': 'red'}
     }
     
-    # Get data boundaries
-    heatmap_li_min, heatmap_li_max = df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max()
-    heatmap_tds_min, heatmap_tds_max = df_filtered['inlet_tds_conc'].min(), df_filtered['inlet_tds_conc'].max()
+    # Get data boundaries (use full range to show entire parameter space)
+    heatmap_li_min, heatmap_li_max = full_li_min, full_li_max
+    heatmap_tds_min, heatmap_tds_max = full_tds_min, full_tds_max
     
-    # Add colored range indicators on x and y axes for each brine source
-    legend_elements = []
-    for name, ranges in brine_ranges.items():
-        li_min, li_max = ranges['li_range']
-        tds_min, tds_max = ranges['tds_range']
-        color = ranges['color']
+    # # Add colored range indicators on x and y axes for each brine source
+    # legend_elements = []
+    # for name, ranges in brine_ranges.items():
+    #     li_min, li_max = ranges['li_range']
+    #     tds_min, tds_max = ranges['tds_range']
+    #     color = ranges['color']
         
-        # Add colored range indicators on x-axis (TDS concentrations)
-        if tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min:
-            # Draw colored line segment directly on x-axis
-            tds_start = max(tds_min, heatmap_tds_min)
-            tds_end = min(tds_max, heatmap_tds_max)
-            if tds_start < tds_end:
-                # Draw thick colored line on x-axis at y=0 (bottom of heat map)
-                plt.plot([tds_start, tds_end], 
-                        [heatmap_li_min, heatmap_li_min], 
-                        color=color, linewidth=10, alpha=1)
+    #     # Add colored range indicators on x-axis (TDS concentrations)
+    #     if tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min:
+    #         # Draw colored line segment directly on x-axis
+    #         tds_start = max(tds_min, heatmap_tds_min)
+    #         tds_end = min(tds_max, heatmap_tds_max)
+    #         if tds_start < tds_end:
+    #             # Draw thick colored line on x-axis at y=0 (bottom of heat map)
+    #             plt.plot([tds_start, tds_end], 
+    #                     [heatmap_li_min, heatmap_li_min], 
+    #                     color=color, linewidth=10, alpha=1)
         
-        # Add colored range indicators on y-axis (Li+ concentrations)
-        if li_min <= heatmap_li_max and li_max >= heatmap_li_min:
-            # Draw colored line segment directly on y-axis
-            li_start = max(li_min, heatmap_li_min)
-            li_end = min(li_max, heatmap_li_max)
-            if li_start < li_end:
-                # Draw thick colored line on y-axis at x=0 (left of heat map)
-                plt.plot([heatmap_tds_min, heatmap_tds_min], 
-                        [li_start, li_end], 
-                        color=color, linewidth=10, alpha=1)
+    #     # Add colored range indicators on y-axis (Li+ concentrations)
+    #     if li_min <= heatmap_li_max and li_max >= heatmap_li_min:
+    #         # Draw colored line segment directly on y-axis
+    #         li_start = max(li_min, heatmap_li_min)
+    #         li_end = min(li_max, heatmap_li_max)
+    #         if li_start < li_end:
+    #             # Draw thick colored line on y-axis at x=0 (left of heat map)
+    #             plt.plot([heatmap_tds_min, heatmap_tds_min], 
+    #                     [li_start, li_end], 
+    #                     color=color, linewidth=10, alpha=1)
         
-        # Draw dotted outline of the range rectangle on the heat map
-        # Top horizontal line - only if it intersects with heat map
-        if li_max >= heatmap_li_min and li_max <= heatmap_li_max:
-            tds_start = max(tds_min, heatmap_tds_min)
-            tds_end = min(tds_max, heatmap_tds_max)
-            if tds_start < tds_end:
-                plt.plot([tds_start, tds_end], [li_max, li_max], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+    #     # Draw dotted outline of the range rectangle on the heat map
+    #     # Top horizontal line - only if it intersects with heat map
+    #     if li_max >= heatmap_li_min and li_max <= heatmap_li_max:
+    #         tds_start = max(tds_min, heatmap_tds_min)
+    #         tds_end = min(tds_max, heatmap_tds_max)
+    #         if tds_start < tds_end:
+    #             plt.plot([tds_start, tds_end], [li_max, li_max], 
+    #                     color=color, linestyle='--', linewidth=3, alpha=1)
         
-        # Bottom horizontal line - only if it intersects with heat map
-        if li_min >= heatmap_li_min and li_min <= heatmap_li_max:
-            tds_start = max(tds_min, heatmap_tds_min)
-            tds_end = min(tds_max, heatmap_tds_max)
-            if tds_start < tds_end:
-                plt.plot([tds_start, tds_end], [li_min, li_min], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+    #     # Bottom horizontal line - only if it intersects with heat map
+    #     if li_min >= heatmap_li_min and li_min <= heatmap_li_max:
+    #         tds_start = max(tds_min, heatmap_tds_min)
+    #         tds_end = min(tds_max, heatmap_tds_max)
+    #         if tds_start < tds_end:
+    #             plt.plot([tds_start, tds_end], [li_min, li_min], 
+    #                     color=color, linestyle='--', linewidth=3, alpha=1)
         
-        # Left vertical line - only if it intersects with heat map
-        if tds_min >= heatmap_tds_min and tds_min <= heatmap_tds_max:
-            li_start = max(li_min, heatmap_li_min)
-            li_end = min(li_max, heatmap_li_max)
-            if li_start < li_end:
-                plt.plot([tds_min, tds_min], [li_start, li_end], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+    #     # Left vertical line - only if it intersects with heat map
+    #     if tds_min >= heatmap_tds_min and tds_min <= heatmap_tds_max:
+    #         li_start = max(li_min, heatmap_li_min)
+    #         li_end = min(li_max, heatmap_li_max)
+    #         if li_start < li_end:
+    #             plt.plot([tds_min, tds_min], [li_start, li_end], 
+    #                     color=color, linestyle='--', linewidth=3, alpha=1)
         
-        # Right vertical line - only if it intersects with heat map
-        if tds_max >= heatmap_tds_min and tds_max <= heatmap_tds_max:
-            li_start = max(li_min, heatmap_li_min)
-            li_end = min(li_max, heatmap_li_max)
-            if li_start < li_end:
-                plt.plot([tds_max, tds_max], [li_start, li_end], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+    #     # Right vertical line - only if it intersects with heat map
+    #     if tds_max >= heatmap_tds_min and tds_max <= heatmap_tds_max:
+    #         li_start = max(li_min, heatmap_li_min)
+    #         li_end = min(li_max, heatmap_li_max)
+    #         if li_start < li_end:
+    #             plt.plot([tds_max, tds_max], [li_start, li_end], 
+    #                     color=color, linestyle='--', linewidth=3, alpha=1)
         
-        # Add text label in the center of each brine source range
-        if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
-            tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min):
-            # Calculate center position for the label
-            li_center = (max(li_min, heatmap_li_min) + min(li_max, heatmap_li_max)) / 2
-            tds_center = (max(tds_min, heatmap_tds_min) + min(tds_max, heatmap_tds_max)) / 2
+    #     # Add text label in the center of each brine source range
+    #     if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
+    #         tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min):
+    #         # Calculate center position for the label
+    #         li_center = (max(li_min, heatmap_li_min) + min(li_max, heatmap_li_max)) / 2
+    #         tds_center = (max(tds_min, heatmap_tds_min) + min(tds_max, heatmap_tds_max)) / 2
             
-            # Handle multi-line text for Salar de Hombre Muerto
-            if name == 'Salar de Hombre Muerto':
-                display_text = 'Salar de\nHombre Muerto'
-            else:
-                display_text = name
+    #         # Handle multi-line text for Salar de Hombre Muerto
+    #         if name == 'Salar de Hombre Muerto':
+    #             display_text = 'Salar de\nHombre Muerto'
+    #         else:
+    #             display_text = name
             
         
-            # Add text label with translucent white background for better visibility
-            plt.text(tds_center, li_center, display_text, 
-                    ha='center', va='center', fontsize=12, fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                             edgecolor=color, linewidth=2, alpha=0.7))
+    #         # Add text label with translucent white background for better visibility
+    #         plt.text(tds_center, li_center, display_text, 
+    #                 ha='center', va='center', fontsize=12, fontweight='bold',
+    #                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+    #                          edgecolor=color, linewidth=2, alpha=0.7))
         
-        # Create legend element
-        legend_elements.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=3, label=name))
+    #     # Create legend element
+    #     legend_elements.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=3, label=name))
     
     # Add WaterTAP model reference point at maximum concentrations (slightly offset)
     offset_tds = baseline_tds - ((heatmap_tds_max - heatmap_tds_min) * 0.01)  # Move left by 2% of TDS range
     offset_li = baseline_li - ((heatmap_li_max - heatmap_li_min) * 0.01)      # Move down by 2% of Li range
-    plt.plot(offset_tds, offset_li, 'k*', markersize=30, markeredgewidth=2, 
+    plt.plot(offset_tds, offset_li, 'k*', markersize=20, markeredgewidth=1.5, 
              markeredgecolor='black', markerfacecolor='white', label='WaterTAP model')
     
-    # Add WaterTAP model to legend elements
-    legend_elements.append(plt.Line2D([0], [0], marker='*', color='black', 
-                                     markerfacecolor='white', markeredgecolor='black',
-                                     markersize=8, linestyle='', label='WaterTAP model'))
+    # # Add WaterTAP model to legend elements
+    # legend_elements.append(plt.Line2D([0], [0], marker='*', color='black', 
+    #                                  markerfacecolor='white', markeredgecolor='black',
+    #                                  markersize=8, linestyle='', label='WaterTAP model'))
     
     # Add legend
     # plt.legend(handles=legend_elements, loc='upper left', fontsize=12, bbox_to_anchor=(0.02, 0.98))
@@ -247,7 +257,7 @@ def create_heat_map(csv_file_path, flow_volume):
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
     FLOW_VOLUME = 1.280  # Flow volume for mass fraction conversion
-    CSV_FILE = "parameter_sweep1.csv"
+    CSV_FILE = "parameter_sweep020426_1.csv"
     
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME)

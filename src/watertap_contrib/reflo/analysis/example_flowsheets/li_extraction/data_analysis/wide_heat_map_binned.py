@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import numpy.ma as ma
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -24,7 +25,7 @@ def create_heat_map(csv_file_path, flow_volume):
         'Final TDS concentration', 'LCOLi (USD/mt)', 'aggregate_capital_cost (USD)',
         'aggregate_fixed_operating_cost (USD/year)', 'aggregate_variable_operating_cost (USD/year)',
         'total_capital_cost (USD)', 'total_operating_cost (USD/year)', 'fraction_evaporated',
-        'Resultant inlet Li+ concentration', 'Resultant inlet TDS concentration',
+        'mass_inlet_h2o (kg/s)', 'Resultant inlet Li+ concentration', 'Resultant inlet TDS concentration',
         'Resultant final Li+ concentration', 'Resultant final TDS concentration',
     ]
     
@@ -48,15 +49,21 @@ def create_heat_map(csv_file_path, flow_volume):
     df_filtered['inlet_li_conc'] = (df_filtered['Inlet Li+ concentration'] / (flow_volume))
     df_filtered['inlet_tds_conc'] = (df_filtered['Inlet TDS concentration'] / (flow_volume))
     
+    # Calculate full range from all data (including NaN values) before filtering
+    full_li_min = df_filtered['inlet_li_conc'].min()
+    full_li_max = df_filtered['inlet_li_conc'].max()
+    full_tds_min = df_filtered['inlet_tds_conc'].min()
+    full_tds_max = df_filtered['inlet_tds_conc'].max()
+    
     # Convert levelized cost to thousands per metric ton
     df_filtered['levelized_cost_thousands'] = df_filtered['LCOLi (USD/mt)'] / 1000
     
     # Create binned heat map data
-    num_bins = 10  # Number of bins for each axis
+    num_bins = 11  # Number of bins for each axis
     
-    # Create bins for Li+ and TDS concentrations
-    li_bins = np.linspace(df_filtered['inlet_li_conc'].min(), df_filtered['inlet_li_conc'].max(), num_bins + 1)
-    tds_bins = np.linspace(df_filtered['inlet_tds_conc'].min(), df_filtered['inlet_tds_conc'].max(), num_bins + 1)
+    # Create bins for Li+ and TDS concentrations using full range (including null values)
+    li_bins = np.linspace(full_li_min, full_li_max, num_bins + 1)
+    tds_bins = np.linspace(full_tds_min, full_tds_max, num_bins + 1)
     
     # Assign each data point to bins
     df_filtered['li_bin'] = pd.cut(df_filtered['inlet_li_conc'], bins=li_bins, labels=False, include_lowest=True)
@@ -70,25 +77,55 @@ def create_heat_map(csv_file_path, flow_volume):
         aggfunc='mean'
     )
     
+    # Reindex to include all bins (0 to num_bins-1) even if empty
+    all_bins = range(num_bins)
+    pivot_data = pivot_data.reindex(index=all_bins, columns=all_bins)
+    
     # Create bin center values for plotting
     li_centers = (li_bins[:-1] + li_bins[1:]) / 2
     tds_centers = (tds_bins[:-1] + tds_bins[1:]) / 2
     
-    # Interpolate to fill missing values in the binned grid
-    pivot_filled = (
-        pivot_data
-            .interpolate(method='linear', axis=1, limit_direction='both')
-            .interpolate(method='linear', axis=0, limit_direction='both')
-            .ffill(axis=1).bfill(axis=1)
-            .ffill(axis=0).bfill(axis=0)
-    )
-    if pivot_filled.isna().any().any():
-        pivot_filled = pivot_filled.fillna(pivot_filled.stack().mean())
+    # # Interpolate to fill missing values in the binned grid
+    # pivot_filled = (
+    #     pivot_data
+    #         .interpolate(method='linear', axis=1, limit_direction='both')
+    #         .interpolate(method='linear', axis=0, limit_direction='both')
+    #         .ffill(axis=1).bfill(axis=1)
+    #         .ffill(axis=0).bfill(axis=0)
+    # )
+    # if pivot_filled.isna().any().any():
+    #     pivot_filled = pivot_filled.fillna(pivot_filled.stack().mean())
 
     # Calculate baseline values for percentage calculations (using bin centers)
     baseline_li = li_centers[-1]  # Use highest bin center as baseline
     baseline_tds = tds_centers[-1]  # Use highest bin center as baseline
-    baseline_cost = pivot_data.iloc[-1, -1]  # Use highest bin value as baseline
+    # Get baseline cost from highest bin, or use max of all non-NaN values if highest bin is empty
+    if pd.isna(pivot_data.iloc[-1, -1]):
+        baseline_cost = pivot_data.stack().max()
+    else:
+        baseline_cost = pivot_data.iloc[-1, -1]
+    
+    # Get baseline water flow rate for mass % conversion (from baseline conditions)
+    # Find data point closest to baseline Li and TDS concentrations
+    baseline_mask = (df_filtered['inlet_li_conc'] >= baseline_li * 0.99) & \
+                    (df_filtered['inlet_li_conc'] <= baseline_li * 1.01)
+    baseline_h2o_data = df_filtered[baseline_mask]['mass_inlet_h2o (kg/s)']
+    if len(baseline_h2o_data) > 0:
+        baseline_h2o = baseline_h2o_data.iloc[0]
+    else:
+        # Fallback to average water flow rate
+        baseline_h2o = df_filtered['mass_inlet_h2o (kg/s)'].mean()
+    
+    # Function to convert g/L to mass % (Li mass / water mass * 100)
+    def gl_to_mass_pct(conc_gl):
+        # conc_gl * flow_volume = Inlet Li+ concentration (kg/s)
+        # mass % = (Inlet Li+ concentration / mass_inlet_h2o) * 100
+        li_mass_flow = conc_gl * flow_volume  # kg/s
+        mass_pct = (li_mass_flow / baseline_h2o) * 100
+        return mass_pct
+    
+    # Calculate baseline mass % for percentage change calculations
+    baseline_li_mass_pct = gl_to_mass_pct(baseline_li)
     
     # Create percentage variation labels for x-axis (TDS concentrations)
     x_labels = []
@@ -111,18 +148,26 @@ def create_heat_map(csv_file_path, flow_volume):
             y_labels.append(f"{idx:.3g}\n({sign}{pct_change:.0f}%)")
     
     # Create the heat map
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(7, 6))
     
     # Create heat map using imshow (with binned data)
     # Use bin edges for extent so bin centers align with tick positions
-    heatmap = plt.imshow(pivot_data.values, cmap='viridis', aspect='auto', 
+    # Use masked array so NaN values appear as empty space
+    pivot_plot = ma.masked_invalid(pivot_data.values)
+    
+    if np.isnan(baseline_cost):
+        vmin_val = None
+    else:
+        vmin_val = baseline_cost
+    
+    heatmap = plt.imshow(pivot_plot, cmap='viridis', aspect='auto', 
                          extent=[tds_bins[0], tds_bins[-1], 
                                 li_bins[0], li_bins[-1]],
-                         origin='lower', vmin=baseline_cost)
+                         origin='lower', vmin=vmin_val)
     
     # Add colorbar with the same styling
     cbar = plt.colorbar(heatmap, label='Levelized cost (thousands $/t Li⁺)')
-    cbar.ax.set_ylabel('Levelized cost (thousands $/t Li⁺)', fontsize=14)
+    cbar.ax.set_ylabel('Levelized cost (thousands $/t Li⁺)', fontsize=13)
     cbar.ax.tick_params(labelsize=10)
     
     # Colorbar ticks: use unique averaged bin values from lowest to highest, every 10th tick
@@ -156,21 +201,27 @@ def create_heat_map(csv_file_path, flow_volume):
             x_tick_labels.append(f"{x_pos:.3g}\n({sign}{pct_change:.0f}%)")
     
     for y_pos in y_tick_positions:
+        # Convert from g/L to mass % for display
+        y_pos_mass_pct = gl_to_mass_pct(y_pos)
         if abs(y_pos - baseline_li) < 0.01:  # Use small tolerance for float comparison
-            y_tick_labels.append(f"{y_pos:.3g}\n(0%)")
+            y_tick_labels.append(f"{y_pos_mass_pct:.2f}\n(0%)")
         else:
             pct_change = ((y_pos - baseline_li) / baseline_li) * 100
             sign = "+" if pct_change > 0 else ""
-            y_tick_labels.append(f"{y_pos:.3g}\n({sign}{pct_change:.0f}%)")
+            y_tick_labels.append(f"{y_pos_mass_pct:.2f}\n({sign}{pct_change:.0f}%)")
     
     # Set ticks on one side only
-    plt.xticks(x_tick_positions, x_tick_labels, rotation=45, ha='right', fontsize=10)
-    plt.yticks(y_tick_positions, y_tick_labels, fontsize=10)
+    plt.xticks(x_tick_positions, x_tick_labels, rotation=45, ha='right', fontsize=11)
+    plt.yticks(y_tick_positions, y_tick_labels, fontsize=11)
+    
+    # Set axis limits to show full range (including areas with null/empty values)
+    plt.xlim(full_tds_min, full_tds_max)
+    plt.ylim(full_li_min, full_li_max)
     
     # Set labels and title
-    plt.xlabel('Inlet TDS concentration (g/L)', fontsize=14)
-    plt.ylabel('Inlet Li$^+$ concentration (g/L)', fontsize=14)
-    plt.title('Li$^+$ brine levelized cost estimates and % change', fontsize=16, fontweight='bold')
+    plt.xlabel('Inlet TDS concentration (ppt)', fontsize=13)
+    plt.ylabel('Inlet Li$^+$ mass % (solvent-based, water)', fontsize=13)
+    plt.title('Li$^+$ brine cost estimates and % change', fontsize=13, fontweight='bold')
     
     # Grid off for cleaner heat map
     plt.grid(False)
@@ -184,9 +235,9 @@ def create_heat_map(csv_file_path, flow_volume):
         # 'Geothermal': {'li_range': [0.3959, 0.5], 'tds_range': [166.1, 300], 'color': 'red'}
     }
     
-    # Get heat map boundaries
-    heatmap_li_min, heatmap_li_max = li_centers.min(), li_centers.max()
-    heatmap_tds_min, heatmap_tds_max = tds_centers.min(), tds_centers.max()
+    # Get heat map boundaries (use full range to show entire parameter space)
+    heatmap_li_min, heatmap_li_max = full_li_min, full_li_max
+    heatmap_tds_min, heatmap_tds_max = full_tds_min, full_tds_max
     
     # Add colored range indicators on x and y axes for each brine source
     legend_elements = []
@@ -232,7 +283,7 @@ def create_heat_map(csv_file_path, flow_volume):
                 tds_end = min(tds_max, heatmap_tds_max)
             if tds_start < tds_end:
                 plt.plot([tds_start, tds_end], [li_max, li_max], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+                        color=color, linestyle='--', linewidth=2, alpha=1)
         
         # Bottom horizontal line
         if li_min >= heatmap_li_min and li_min <= heatmap_li_max:
@@ -245,7 +296,7 @@ def create_heat_map(csv_file_path, flow_volume):
                 tds_end = min(tds_max, heatmap_tds_max)
             if tds_start < tds_end:
                 plt.plot([tds_start, tds_end], [li_min, li_min], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+                        color=color, linestyle='--', linewidth=2, alpha=1)
         
         # Left vertical line
         if tds_min >= heatmap_tds_min and tds_min <= heatmap_tds_max:
@@ -258,7 +309,7 @@ def create_heat_map(csv_file_path, flow_volume):
                 li_end = min(li_max, heatmap_li_max)
             if li_start < li_end:
                 plt.plot([tds_min, tds_min], [li_start, li_end], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+                        color=color, linestyle='--', linewidth=2, alpha=1)
         
         # Right vertical line
         if tds_max >= heatmap_tds_min and tds_max <= heatmap_tds_max:
@@ -271,7 +322,7 @@ def create_heat_map(csv_file_path, flow_volume):
                 li_end = min(li_max, heatmap_li_max)
             if li_start < li_end:
                 plt.plot([tds_max, tds_max], [li_start, li_end], 
-                        color=color, linestyle='--', linewidth=3, alpha=1)
+                        color=color, linestyle='--', linewidth=2, alpha=1)
         
         # Add text label in the center of each brine source range
         if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
@@ -289,17 +340,17 @@ def create_heat_map(csv_file_path, flow_volume):
         
             # Add text label with translucent white background for better visibility
             plt.text(tds_center, li_center, display_text, 
-                    ha='center', va='center', fontsize=12, fontweight='bold',
+                    ha='center', va='center', fontsize=10, fontweight='bold',
                     bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                             edgecolor=color, linewidth=2, alpha=0.7))
+                             edgecolor=color, linewidth=1.5, alpha=0.7))
         
         # Create legend element
-        legend_elements.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=3, label=name))
+        legend_elements.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=2, label=name))
     
     # Add WaterTAP model reference point at maximum concentrations (slightly offset)
     offset_tds = baseline_tds - ((heatmap_tds_max - heatmap_tds_min) * 0.01)  # Move left by 2% of TDS range
     offset_li = baseline_li - ((heatmap_li_max - heatmap_li_min) * 0.01)      # Move down by 2% of Li range
-    plt.plot(offset_tds, offset_li, 'k*', markersize=30, markeredgewidth=2, 
+    plt.plot(offset_tds, offset_li, 'k*', markersize=20, markeredgewidth=1.5, 
              markeredgecolor='black', markerfacecolor='white', label='WaterTAP model')
     
     # Add WaterTAP model to legend elements
@@ -320,7 +371,7 @@ def create_heat_map(csv_file_path, flow_volume):
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
     FLOW_VOLUME = 1.280  # Flow volume for mass fraction conversion
-    CSV_FILE = "parameter_sweep1.csv"
+    CSV_FILE = "parameter_sweep020426_1.csv"
     
     # Create the heat map
     result_data = create_heat_map(CSV_FILE, FLOW_VOLUME)
