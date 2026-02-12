@@ -16,7 +16,7 @@ def build_model(**kwargs):
     m = build_flowsheet(stage=5)
     add_costing(m)
     process_costing(m)
-    results = solve(m)
+    # results = solve(m)
 
     return m
 
@@ -40,13 +40,13 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.lime_solution_molality, 1.0, 5.0, 5
     # )
     
-    # sweep_params['Mg removal fraction (soda ash)'] = LinearSample(
-    #     m.fs.magnesium_removal_fraction_soda_ash_reactor, 0.20, 0.70, 3
-    # )
+    sweep_params['Mg removal fraction (soda ash)'] = LinearSample(
+        m.fs.magnesium_removal_fraction_soda_ash_reactor, 0.20, 0.70, 3
+    )
     
-    # sweep_params['Mg removal fraction (lime)'] = LinearSample(
-    #     m.fs.magnesium_removal_fraction_lime_reactor, 0.7, 0.99, 3
-    # )
+    sweep_params['Mg removal fraction (lime)'] = LinearSample(
+        m.fs.magnesium_removal_fraction_lime_reactor, 0.7, 0.99, 3
+    )
     
     # sweep_params['Ca removal fraction (soda ash)'] = LinearSample(
     #     m.fs.calcium_removal_fraction_soda_ash_reactor, 0.1, 0.4, 3
@@ -60,21 +60,33 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.sulfate_removal_fraction_lime_reactor, 0.7, 0.99, 3
     # )
     
-    # sweep_params['Li removal fraction'] = LinearSample(
-    #     m.fs.lithium_removal_fraction_lithium_reactor, 0.3, 0.7, 5
+    sweep_params['Li removal fraction'] = LinearSample(
+        m.fs.lithium_removal_fraction_lithium_reactor, 0.3, 0.7, 5
+    )
+
+    # sweep_params['Pump efficiency'] = LinearSample(
+    #     m.fs.brine_pump.efficiency_pump[0], 0.7, 0.8, 3
     # )
 
-    sweep_params['Pump efficiency'] = LinearSample(
-        m.fs.brine_pump.efficiency_pump[0], 0.7, 0.8, 3
-    )
+    # sweep_params['Inlet Li+ flow'] = LinearSample(
+    #     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"], 100, 150, 5
+    # )
 
-    sweep_params['Inlet Li+ flow'] = LinearSample(
-        m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"], 100, 150, 5
-    )
+    # sweep_params['Soda ash waste mass fraction'] = LinearSample(
+    #     m.fs.soda_ash_reactor.waste_mass_frac_precipitate, 0.3, 0.7, 3
+    # )
 
-    sweep_params['Soda ash waste mass fraction'] = LinearSample(
-        m.fs.soda_ash_reactor.waste_mass_frac_precipitate, 0.3, 0.7, 3
-    )
+    # sweep_params['Soda ash reactor reaction constant'] = LinearSample(
+    #     m.fs.soda_ash_reactor.reaction_rate_constant_mg, 0.002, 0.006, 3
+    # )
+
+    # sweep_params['Lime reactor reaction constant'] = LinearSample(
+    #     m.fs.lime_reactor.reaction_rate_constant_mg, 0.002, 0.006, 3
+    # )
+
+    # sweep_params['Lithium reactor reaction constant'] = LinearSample(
+    #     m.fs.lithium_carbonate_reactor.reaction_rate_constant_li, 0.002, 0.006, 3
+    # )
 
     return sweep_params
 
@@ -86,16 +98,20 @@ def build_outputs(m, **kwargs):
     # outputs['Output annual lime (kg/year)'] = m.fs.annual_lime_input
     # outputs['Output soda ash molality (mol/kg)'] = m.fs.soda_ash_solution_molality
     # outputs['Output lime molality (mol/kg)'] = m.fs.lime_solution_molality
-    # outputs['Output magnesium removal fraction (soda ash)'] = m.fs.magnesium_removal_fraction_soda_ash_reactor_param
-    # outputs['Output magnesium removal fraction (lime)'] = m.fs.magnesium_removal_fraction_lime_reactor
+    outputs['Output magnesium removal fraction (soda ash)'] = m.fs.magnesium_removal_fraction_soda_ash_reactor_param
+    outputs['Output magnesium removal fraction (lime)'] = m.fs.magnesium_removal_fraction_lime_reactor
     # outputs['Output calcium removal fraction (soda ash)'] = m.fs.calcium_removal_fraction_soda_ash_reactor
     # outputs['Output calcium removal fraction (lime)'] = m.fs.calcium_removal_fraction_lime_reactor
     # outputs['Output sulfate removal fraction (lime)'] = m.fs.sulfate_removal_fraction_lime_reactor
-    # outputs['Output lithium removal fraction'] = m.fs.lithium_removal_fraction_lithium_reactor
+    outputs['Output lithium removal fraction'] = m.fs.lithium_removal_fraction_lithium_reactor
     
-    outputs['Pump efficiency'] = m.fs.brine_pump.efficiency_pump[0]
-    outputs['Inlet Li+ flow'] = m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
-    outputs['Soda ash waste mass fraction'] = m.fs.soda_ash_reactor.waste_mass_frac_precipitate
+    # outputs['Pump efficiency'] = m.fs.brine_pump.efficiency_pump[0]
+    # outputs['Inlet Li+ flow'] = m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"]
+    # outputs['Soda ash waste mass fraction'] = m.fs.soda_ash_reactor.waste_mass_frac_precipitate
+
+    # outputs['Soda ash reactor reaction constant'] = m.fs.soda_ash_reactor.reaction_rate_constant_mg
+    # outputs['Lime reactor reaction constant'] = m.fs.lime_reactor.reaction_rate_constant_mg
+    # outputs['Lithium reactor reaction constant'] = m.fs.lithium_carbonate_reactor.reaction_rate_constant_li
 
     outputs['Li2CO3 production (kg/s)'] = m.fs.lithium_carbonate_reactor.flow_mass_precipitate["Li2CO3"]
     outputs['Capital cost (USD)'] = m.fs.costing.total_capital_cost
@@ -158,7 +174,7 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep011426_1.csv', 
+        csv_results_file_name='parameter_sweep021126_2.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )

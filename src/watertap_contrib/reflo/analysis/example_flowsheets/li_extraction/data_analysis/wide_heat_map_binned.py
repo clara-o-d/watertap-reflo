@@ -270,79 +270,81 @@ def create_heat_map(csv_file_path, flow_volume):
         
         # Draw dotted outline of the range rectangle on the heat map
         # Extend edges that are at the graph boundary, keep boxes otherwise
-        edge_tolerance = 0.01  # Tolerance for detecting if edge is at boundary
-        
-        # Top horizontal line
-        if li_max >= heatmap_li_min and li_max <= heatmap_li_max:
-            # Check if this is at the top edge of the graph
-            if abs(li_max - heatmap_li_max) < edge_tolerance:
-                tds_start = tds_bins[0]  # Extend to left edge
-                tds_end = tds_bins[-1]   # Extend to right edge
-            else:
-                tds_start = max(tds_min, heatmap_tds_min)
-                tds_end = min(tds_max, heatmap_tds_max)
-            if tds_start < tds_end:
-                plt.plot([tds_start, tds_end], [li_max, li_max], 
-                        color=color, linestyle='--', linewidth=2, alpha=1)
-        
-        # Bottom horizontal line
-        if li_min >= heatmap_li_min and li_min <= heatmap_li_max:
-            # Check if this is at the bottom edge of the graph
-            if abs(li_min - heatmap_li_min) < edge_tolerance:
-                tds_start = tds_bins[0]  # Extend to left edge
-                tds_end = tds_bins[-1]   # Extend to right edge
-            else:
-                tds_start = max(tds_min, heatmap_tds_min)
-                tds_end = min(tds_max, heatmap_tds_max)
-            if tds_start < tds_end:
-                plt.plot([tds_start, tds_end], [li_min, li_min], 
-                        color=color, linestyle='--', linewidth=2, alpha=1)
-        
-        # Left vertical line
-        if tds_min >= heatmap_tds_min and tds_min <= heatmap_tds_max:
-            # Check if this is at the left edge of the graph
-            if abs(tds_min - heatmap_tds_min) < edge_tolerance:
-                li_start = li_bins[0]    # Extend to bottom edge
-                li_end = li_bins[-1]     # Extend to top edge
-            else:
-                li_start = max(li_min, heatmap_li_min)
-                li_end = min(li_max, heatmap_li_max)
-            if li_start < li_end:
-                plt.plot([tds_min, tds_min], [li_start, li_end], 
-                        color=color, linestyle='--', linewidth=2, alpha=1)
-        
-        # Right vertical line
-        if tds_max >= heatmap_tds_min and tds_max <= heatmap_tds_max:
-            # Check if this is at the right edge of the graph
-            if abs(tds_max - heatmap_tds_max) < edge_tolerance:
-                li_start = li_bins[0]    # Extend to bottom edge
-                li_end = li_bins[-1]     # Extend to top edge
-            else:
-                li_start = max(li_min, heatmap_li_min)
-                li_end = min(li_max, heatmap_li_max)
-            if li_start < li_end:
-                plt.plot([tds_max, tds_max], [li_start, li_end], 
-                        color=color, linestyle='--', linewidth=2, alpha=1)
+        # edge_tolerance = 0.01  # Tolerance for detecting if edge is at boundary
+        # 
+        # # Top horizontal line
+        # if li_max >= heatmap_li_min and li_max <= heatmap_li_max:
+        #     # Check if this is at the top edge of the graph
+        #     if abs(li_max - heatmap_li_max) < edge_tolerance:
+        #         tds_start = tds_bins[0]  # Extend to left edge
+        #         tds_end = tds_bins[-1]   # Extend to right edge
+        #     else:
+        #         tds_start = max(tds_min, heatmap_tds_min)
+        #         tds_end = min(tds_max, heatmap_tds_max)
+        #     if tds_start < tds_end:
+        #         plt.plot([tds_start, tds_end], [li_max, li_max], 
+        #                 color=color, linestyle='--', linewidth=2, alpha=1)
+        # 
+        # # Bottom horizontal line
+        # if li_min >= heatmap_li_min and li_min <= heatmap_li_max:
+        #     # Check if this is at the bottom edge of the graph
+        #     if abs(li_min - heatmap_li_min) < edge_tolerance:
+        #         tds_start = tds_bins[0]  # Extend to left edge
+        #         tds_end = tds_bins[-1]   # Extend to right edge
+        #     else:
+        #         tds_start = max(tds_min, heatmap_tds_min)
+        #         tds_end = min(tds_max, heatmap_tds_max)
+        #     if tds_start < tds_end:
+        #         plt.plot([tds_start, tds_end], [li_min, li_min], 
+        #                 color=color, linestyle='--', linewidth=2, alpha=1)
+        # 
+        # # Left vertical line
+        # if tds_min >= heatmap_tds_min and tds_min <= heatmap_tds_max:
+        #     # Check if this is at the left edge of the graph
+        #     if abs(tds_min - heatmap_tds_min) < edge_tolerance:
+        #         li_start = li_bins[0]    # Extend to bottom edge
+        #         li_end = li_bins[-1]     # Extend to top edge
+        #     else:
+        #         li_start = max(li_min, heatmap_li_min)
+        #         li_end = min(li_max, heatmap_li_max)
+        #     if li_start < li_end:
+        #         plt.plot([tds_min, tds_min], [li_start, li_end], 
+        #                 color=color, linestyle='--', linewidth=2, alpha=1)
+        # 
+        # # Right vertical line
+        # if tds_max >= heatmap_tds_min and tds_max <= heatmap_tds_max:
+        #     # Check if this is at the right edge of the graph
+        #     if abs(tds_max - heatmap_tds_max) < edge_tolerance:
+        #         li_start = li_bins[0]    # Extend to bottom edge
+        #         li_end = li_bins[-1]     # Extend to top edge
+        #     else:
+        #         li_start = max(li_min, heatmap_li_min)
+        #         li_end = min(li_max, heatmap_li_max)
+        #     if li_start < li_end:
+        #         plt.plot([tds_max, tds_max], [li_start, li_end], 
+        #                 color=color, linestyle='--', linewidth=2, alpha=1)
+        pass
         
         # Add text label in the center of each brine source range
-        if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
-            tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min):
-            # Calculate center position for the label
-            li_center = (max(li_min, heatmap_li_min) + min(li_max, heatmap_li_max)) / 2
-            tds_center = (max(tds_min, heatmap_tds_min) + min(tds_max, heatmap_tds_max)) / 2
-            
-            # Handle multi-line text for Salar de Hombre Muerto
-            if name == 'Salar de Hombre Muerto':
-                display_text = 'Salar de\nHombre Muerto'
-            else:
-                display_text = name
-            
-        
-            # Add text label with translucent white background for better visibility
-            plt.text(tds_center, li_center, display_text, 
-                    ha='center', va='center', fontsize=10, fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                             edgecolor=color, linewidth=1.5, alpha=0.7))
+        # if (li_min <= heatmap_li_max and li_max >= heatmap_li_min and 
+        #     tds_min <= heatmap_tds_max and tds_max >= heatmap_tds_min):
+        #     # Calculate center position for the label
+        #     li_center = (max(li_min, heatmap_li_min) + min(li_max, heatmap_li_max)) / 2
+        #     tds_center = (max(tds_min, heatmap_tds_min) + min(tds_max, heatmap_tds_max)) / 2
+        #     
+        #     # Handle multi-line text for Salar de Hombre Muerto
+        #     if name == 'Salar de Hombre Muerto':
+        #         display_text = 'Salar de\nHombre Muerto'
+        #     else:
+        #         display_text = name
+        #     
+        # 
+        #     # Add text label with translucent white background for better visibility
+        #     plt.text(tds_center, li_center, display_text, 
+        #             ha='center', va='center', fontsize=10, fontweight='bold',
+        #             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+        #                      edgecolor=color, linewidth=1.5, alpha=0.7))
+        pass
         
         # Create legend element
         legend_elements.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=2, label=name))
@@ -361,12 +363,45 @@ def create_heat_map(csv_file_path, flow_volume):
     # Add legend
     # plt.legend(handles=legend_elements, loc='upper left', fontsize=12, bbox_to_anchor=(0.02, 0.98))
     
+    # Add bars across the plot for specific locations
+    location_data = {
+        'Clayton Valley': 0.16,
+        'Salton Sea': 0.065,
+        'Great Salt Lake': 0.20,
+        'Salar de Atacama': 1.9,
+        'Salar del Hombre Muerto': 0.521,
+        'Salar de Uyuni': 0.321,
+        'Zhabuye Lake': 0.680
+    }
+    
+    # Get the current axis
+    ax = plt.gca()
+    
+    # Get y-axis range for label offset calculation
+    ylim = ax.get_ylim()
+    y_range = ylim[1] - ylim[0]
+    label_offset = y_range * 0.01  # Position labels 1% above the bar
+    
+    for location, li_conc_gl in location_data.items():
+        # Check if this location is within the y-axis range
+        if li_conc_gl >= heatmap_li_min and li_conc_gl <= heatmap_li_max:
+            # Draw horizontal bar extending across the entire plot
+            plt.plot([heatmap_tds_min, heatmap_tds_max], [li_conc_gl, li_conc_gl], 
+                    color='black', linewidth=2, solid_capstyle='butt', alpha=0.7, zorder=10)
+            
+            # Determine label color (white for Salar de Atacama, black for others)
+            label_color = 'white' if location == 'Salar de Atacama' else 'black'
+            
+            # Add label slightly above the bar
+            plt.text(heatmap_tds_min, li_conc_gl + label_offset, location,
+                    ha='left', va='bottom', fontsize=10, color=label_color, fontweight='bold')
+    
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
     
     plt.show()
     
-    return pivot_filled
+    return pivot_data
 
 if __name__ == "__main__":
     # Parameters - UPDATE THESE VALUES
