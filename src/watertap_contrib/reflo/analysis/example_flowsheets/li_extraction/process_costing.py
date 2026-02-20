@@ -32,6 +32,17 @@ def process_costing(m):
         expr=m.fs.costing.LCOLi_mass == pyunits.convert(m.fs.costing.LCOLi * pyunits.m**3 / pyunits.kg, to_units=m.fs.costing.base_currency / pyunits.t)
     )
 
+    # Add variable and constraint for $/kg Li2CO3
+    m.fs.costing.LCOLi2CO3_mass = Var(
+        initialize=1000,
+        units=m.fs.costing.base_currency / pyunits.t,
+        bounds=(0, None),
+        doc="Levelized cost of lithium carbonate by mass ($/mt Li2CO3)"
+    )
+    m.fs.costing.LCOLi2CO3_mass_constraint = Constraint(
+        expr=m.fs.costing.LCOLi2CO3_mass == pyunits.convert(m.fs.costing.LCOLi * pyunits.m**3 / pyunits.kg / 5.32272006917, to_units=m.fs.costing.base_currency / pyunits.t)
+    )
+
     # Add variable and constraint for kWh/kg
     m.fs.costing.specific_energy_consumption_mass = Var(
         initialize=1000,

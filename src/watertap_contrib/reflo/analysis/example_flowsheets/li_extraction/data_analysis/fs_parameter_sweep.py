@@ -49,11 +49,11 @@ def build_sweep_params(m, **kwargs):
     #     m.fs.costing.electricity_cost, 0.14, 0.18, 3
     # )
 
-    sweep_params['Inlet Li+ concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"], 0.4, 2.56, 25
+    sweep_params['Inlet Li+ molality'] = LinearSample(
+        m.fs.li_conc_molality, 0.10, 0.288, 10 # 0.288, 0.288, 1 
     )
-    sweep_params['Inlet TDS concentration'] = LinearSample(
-        m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"], 200, 453, 25
+    sweep_params['Inlet TDS concentration (ppt)'] = LinearSample(
+        m.fs.tds_conc_ppt, 150, 289, 10 # 289, 289, 1 
     )
 
     # sweep_params['Inlet vapor temperature'] = LinearSample(
@@ -67,11 +67,11 @@ def build_sweep_params(m, **kwargs):
     # sweep_params['Pipeline friction head'] = LinearSample(
     #     m.fs.friction_head, 800, 1000, 3
     # )
-    sweep_params['Final Li+ concentration'] = LinearSample(
-        m.fs.final_li_conc, 0.030, 0.030, 1
+    sweep_params['Final Li+ concentration (kg/kg)'] = LinearSample(
+        m.fs.final_li_conc, 0.03, 0.03, 1
     )
-    sweep_params['Final TDS concentration'] = LinearSample(
-        m.fs.final_tds_conc, 0.400, 0.400, 1
+    sweep_params['Final TDS concentration (kg/kg)'] = LinearSample(
+        m.fs.final_tds_conc, 0.4, 0.4, 1
     )
     # sweep_params['Dike height'] = LinearSample(
     #     m.fs.number_of_wells, 379, 379, 1
@@ -99,6 +99,7 @@ def build_outputs(m, **kwargs):
     outputs = dict()
     
     outputs['LCOLi (USD/t)'] = m.fs.costing.LCOLi_mass
+    outputs['LCOLi2CO3 (USD/t)'] = m.fs.costing.LCOLi2CO3_mass
     outputs['aggregate_capital_cost (USD)'] = m.fs.costing.aggregate_capital_cost
     outputs['aggregate_fixed_operating_cost (USD/year)'] = m.fs.costing.aggregate_fixed_operating_cost
     outputs['aggregate_variable_operating_cost (USD/year)'] = m.fs.costing.aggregate_variable_operating_cost
@@ -115,13 +116,15 @@ def build_outputs(m, **kwargs):
     # outputs['Resultant electricity cost'] = m.fs.costing.electricity_cost
 
     # outputs['Resultant evaporation rate adjustment factor'] = m.fs.pond.evaporation_rate_salinity_adjustment_factor
-    outputs['Resultant inlet Li+ concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
-    outputs['Resultant inlet TDS concentration'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"]
+    outputs['Resultant inlet Li+ molality (mol/kg)'] = m.fs.li_conc_molality
+    outputs['Resultant inlet TDS concentration (kg/kg)'] = m.fs.tds_conc_ppt
+    outputs['Resultant inlet Li+ mass flow (kg/s)'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"]
+    outputs['Resultant inlet TDS mass flow (kg/s)'] = m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"]
     # outputs['Resultant inlet vapor temperature'] = m.fs.feed.properties[0].temperature["Vap"]
     # outputs['Resultant pipeline friction head'] = m.fs.friction_head
 
-    outputs['Resultant final Li+ concentration'] = m.fs.final_li_conc
-    outputs['Resultant final TDS concentration'] = m.fs.final_tds_conc
+    outputs['Resultant final Li+ concentration (kg/kg)'] = m.fs.final_li_conc
+    outputs['Resultant final TDS concentration (kg/kg)'] = m.fs.final_tds_conc
     # outputs['Resultant pipeline length'] = m.fs.piping_length
     # outputs['Resultant utilization factor'] = m.fs.costing.utilization_factor
     # # Additional useful outputs
@@ -186,9 +189,9 @@ if __name__ == "__main__":
         build_model, 
         build_sweep_params, 
         build_outputs,
-        csv_results_file_name='parameter_sweep020426_1.csv', 
+        csv_results_file_name='parameter_sweep022026_2.csv', 
         h5_results_file_name='parameter_sweep.h5',
         optimize_function=optimize_function,
     )
     print("Parameter sweep completed successfully!")
-    print("Results saved to 'parameter_sweep020426_1.csv'") 
+    print("Results saved to 'parameter_sweep022026_2.csv'") 

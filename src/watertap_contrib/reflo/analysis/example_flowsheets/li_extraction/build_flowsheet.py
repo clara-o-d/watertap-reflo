@@ -121,23 +121,9 @@ def build_flowsheet():
     m.fs.feed_to_pond = Arc(source=m.fs.feed.outlet, destination=m.fs.pond.inlet)
     TransformationFactory("network.expand_arcs").apply_to(m)
 
-    # Set feed conditions - brine composition and operating parameters
-    flow_vol = 1.280 # m^3/s
-    tds_conc = 250 # kg/m^3
-    li_conc = 1.3 # kg/m^3
-    water_conc = 873 # kg/m^3
-
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "TDS"].fix(tds_conc*flow_vol)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "Li+"].fix(li_conc*flow_vol)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(water_conc*flow_vol)
-    m.fs.feed.properties[0].temperature.fix(300)  # K
-    m.fs.feed.properties[0].pressure.fix(101325)  # Pa
-    m.fs.feed.properties[0].flow_mass_phase_comp["Vap", "Air"].fix(1)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Vap", "H2O"].fix(0)
-    print(f"DOF after setting feed: {degrees_of_freedom(m)}")
-
-    # Apply process modifications and set pond parameters
+    # Apply process modifications (includes feed condition setting) and set pond parameters
     modify_process(m)
+    print(f"DOF after modify_process: {degrees_of_freedom(m)}")
     define_pond_parameters(m)
     print(f"DOF after define_pond_parameters: {degrees_of_freedom(m)}")
     

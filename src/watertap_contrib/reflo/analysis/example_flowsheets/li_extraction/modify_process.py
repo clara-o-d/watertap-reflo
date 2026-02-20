@@ -9,15 +9,41 @@ from pyomo.core.base.constraint import Constraint
 from pyomo.core.base.var import Var
 from pyomo.core.base.param import Param
 
-def general_parameters(m):
-    """Define general process parameters including density, precipitation, and pumping."""
-    # Solution density for brine calculations
+def feed_parameters(m):
+    """Define feed stream parameters as variables that can be fixed."""
+    m.fs.flow_vol = Var(
+        initialize=1.280,
+        bounds=(0, None),
+        units=pyunits.m**3 / pyunits.s,
+        doc="Volumetric flow rate"
+    )
+    m.fs.flow_vol.fix()
+    
+    m.fs.tds_conc_ppt = Var(
+        initialize=289,
+        bounds=(0, None),
+        units=pyunits.g / pyunits.kg,
+        doc="TDS concentration, ppt"
+    )
+    m.fs.tds_conc_ppt.fix()
+    
+    m.fs.li_conc_molality = Var(
+        initialize=0.288,
+        bounds=(0, None),
+        units=pyunits.mol / pyunits.kg,
+        doc="Lithium concentration, molality"
+    )
+    m.fs.li_conc_molality.fix()
+
     m.fs.rho = Param(
         initialize=1227,
         mutable=True,
         units=pyunits.kg / pyunits.m**3,
         doc="Solution density"
     )
+
+def general_parameters(m):
+    """Define general process parameters."""
     
     # Pond design safety factor
     m.fs.pond_overdesign_factor = Param(
@@ -147,7 +173,7 @@ def flow_variables(m):
     
     m.fs.fraction_evaporated = Var(
         initialize=0.987,
-        bounds=(0, 0.99),
+        bounds=(0, 0.989),
         units=pyunits.dimensionless,
         doc="Fraction of water that is evaporated"
     )
@@ -201,6 +227,37 @@ def evaporative_area_section(m):
         return b.total_evaporative_area_required * b.mass_flux_water_vapor_average == m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"] * m.fs.fraction_evaporated * m.fs.pond_overdesign_factor
     m.fs.pond.eq_total_evaporative_area_required_partial = Constraint(rule=eq_total_evaporative_area_required_partial, doc="Total evaporative area required for partial evaporation with overdesign factor")
 
+def feed_conditions(m):
+    """Set feed conditions using the feed parameter variables."""
+    prop_in = m.fs.feed.properties[0]
+    li_molar_mass = 0.00694 * pyunits.kg/pyunits.mol
+    water_density = 1000 * pyunits.kg/pyunits.m**3
+    
+    # Unfix feed flows and create constraints to link them to parameter variables
+    prop_in.flow_mass_phase_comp["Liq", "TDS"].unfix()
+    prop_in.flow_mass_phase_comp["Liq", "Li+"].unfix()
+    prop_in.flow_mass_phase_comp["Liq", "H2O"].unfix()
+    
+    @m.fs.Constraint(doc="TDS mass flow constraint")
+    def eq_feed_tds_flow(b):
+        return prop_in.flow_mass_phase_comp["Liq", "TDS"] == pyunits.convert(b.tds_conc_ppt * b.rho, to_units=pyunits.kg/pyunits.m**3) * b.flow_vol
+    
+    @m.fs.Constraint(doc="Li+ mass flow constraint")
+    def eq_feed_li_flow(b):
+        return prop_in.flow_mass_phase_comp["Liq", "Li+"] == b.li_conc_molality * li_molar_mass * water_density * b.flow_vol
+    
+    @m.fs.Constraint(doc="H2O mass flow constraint")
+    def eq_feed_h2o_flow(b):
+        return prop_in.flow_mass_phase_comp["Liq", "H2O"] == b.rho * (1 - pyunits.convert(b.tds_conc_ppt, to_units=pyunits.dimensionless)) * b.flow_vol
+    
+    # Fix temperature and pressure
+    prop_in.temperature.fix(300)
+    prop_in.pressure.fix(101325)
+    
+    # Fix vapor phase flows
+    prop_in.flow_mass_phase_comp["Vap", "Air"].fix(1)
+    prop_in.flow_mass_phase_comp["Vap", "H2O"].fix(0)
+
 def modify_process(m):
     """Apply process modifications to the flowsheet."""
     # Remove original expressions and constraints
@@ -209,6 +266,10 @@ def modify_process(m):
     if hasattr(m.fs.pond, 'eq_total_evaporative_area_required'):
         m.fs.pond.eq_total_evaporative_area_required.deactivate()
         
+    # Add feed parameters and set feed conditions
+    feed_parameters(m)
+    feed_conditions(m)
+    
     # Add all parameters and infrastructure
     general_parameters(m)
     brine_extraction_section(m)
