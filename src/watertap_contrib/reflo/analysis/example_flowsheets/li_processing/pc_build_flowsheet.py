@@ -241,7 +241,7 @@ def set_brine_feed_conditions(m):
     total_solute_mass_fraction = sum(ppm[c] / 1e6 for c in ppm) + (H_conc_mol_L * MW["H"] / density) + (OH_conc_mol_L * MW["OH"] / density)
     water_mass_fraction = 1.0 - total_solute_mass_fraction  # dimensionless
     water_mass_flow = water_mass_fraction * total_flow_mass  # kg/s
-    water_molar_flow = water_mass_flow / MW["H2O"]  # mol/s
+    water_molar_flow = water_mass_flow * 1000 / MW["H2O"]  # mol/s
     m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "H2O"].fix(pyo.value(water_molar_flow))
 
 def modify_flowsheet(m):
@@ -262,7 +262,7 @@ def modify_flowsheet(m):
             doc="First-order reaction rate constant for magnesium precipitation in soda ash reactor"
         )
         m.fs.soda_ash_reactor.reaction_rate_constant_mg_param = pyo.Param(
-            initialize=2e-3,
+            initialize=0.0004267,
             mutable=True,
             units=pyunits.s**-1,
             doc="Parameter for first-order magnesium precipitation reaction rate constant"
@@ -284,7 +284,7 @@ def modify_flowsheet(m):
             doc="First-order reaction rate constant for magnesium precipitation in lime reactor"
         )
         m.fs.lime_reactor.reaction_rate_constant_mg_param = pyo.Param(
-            initialize=2e-3,
+            initialize=0.00128,
             mutable=True,
             units=pyunits.s**-1,
             doc="Parameter for first-order magnesium precipitation reaction rate constant"
@@ -306,7 +306,7 @@ def modify_flowsheet(m):
             doc="First-order reaction rate constant for lithium precipitation in lithium carbonate reactor"
         )
         m.fs.lithium_carbonate_reactor.reaction_rate_constant_li_param = pyo.Param(
-            initialize=4e-3,
+            initialize=0.000853,
             mutable=True,
             units=pyunits.s**-1,
             doc="Parameter for first-order lithium precipitation reaction rate constant"
@@ -378,7 +378,7 @@ def modify_flowsheet(m):
         doc="Molality of soda ash solution"
     )
     m.fs.soda_ash_solution_molality_param = pyo.Param(
-        initialize=4,
+        initialize=1.2, # 0.6 # 4.0
         mutable=True,
         units=pyunits.mol / pyunits.kg,
         doc="Parameter for soda ash solution molality"
@@ -392,7 +392,7 @@ def modify_flowsheet(m):
         doc="Molality of lime solution"
     )
     m.fs.lime_solution_molality_param = pyo.Param(
-        initialize=1.5,
+        initialize=3.4,
         mutable=True,
         units=pyunits.mol / pyunits.kg,
         doc="Parameter for lime solution molality"
@@ -407,7 +407,7 @@ def modify_flowsheet(m):
         doc="Molar magnesium removal fraction from soda ash reactor"
     )
     m.fs.magnesium_removal_fraction_soda_ash_reactor_param = pyo.Param(
-        initialize=0.45,
+        initialize=0.77,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Parameter for magnesium removal fraction from soda ash reactor"
@@ -477,7 +477,7 @@ def modify_flowsheet(m):
         doc="Molar lithium removal fraction from lithium reactor"
     )
     m.fs.lithium_removal_fraction_lithium_reactor_param = pyo.Param(
-        initialize=0.4,
+        initialize=0.8,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Parameter for lithium removal fraction from lithium reactor"

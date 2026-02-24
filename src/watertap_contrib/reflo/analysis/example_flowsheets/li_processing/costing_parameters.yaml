@@ -18,7 +18,7 @@ reactor_cost:
 flow_costs:
   soda_ash_cost: 0.5
   lime_cost: 0.3
-  process_water_cost: 0.001
+  process_water_cost: 0.00025
 general:
   plant_lifetime: 35
   wacc: 0.1

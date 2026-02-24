@@ -500,6 +500,28 @@ def display_results(m, show_costing=False):
                 print(f"  Reactor volume: {vol_m3:.2f} m³ ({vol_L:,.0f} L)")
         except (AttributeError, TypeError, KeyError):
             pass
+        try:
+            props_in = m.fs.soda_ash_reactor.dissolution_reactor.properties_in[0]
+            li_mass_in = props_in.flow_mol_phase_comp["Liq", "Li"] * m.fs.brine_props.mw_comp["Li"]
+            total_mass_in = sum(
+                props_in.flow_mol_phase_comp["Liq", comp] * m.fs.brine_props.mw_comp[comp]
+                for comp in m.fs.brine_props.component_list
+            )
+            li_pct_in = value(pyunits.convert(li_mass_in / total_mass_in, to_units=pyunits.dimensionless)) * 100
+            print(f"  Li mass % (inlet): {li_pct_in:.4f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            props_out = m.fs.soda_ash_reactor.precipitation_reactor.properties_out[0]
+            li_mass_out = props_out.flow_mol_phase_comp["Liq", "Li"] * m.fs.brine_props.mw_comp["Li"]
+            total_mass_out = sum(
+                props_out.flow_mol_phase_comp["Liq", comp] * m.fs.brine_props.mw_comp[comp]
+                for comp in m.fs.brine_props.component_list
+            )
+            li_pct_out = value(pyunits.convert(li_mass_out / total_mass_out, to_units=pyunits.dimensionless)) * 100
+            print(f"  Li mass % (outlet): {li_pct_out:.4f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
     
     if hasattr(m.fs, 'lime_reactor'):
         print(f"\nLIME REACTOR (SECOND SOFTENING STAGE):")
