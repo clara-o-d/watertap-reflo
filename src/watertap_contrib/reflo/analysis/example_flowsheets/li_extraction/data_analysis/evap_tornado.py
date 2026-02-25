@@ -301,7 +301,7 @@ def create_tornado_plot(sensitivity_df, target_col, title=None, param_name_mappi
 def main():
     """Main function to run the sensitivity analysis."""
     target_col = 'LCOLi (USD/t)'
-    possible_files = ['parameter_sweep021126_2.csv']
+    possible_files = ['parameter_sweep022526_3.csv']
     df = None
     
     for filename in possible_files:
@@ -331,9 +331,16 @@ def main():
         # 'Soda ash reactor reaction constant',
         # 'Lime reactor reaction constant',
         # 'Lithium reactor reaction constant',
-        'Mg removal fraction (soda ash)',
-        'Mg removal fraction (lime)',
-        'Li removal fraction',
+        # 'Mg removal fraction (soda ash)',
+        # 'Mg removal fraction (lime)',
+        # 'Li removal fraction',
+        # 'Ca removal fraction (lime)',
+        # 'Soda ash reactor reaction constant',
+        # 'Lime reactor reaction constant',
+        # 'Lithium reactor reaction constant',
+        'Pump efficiency',
+        'Inlet Li+ flow',
+        'Soda ash waste mass fraction',
     ]
     
     # Confirm input/output match for each parameter
@@ -372,9 +379,16 @@ def main():
             # 'Soda ash reactor reaction constant': 'Soda ash\nreactor reaction constant',
             # 'Lime reactor reaction constant': 'Lime\nreactor reaction constant',
             # 'Lithium reactor reaction constant': 'Lithium\nreactor reaction constant',
-            'Mg removal fraction (soda ash)': 'Mg removal\nfraction (soda ash)',
-            'Mg removal fraction (lime)': 'Mg removal\nfraction (lime)',
-            'Li removal fraction': 'Li removal\nfraction',
+            # 'Mg removal fraction (soda ash)': 'Mg removal\nfraction (soda ash)',
+            # 'Mg removal fraction (lime)': 'Mg removal\nfraction (lime)',
+            # 'Li removal fraction': 'Li removal\nfraction',
+            # 'Ca removal fraction (lime)': 'Ca removal\nfraction (lime)',
+            # 'Soda ash reactor reaction constant': 'Soda ash\nreactor reaction constant',
+            # 'Lime reactor reaction constant': 'Lime\nreactor reaction constant',
+            # 'Lithium reactor reaction constant': 'Lithium\nreactor reaction constant',
+            'Pump efficiency': 'Pump efficiency',
+            'Inlet Li+ flow': 'Inlet Li+ flow',
+            'Soda ash waste mass fraction': 'Soda ash\nwaste mass fraction',
         }
         
         fig, ax = create_tornado_plot(sensitivity_df, target_col, 
