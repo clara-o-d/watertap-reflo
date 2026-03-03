@@ -40,8 +40,9 @@ from pyomo.core.base.param import Param
 
 # IDAES imports
 from idaes.core import FlowsheetBlock
-from idaes.models.unit_models import Feed, Pump, Separator
+from idaes.models.unit_models import Feed, Pump, Separator, Mixer
 from idaes.models.unit_models.separator import SplittingType
+from idaes.models.unit_models.mixer import MixingType
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core import MaterialFlowBasis
@@ -601,11 +602,29 @@ def modify_flowsheet(m):
             doc="Ion split fraction to overflow for lithium dewatering unit"
         )
 
+        m.fs.mother_liquor_recycle_fraction = pyo.Var(
+            initialize=0.5,
+            bounds=(0, 1),
+            units=pyunits.dimensionless,
+            doc="Fraction of mother liquor recycled to process"
+        )
+        m.fs.mother_liquor_recycle_fraction_param = pyo.Param(
+            initialize=0.5,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Parameter for fraction of mother liquor recycled to process"
+        )
+        m.fs.mother_liquor_recycle_fraction.fix(m.fs.mother_liquor_recycle_fraction_param)
+
 def fix_unit_model_variables(m):
     m.fs.brine_storage.load_parameters_from_database()
     
     m.fs.brine_pump.deltaP[0].fix(3e5 * units.Pa)
     m.fs.brine_pump.efficiency_pump[0].fix(0.75)
+    
+    if hasattr(m.fs, 'second_pump'):
+        m.fs.second_pump.deltaP[0].fix(3e5 * units.Pa)
+        m.fs.second_pump.efficiency_pump[0].fix(0.75)
     
     if hasattr(m.fs, 'soda_ash_reactor'):
         m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)
@@ -649,6 +668,11 @@ def fix_unit_model_variables(m):
             m.fs.li_dewatering.split_fraction[0, "overflow", ion].fix(
                 m.fs.lithium_dewatering_ion_split_fraction.value
             )
+        
+        recycle_frac = pyo.value(m.fs.mother_liquor_recycle_fraction)
+        m.fs.mother_liquor_separator.split_fraction[0, "recycle", "H2O"].fix(recycle_frac)
+        for ion in ion_list:
+            m.fs.mother_liquor_separator.split_fraction[0, "recycle", ion].fix(recycle_frac)
 
 def initialize_flowsheet(m):
     """Initialize flowsheet units in sequence, propagating state between units."""
@@ -673,9 +697,35 @@ def initialize_flowsheet(m):
     m.fs.brine_pump.report()
     print(f"DOF after brine pump: {degrees_of_freedom(m)}")
     
+    if hasattr(m.fs, 'recycle_mixer'):
+        print("\n3b. Propagating state to recycle mixer (initial pass - pump outlet used as recycle guess)...")
+        propagate_state(m.fs.pump_to_recycle_mixer)
+        for comp in m.fs.brine_props.component_list:
+            m.fs.recycle_mixer.from_recycle_state[0].flow_mol_phase_comp["Liq", comp].set_value(
+                pyo.value(m.fs.recycle_mixer.from_pump_state[0].flow_mol_phase_comp["Liq", comp])
+            )
+        m.fs.recycle_mixer.from_recycle_state[0].pressure.set_value(
+            pyo.value(m.fs.recycle_mixer.from_pump_state[0].pressure)
+        )
+        m.fs.recycle_mixer.from_recycle_state[0].temperature.set_value(
+            pyo.value(m.fs.recycle_mixer.from_pump_state[0].temperature)
+        )
+        m.fs.recycle_mixer.initialize()
+        m.fs.recycle_mixer.report()
+        print(f"DOF after recycle mixer: {degrees_of_freedom(m)}")
+        
+        print("\n3c. Propagating state to second pump...")
+        propagate_state(m.fs.recycle_mixer_to_second_pump)
+        m.fs.second_pump.initialize()
+        m.fs.second_pump.report()
+        print(f"DOF after second pump: {degrees_of_freedom(m)}")
+    
     if hasattr(m.fs, 'soda_ash_reactor'):
         print("\n4. Propagating state to soda ash reactor...")
-        propagate_state(m.fs.pump_to_soda_ash)
+        if hasattr(m.fs, 'second_pump'):
+            propagate_state(m.fs.second_pump_to_soda_ash)
+        else:
+            propagate_state(m.fs.pump_to_soda_ash)
         m.fs.soda_ash_reactor.initialize()
         m.fs.soda_ash_reactor.report()
         print(f"DOF after soda ash reactor: {degrees_of_freedom(m)}")
@@ -724,6 +774,19 @@ def initialize_flowsheet(m):
         m.fs.li_dewatering.initialize()
         m.fs.li_dewatering.report()
         print(f"DOF after lithium dewatering: {degrees_of_freedom(m)}")
+        
+        print("\n12. Propagating state to li mixer...")
+        propagate_state(m.fs.lithium_reactor_outlet_to_mixer)
+        propagate_state(m.fs.li_dewatering_to_mixer)
+        m.fs.li_mixer.initialize()
+        m.fs.li_mixer.report()
+        print(f"DOF after li mixer: {degrees_of_freedom(m)}")
+        
+        print("\n13. Propagating state to mother liquor separator...")
+        propagate_state(m.fs.li_mixer_to_mother_liquor)
+        m.fs.mother_liquor_separator.initialize()
+        m.fs.mother_liquor_separator.report()
+        print(f"DOF after mother liquor separator: {degrees_of_freedom(m)}")
     
     print("\n" + "="*60)
     print("INITIALIZATION COMPLETE")
@@ -1093,12 +1156,37 @@ def build_flowsheet(stage=5):
             outlet_list=["overflow", "underflow"],
             split_basis=SplittingType.componentFlow
         )
+        
+        m.fs.li_mixer = Mixer(
+            property_package=m.fs.brine_props,
+            inlet_list=["from_reactor", "from_dewatering"],
+            energy_mixing_type=MixingType.none,
+        )
+        
+        m.fs.mother_liquor_separator = Separator(
+            property_package=m.fs.brine_props,
+            outlet_list=["recycle", "purge"],
+            split_basis=SplittingType.componentFlow
+        )
+        
+        m.fs.recycle_mixer = Mixer(
+            property_package=m.fs.brine_props,
+            inlet_list=["from_pump", "from_recycle"],
+            energy_mixing_type=MixingType.none,
+        )
+        
+        m.fs.second_pump = Pump(
+            property_package=m.fs.brine_props,
+        )
     
     m.fs.brine_feed_to_storage = Arc(source=m.fs.brine_feed.outlet, destination=m.fs.brine_storage.inlet)
     m.fs.storage_to_pump = Arc(source=m.fs.brine_storage.outlet, destination=m.fs.brine_pump.inlet)
     
     if hasattr(m.fs, 'soda_ash_reactor'):
-        m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
+        if hasattr(m.fs, 'recycle_mixer'):
+            m.fs.second_pump_to_soda_ash = Arc(source=m.fs.second_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
+        else:
+            m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
     
     if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs, 'lime_reactor'):
         m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
@@ -1107,11 +1195,17 @@ def build_flowsheet(stage=5):
         m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        m.fs.pump_to_recycle_mixer = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.recycle_mixer.from_pump)
+        m.fs.recycle_to_mixer = Arc(source=m.fs.mother_liquor_separator.recycle, destination=m.fs.recycle_mixer.from_recycle)
+        m.fs.recycle_mixer_to_second_pump = Arc(source=m.fs.recycle_mixer.outlet, destination=m.fs.second_pump.inlet)
         m.fs.soda_ash_to_vacuum_filter = Arc(source=m.fs.soda_ash_reactor.waste, destination=m.fs.soda_ash_vacuum_filter.inlet)
         m.fs.soda_ash_vacuum_filter_to_centrifuge = Arc(source=m.fs.soda_ash_vacuum_filter.underflow, destination=m.fs.soda_ash_centrifuge.inlet)
         m.fs.lime_to_lime_press_filter = Arc(source=m.fs.lime_reactor.waste, destination=m.fs.lime_press_filter.inlet)
         m.fs.lime_press_filter_to_lime_centrifuge = Arc(source=m.fs.lime_press_filter.underflow, destination=m.fs.lime_centrifuge.inlet)
         m.fs.lithium_to_dewatering = Arc(source=m.fs.lithium_carbonate_reactor.waste, destination=m.fs.li_dewatering.inlet)
+        m.fs.lithium_reactor_outlet_to_mixer = Arc(source=m.fs.lithium_carbonate_reactor.outlet, destination=m.fs.li_mixer.from_reactor)
+        m.fs.li_dewatering_to_mixer = Arc(source=m.fs.li_dewatering.overflow, destination=m.fs.li_mixer.from_dewatering)
+        m.fs.li_mixer_to_mother_liquor = Arc(source=m.fs.li_mixer.outlet, destination=m.fs.mother_liquor_separator.inlet)
     
     TransformationFactory("network.expand_arcs").apply_to(m)
     
