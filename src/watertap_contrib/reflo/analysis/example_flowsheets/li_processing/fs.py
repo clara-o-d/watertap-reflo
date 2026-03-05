@@ -1,3 +1,7 @@
+import io
+import pydoc
+import sys
+
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.pc_build_flowsheet import build_flowsheet
 from watertap_contrib.reflo.analysis.example_flowsheets.li_extraction.solve import solve
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.add_costing import add_costing
@@ -6,6 +10,17 @@ from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.display_re
 from watertap_contrib.reflo.analysis.example_flowsheets.li_processing.save_results import save_results
 from pyomo.environ import assert_optimal_termination
 from idaes.core.util import DiagnosticsToolbox
+from idaes.core.util.model_statistics import degrees_of_freedom
+
+
+def _paged_display_results(m, **kwargs):
+    buf = io.StringIO()
+    sys.stdout = buf
+    try:
+        display_results(m, **kwargs)
+    finally:
+        sys.stdout = sys.__stdout__
+    pydoc.pager(buf.getvalue())
 
 
 def main():
@@ -26,6 +41,7 @@ def main():
     dt = DiagnosticsToolbox(m)
     dt.display_underconstrained_set()
     input("Press enter to solve Stage 1")
+    assert degrees_of_freedom(m) == 0, f"Stage 1: expected 0 DOF, got {degrees_of_freedom(m)}"
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== STAGE 1 RESULTS ===")
@@ -39,6 +55,7 @@ def main():
     dt = DiagnosticsToolbox(m)
     dt.display_underconstrained_set()
     input("Press enter to solve Stage 2")
+    assert degrees_of_freedom(m) == 0, f"Stage 2: expected 0 DOF, got {degrees_of_freedom(m)}"
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== STAGE 2 RESULTS ===")
@@ -52,6 +69,7 @@ def main():
     dt = DiagnosticsToolbox(m)
     dt.display_underconstrained_set()
     input("Press enter to solve Stage 3")
+    assert degrees_of_freedom(m) == 0, f"Stage 3: expected 0 DOF, got {degrees_of_freedom(m)}"
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== STAGE 3 RESULTS ===")
@@ -65,6 +83,7 @@ def main():
     dt = DiagnosticsToolbox(m)
     dt.display_underconstrained_set()
     input("Press enter to solve Stage 4")
+    assert degrees_of_freedom(m) == 0, f"Stage 4: expected 0 DOF, got {degrees_of_freedom(m)}"
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== STAGE 4 RESULTS ===")
@@ -78,10 +97,11 @@ def main():
     dt = DiagnosticsToolbox(m)
     dt.display_underconstrained_set()
     input("Press enter to solve Stage 5 (complete flowsheet without costing)")
+    assert degrees_of_freedom(m) == 0, f"Stage 5: expected 0 DOF, got {degrees_of_freedom(m)}"
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== STAGE 5 RESULTS (NO COSTING) ===")
-    display_results(m)
+    _paged_display_results(m)
 
     print("\n" + "="*80)
     print("FINAL STAGE: ADDING COSTING TO COMPLETE FLOWSHEET")
@@ -89,6 +109,7 @@ def main():
     input("Press enter to solve with costing")
     add_costing(m)
     process_costing(m)
+    assert degrees_of_freedom(m) == 0, f"Final stage (with costing): expected 0 DOF, got {degrees_of_freedom(m)}"
     results = solve(m)
     assert_optimal_termination(results)
     print("\n=== FINAL FLOWSHEET RESULTS (WITH COSTING) ===")

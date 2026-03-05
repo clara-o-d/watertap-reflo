@@ -35,12 +35,13 @@ from pyomo.core import TransformationFactory
 import idaes.core.util.scaling as iscale
 from idaes.core.scaling import AutoScaler
 import idaes.logger as idaeslog
+import pydoc
 from io import StringIO
 from pyomo.core.base.param import Param
 
 # IDAES imports
 from idaes.core import FlowsheetBlock
-from idaes.models.unit_models import Feed, Pump, Separator, Mixer
+from idaes.models.unit_models import Feed, Pump, Separator, Mixer, Product
 from idaes.models.unit_models.separator import SplittingType
 from idaes.models.unit_models.mixer import MixingType
 from idaes.core.util.initialization import propagate_state
@@ -379,7 +380,7 @@ def modify_flowsheet(m):
         doc="Molality of soda ash solution"
     )
     m.fs.soda_ash_solution_molality_param = pyo.Param(
-        initialize=1.2, # 0.6 # 4.0
+        initialize=1.2, # 3.15
         mutable=True,
         units=pyunits.mol / pyunits.kg,
         doc="Parameter for soda ash solution molality"
@@ -603,13 +604,13 @@ def modify_flowsheet(m):
         )
 
         m.fs.mother_liquor_recycle_fraction = pyo.Var(
-            initialize=0.5,
+            initialize=0.7,
             bounds=(0, 1),
             units=pyunits.dimensionless,
             doc="Fraction of mother liquor recycled to process"
         )
         m.fs.mother_liquor_recycle_fraction_param = pyo.Param(
-            initialize=0.5,
+            initialize=0.7,
             mutable=True,
             units=pyunits.dimensionless,
             doc="Parameter for fraction of mother liquor recycled to process"
@@ -674,6 +675,13 @@ def fix_unit_model_variables(m):
         for ion in ion_list:
             m.fs.mother_liquor_separator.split_fraction[0, "recycle", ion].fix(recycle_frac)
 
+    # Fix outlet temperatures of MixingType.none mixers — no energy balance is written
+    # so the mixed_state temperature is otherwise unconstrained.
+    T_ref = 298.15 * units.K
+    for mixer_name in ["recycle_mixer", "soda_ash_mixer", "lime_mixer", "li_mixer"]:
+        if hasattr(m.fs, mixer_name):
+            getattr(m.fs, mixer_name).mixed_state[0].temperature.fix(T_ref)
+
 def initialize_flowsheet(m):
     """Initialize flowsheet units in sequence, propagating state between units."""
     print("\n" + "="*60)
@@ -730,44 +738,104 @@ def initialize_flowsheet(m):
         m.fs.soda_ash_reactor.report()
         print(f"DOF after soda ash reactor: {degrees_of_freedom(m)}")
     
-    if hasattr(m.fs, 'lime_reactor'):
-        print("\n5. Propagating state to lime reactor...")
-        propagate_state(m.fs.soda_ash_to_lime)
-        m.fs.lime_reactor.initialize()
-        m.fs.lime_reactor.report()
-        print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
-    
-    if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        print("\n6. Propagating state to lithium carbonate reactor...")
-        propagate_state(m.fs.lime_to_lithium)
-        m.fs.lithium_carbonate_reactor.initialize()
-        m.fs.lithium_carbonate_reactor.report()
-        print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
-    
-    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
-        print("\n7. Propagating state to soda ash vacuum filter unit...")
+    if hasattr(m.fs, 'soda_ash_mixer'):
+        print("\n4a. Propagating state to soda ash vacuum filter...")
         propagate_state(m.fs.soda_ash_to_vacuum_filter)
         m.fs.soda_ash_vacuum_filter.initialize()
         m.fs.soda_ash_vacuum_filter.report()
         print(f"DOF after soda ash vacuum filter: {degrees_of_freedom(m)}")
-        
-        print("\n8. Propagating state to soda ash centrifuge dewatering unit...")
+
+        print("\n4b. Propagating state to soda ash centrifuge...")
         propagate_state(m.fs.soda_ash_vacuum_filter_to_centrifuge)
         m.fs.soda_ash_centrifuge.initialize()
         m.fs.soda_ash_centrifuge.report()
         print(f"DOF after soda ash centrifuge: {degrees_of_freedom(m)}")
-        
-        print("\n9. Propagating state to lime press filter unit...")
+
+        print("\n4b-waste. Propagating state to soda ash waste product...")
+        propagate_state(m.fs.soda_ash_centrifuge_to_waste)
+        m.fs.soda_ash_waste.initialize()
+        print(f"DOF after soda ash waste: {degrees_of_freedom(m)}")
+
+        print("\n4c. Propagating state to soda ash mixer...")
+        propagate_state(m.fs.soda_ash_reactor_outlet_to_mixer)
+        propagate_state(m.fs.soda_ash_vacuum_filter_overflow_to_mixer)
+        propagate_state(m.fs.soda_ash_centrifuge_overflow_to_mixer)
+        m.fs.soda_ash_mixer.initialize()
+        m.fs.soda_ash_mixer.report()
+        print(f"DOF after soda ash mixer: {degrees_of_freedom(m)}")
+
+    if hasattr(m.fs, 'lime_reactor'):
+        print("\n5. Propagating state to lime reactor...")
+        if hasattr(m.fs, 'soda_ash_mixer'):
+            propagate_state(m.fs.soda_ash_mixer_to_lime)
+        else:
+            propagate_state(m.fs.soda_ash_to_lime)
+        m.fs.lime_reactor.initialize()
+        m.fs.lime_reactor.report()
+        print(f"DOF after lime reactor: {degrees_of_freedom(m)}")
+    
+    if hasattr(m.fs, 'lime_mixer'):
+        print("\n5a. Propagating state to lime press filter...")
         propagate_state(m.fs.lime_to_lime_press_filter)
         m.fs.lime_press_filter.initialize()
         m.fs.lime_press_filter.report()
         print(f"DOF after lime press filter: {degrees_of_freedom(m)}")
-        
-        print("\n10. Propagating state to lime centrifuge unit...")
+
+        print("\n5b. Propagating state to lime centrifuge...")
         propagate_state(m.fs.lime_press_filter_to_lime_centrifuge)
         m.fs.lime_centrifuge.initialize()
         m.fs.lime_centrifuge.report()
         print(f"DOF after lime centrifuge: {degrees_of_freedom(m)}")
+
+        print("\n5b-waste. Propagating state to lime waste product...")
+        propagate_state(m.fs.lime_centrifuge_to_waste)
+        m.fs.lime_waste.initialize()
+        print(f"DOF after lime waste: {degrees_of_freedom(m)}")
+
+        print("\n5c. Propagating state to lime mixer...")
+        propagate_state(m.fs.lime_reactor_outlet_to_mixer)
+        propagate_state(m.fs.lime_press_filter_overflow_to_mixer)
+        propagate_state(m.fs.lime_centrifuge_overflow_to_mixer)
+        m.fs.lime_mixer.initialize()
+        m.fs.lime_mixer.report()
+        print(f"DOF after lime mixer: {degrees_of_freedom(m)}")
+
+    if hasattr(m.fs, 'lithium_carbonate_reactor'):
+        print("\n6. Propagating state to lithium carbonate reactor...")
+        if hasattr(m.fs, 'lime_mixer'):
+            propagate_state(m.fs.lime_mixer_to_lithium)
+        else:
+            propagate_state(m.fs.lime_to_lithium)
+        m.fs.lithium_carbonate_reactor.initialize()
+        m.fs.lithium_carbonate_reactor.report()
+        print(f"DOF after lithium carbonate reactor: {degrees_of_freedom(m)}")
+
+    if hasattr(m.fs, 'soda_ash_vacuum_filter'):
+        if not hasattr(m.fs, 'soda_ash_mixer'):
+            print("\n7. Propagating state to soda ash vacuum filter unit...")
+            propagate_state(m.fs.soda_ash_to_vacuum_filter)
+            m.fs.soda_ash_vacuum_filter.initialize()
+            m.fs.soda_ash_vacuum_filter.report()
+            print(f"DOF after soda ash vacuum filter: {degrees_of_freedom(m)}")
+
+            print("\n8. Propagating state to soda ash centrifuge dewatering unit...")
+            propagate_state(m.fs.soda_ash_vacuum_filter_to_centrifuge)
+            m.fs.soda_ash_centrifuge.initialize()
+            m.fs.soda_ash_centrifuge.report()
+            print(f"DOF after soda ash centrifuge: {degrees_of_freedom(m)}")
+
+        if not hasattr(m.fs, 'lime_mixer'):
+            print("\n9. Propagating state to lime press filter unit...")
+            propagate_state(m.fs.lime_to_lime_press_filter)
+            m.fs.lime_press_filter.initialize()
+            m.fs.lime_press_filter.report()
+            print(f"DOF after lime press filter: {degrees_of_freedom(m)}")
+
+            print("\n10. Propagating state to lime centrifuge unit...")
+            propagate_state(m.fs.lime_press_filter_to_lime_centrifuge)
+            m.fs.lime_centrifuge.initialize()
+            m.fs.lime_centrifuge.report()
+            print(f"DOF after lime centrifuge: {degrees_of_freedom(m)}")
         
         print("\n11. Propagating state to lithium dewatering unit...")
         propagate_state(m.fs.lithium_to_dewatering)
@@ -806,19 +874,19 @@ def run_diagnostics(m, report_scaling=False, analyze_jacobian=False,
                             check_jacobian_quality=False):
     """Run scaling diagnostics including SVD analysis and Jacobian quality checks."""
     if report_scaling:
-        print("\n" + "="*80)
-        print("SCALING FACTORS REPORT")
-        print("="*80)
-        
         report_buffer = StringIO()
-        print("\n>>> FLOWSHEET LEVEL SCALING FACTORS <<<")
         report_scaling_factors(m.fs, ctype=pyo.Var, descend_into=True, stream=report_buffer)
-        report_content = report_buffer.getvalue()
-        print(report_content)
-        
-        print("\n" + "="*80)
-        print("END OF SCALING FACTORS REPORT")
-        print("="*80 + "\n")
+        report_content = (
+            "\n" + "="*80 + "\n"
+            + "SCALING FACTORS REPORT\n"
+            + "="*80 + "\n"
+            + "\n>>> FLOWSHEET LEVEL SCALING FACTORS <<<\n\n"
+            + report_buffer.getvalue()
+            + "\n" + "="*80 + "\n"
+            + "END OF SCALING FACTORS REPORT\n"
+            + "="*80 + "\n"
+        )
+        pydoc.pager(report_content)
     
     if analyze_jacobian:
         print("\n" + "="*80)
@@ -1139,6 +1207,12 @@ def build_flowsheet(stage=5):
             split_basis=SplittingType.componentFlow
         )
         
+        m.fs.soda_ash_mixer = Mixer(
+            property_package=m.fs.brine_props,
+            inlet_list=["from_reactor", "from_vacuum_filter", "from_centrifuge"],
+            energy_mixing_type=MixingType.none,
+        )
+        
         m.fs.lime_press_filter = Separator(
             property_package=m.fs.brine_props,
             outlet_list=["overflow", "underflow"],
@@ -1149,6 +1223,12 @@ def build_flowsheet(stage=5):
             property_package=m.fs.brine_props,
             outlet_list=["overflow", "underflow"],
             split_basis=SplittingType.componentFlow
+        )
+        
+        m.fs.lime_mixer = Mixer(
+            property_package=m.fs.brine_props,
+            inlet_list=["from_reactor", "from_press_filter", "from_centrifuge"],
+            energy_mixing_type=MixingType.none,
         )
         
         m.fs.li_dewatering = Separator(
@@ -1178,6 +1258,14 @@ def build_flowsheet(stage=5):
         m.fs.second_pump = Pump(
             property_package=m.fs.brine_props,
         )
+        
+        m.fs.soda_ash_waste = Product(
+            property_package=m.fs.brine_props,
+        )
+        
+        m.fs.lime_waste = Product(
+            property_package=m.fs.brine_props,
+        )
     
     m.fs.brine_feed_to_storage = Arc(source=m.fs.brine_feed.outlet, destination=m.fs.brine_storage.inlet)
     m.fs.storage_to_pump = Arc(source=m.fs.brine_storage.outlet, destination=m.fs.brine_pump.inlet)
@@ -1189,10 +1277,16 @@ def build_flowsheet(stage=5):
             m.fs.pump_to_soda_ash = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.soda_ash_reactor.inlet)
     
     if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs, 'lime_reactor'):
-        m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
+        if hasattr(m.fs, 'soda_ash_mixer'):
+            m.fs.soda_ash_mixer_to_lime = Arc(source=m.fs.soda_ash_mixer.outlet, destination=m.fs.lime_reactor.inlet)
+        else:
+            m.fs.soda_ash_to_lime = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.lime_reactor.inlet)
     
     if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs, 'lithium_carbonate_reactor'):
-        m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
+        if hasattr(m.fs, 'lime_mixer'):
+            m.fs.lime_mixer_to_lithium = Arc(source=m.fs.lime_mixer.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
+        else:
+            m.fs.lime_to_lithium = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lithium_carbonate_reactor.inlet)
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
         m.fs.pump_to_recycle_mixer = Arc(source=m.fs.brine_pump.outlet, destination=m.fs.recycle_mixer.from_pump)
@@ -1200,12 +1294,20 @@ def build_flowsheet(stage=5):
         m.fs.recycle_mixer_to_second_pump = Arc(source=m.fs.recycle_mixer.outlet, destination=m.fs.second_pump.inlet)
         m.fs.soda_ash_to_vacuum_filter = Arc(source=m.fs.soda_ash_reactor.waste, destination=m.fs.soda_ash_vacuum_filter.inlet)
         m.fs.soda_ash_vacuum_filter_to_centrifuge = Arc(source=m.fs.soda_ash_vacuum_filter.underflow, destination=m.fs.soda_ash_centrifuge.inlet)
+        m.fs.soda_ash_reactor_outlet_to_mixer = Arc(source=m.fs.soda_ash_reactor.outlet, destination=m.fs.soda_ash_mixer.from_reactor)
+        m.fs.soda_ash_vacuum_filter_overflow_to_mixer = Arc(source=m.fs.soda_ash_vacuum_filter.overflow, destination=m.fs.soda_ash_mixer.from_vacuum_filter)
+        m.fs.soda_ash_centrifuge_overflow_to_mixer = Arc(source=m.fs.soda_ash_centrifuge.overflow, destination=m.fs.soda_ash_mixer.from_centrifuge)
         m.fs.lime_to_lime_press_filter = Arc(source=m.fs.lime_reactor.waste, destination=m.fs.lime_press_filter.inlet)
         m.fs.lime_press_filter_to_lime_centrifuge = Arc(source=m.fs.lime_press_filter.underflow, destination=m.fs.lime_centrifuge.inlet)
+        m.fs.lime_reactor_outlet_to_mixer = Arc(source=m.fs.lime_reactor.outlet, destination=m.fs.lime_mixer.from_reactor)
+        m.fs.lime_press_filter_overflow_to_mixer = Arc(source=m.fs.lime_press_filter.overflow, destination=m.fs.lime_mixer.from_press_filter)
+        m.fs.lime_centrifuge_overflow_to_mixer = Arc(source=m.fs.lime_centrifuge.overflow, destination=m.fs.lime_mixer.from_centrifuge)
         m.fs.lithium_to_dewatering = Arc(source=m.fs.lithium_carbonate_reactor.waste, destination=m.fs.li_dewatering.inlet)
         m.fs.lithium_reactor_outlet_to_mixer = Arc(source=m.fs.lithium_carbonate_reactor.outlet, destination=m.fs.li_mixer.from_reactor)
         m.fs.li_dewatering_to_mixer = Arc(source=m.fs.li_dewatering.overflow, destination=m.fs.li_mixer.from_dewatering)
         m.fs.li_mixer_to_mother_liquor = Arc(source=m.fs.li_mixer.outlet, destination=m.fs.mother_liquor_separator.inlet)
+        m.fs.soda_ash_centrifuge_to_waste = Arc(source=m.fs.soda_ash_centrifuge.underflow, destination=m.fs.soda_ash_waste.inlet)
+        m.fs.lime_centrifuge_to_waste = Arc(source=m.fs.lime_centrifuge.underflow, destination=m.fs.lime_waste.inlet)
     
     TransformationFactory("network.expand_arcs").apply_to(m)
     

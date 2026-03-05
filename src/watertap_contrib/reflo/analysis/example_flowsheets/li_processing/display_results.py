@@ -3,6 +3,62 @@
 from math import log
 from pyomo.environ import units as pyunits, value
 
+
+_MW = {
+    "Li": 6.941e-3, "Na": 22.990e-3, "K": 39.098e-3, "Mg": 24.305e-3,
+    "Ca": 40.078e-3, "Cl": 35.453e-3, "SO4": 96.06e-3, "B": 10.811e-3,
+    "H2O": 18.015e-3, "H": 1.008e-3, "OH": 17.008e-3,
+    "HCO3": 61.016e-3, "CO3": 60.009e-3,
+}
+
+
+def _total_mass_flow(state):
+    """Return total mass flow in kg/s from an MCAS state block, or None on failure."""
+    try:
+        total = 0.0
+        for (phase, comp), var in state.flow_mol_phase_comp.items():
+            mw = _MW.get(comp)
+            if mw is not None:
+                total += value(var) * mw
+        return total if total > 0 else None
+    except Exception:
+        return None
+
+
+def _stream_summary(state, indent="  "):
+    """Print Li/Mg/Ca concentrations (mol/L, mg/L, wt%) and volumetric flow for any MCAS state block."""
+    # Compute shared quantities once
+    fv_L_s = None
+    try:
+        try:
+            fv_L_s = value(pyunits.convert(state.flow_vol, to_units=pyunits.L / pyunits.s))
+            fv_m3_h = value(pyunits.convert(state.flow_vol, to_units=pyunits.m**3 / pyunits.hour))
+        except Exception:
+            fv_L_s = value(pyunits.convert(state.flow_vol_phase["Liq"], to_units=pyunits.L / pyunits.s))
+            fv_m3_h = value(pyunits.convert(state.flow_vol_phase["Liq"], to_units=pyunits.m**3 / pyunits.hour))
+        print(f"{indent}Volumetric flow: {fv_L_s:.3f} L/s ({fv_m3_h:.1f} m³/h)")
+    except Exception:
+        pass
+
+    total_mass = _total_mass_flow(state)
+
+    for comp in ["Li", "Na", "Mg", "Ca"]:
+        try:
+            mol_s = value(state.flow_mol_phase_comp["Liq", comp])
+            parts = []
+            if fv_L_s is not None and fv_L_s > 0:
+                conc_mol_L = mol_s / fv_L_s
+                mg_L = conc_mol_L * _MW[comp] * 1e6
+                parts.append(f"{conc_mol_L:.4f} mol/L")
+                parts.append(f"{mg_L:.1f} mg/L")
+            if total_mass is not None:
+                wt_pct = mol_s * _MW[comp] / total_mass * 100
+                parts.append(f"{wt_pct:.4f} wt%")
+            conc_str = "  |  ".join(parts)
+            print(f"{indent}{comp}: {conc_str}  [{mol_s:.4f} mol/s]")
+        except Exception:
+            pass
+
 def display_costing_results(m):
     """Display costing results including capital costs, operating costs, and LCOLi metrics."""
     if not hasattr(m.fs, 'costing'):
@@ -371,6 +427,9 @@ def display_results(m, show_costing=False):
         if hasattr(m.fs, 'lithium_dewatering_ion_split_fraction'):
             print(f"\n  Ion Split Fraction (Lithium Dewatering): {value(m.fs.lithium_dewatering_ion_split_fraction):.6f} to overflow")
             print(f"    ({value(1-m.fs.lithium_dewatering_ion_split_fraction):.6f} to underflow)")
+
+        if hasattr(m.fs, 'mother_liquor_recycle_fraction'):
+            print(f"\n  Mother Liquor Recycle Fraction: {value(m.fs.mother_liquor_recycle_fraction)*100:.1f}% recycled, {(1-value(m.fs.mother_liquor_recycle_fraction))*100:.1f}% purged")
         
         print("="*60)
     
@@ -438,6 +497,53 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
+    if hasattr(m.fs, 'recycle_mixer'):
+        print(f"\nRECYCLE MIXER:")
+        try:
+            print(f"  Pump inlet stream:")
+            _stream_summary(m.fs.recycle_mixer.from_pump_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Recycle stream (from mother liquor separator):")
+            _stream_summary(m.fs.recycle_mixer.from_recycle_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Mixed outlet:")
+            _stream_summary(m.fs.recycle_mixer.mixed_state[0], indent="    ")
+            try:
+                pump_flow = value(pyunits.convert(m.fs.recycle_mixer.from_pump_state[0].flow_vol, to_units=pyunits.L / pyunits.s))
+                recycle_flow = value(pyunits.convert(m.fs.recycle_mixer.from_recycle_state[0].flow_vol, to_units=pyunits.L / pyunits.s))
+                if pump_flow > 0:
+                    recycle_ratio = recycle_flow / pump_flow * 100
+                    print(f"    Recycle-to-feed ratio: {recycle_ratio:.1f}%")
+            except Exception:
+                pass
+        except (AttributeError, TypeError, KeyError):
+            pass
+
+    if hasattr(m.fs, 'second_pump'):
+        print(f"\nSECOND PUMP (TO SODA ASH REACTOR):")
+        try:
+            print(f"  Pressure increase: {value(m.fs.second_pump.deltaP[0]):.0f} Pa")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Pump efficiency: {value(m.fs.second_pump.efficiency_pump[0]):.1%}")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            if hasattr(m.fs.second_pump.control_volume, 'work'):
+                print(f"  Power consumption: {value(m.fs.second_pump.control_volume.work[0]):.2f} W")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Outlet stream:")
+            _stream_summary(m.fs.second_pump.control_volume.properties_out[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+
     if hasattr(m.fs, 'soda_ash_reactor'):
         print(f"\nSODA ASH REACTOR (FIRST SOFTENING STAGE):")
         try:
@@ -711,6 +817,43 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
+    if hasattr(m.fs, 'soda_ash_mixer'):
+        print(f"\nSODA ASH MIXER (RECOMBINES LIQUID STREAMS):")
+        try:
+            print(f"  From soda ash reactor (clarified outlet):")
+            _stream_summary(m.fs.soda_ash_mixer.from_reactor_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  From vacuum filter overflow:")
+            _stream_summary(m.fs.soda_ash_mixer.from_vacuum_filter_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  From centrifuge overflow:")
+            _stream_summary(m.fs.soda_ash_mixer.from_centrifuge_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Mixed outlet (to lime reactor):")
+            _stream_summary(m.fs.soda_ash_mixer.mixed_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+
+    if hasattr(m.fs, 'soda_ash_waste'):
+        print(f"\nSODA ASH WASTE PRODUCT (CENTRIFUGE UNDERFLOW):")
+        try:
+            _stream_summary(m.fs.soda_ash_waste.properties[0], indent="  ")
+            # Key precipitate-associated ions
+            for comp, label in [("Mg", "Mg"), ("Ca", "Ca"), ("Na", "Na")]:
+                try:
+                    flow = value(m.fs.soda_ash_waste.properties[0].flow_mol_phase_comp["Liq", comp])
+                    print(f"  {label} molar flow: {flow:.4e} mol/s")
+                except Exception:
+                    pass
+        except (AttributeError, TypeError, KeyError):
+            pass
+
     if hasattr(m.fs, 'lime_press_filter'):
         print(f"\nLIME PRESS FILTER UNIT:")
         try:
@@ -739,6 +882,43 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
     
+    if hasattr(m.fs, 'lime_mixer'):
+        print(f"\nLIME MIXER (RECOMBINES LIQUID STREAMS):")
+        try:
+            print(f"  From lime reactor (clarified outlet):")
+            _stream_summary(m.fs.lime_mixer.from_reactor_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  From press filter overflow:")
+            _stream_summary(m.fs.lime_mixer.from_press_filter_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  From centrifuge overflow:")
+            _stream_summary(m.fs.lime_mixer.from_centrifuge_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Mixed outlet (to lithium reactor):")
+            _stream_summary(m.fs.lime_mixer.mixed_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+
+    if hasattr(m.fs, 'lime_waste'):
+        print(f"\nLIME WASTE PRODUCT (CENTRIFUGE UNDERFLOW):")
+        try:
+            _stream_summary(m.fs.lime_waste.properties[0], indent="  ")
+            # Key precipitate-associated ions
+            for comp, label in [("Mg", "Mg"), ("Ca", "Ca"), ("SO4", "SO4")]:
+                try:
+                    flow = value(m.fs.lime_waste.properties[0].flow_mol_phase_comp["Liq", comp])
+                    print(f"  {label} molar flow: {flow:.4e} mol/s")
+                except Exception:
+                    pass
+        except (AttributeError, TypeError, KeyError):
+            pass
+
     if hasattr(m.fs, 'li_dewatering'):
         print(f"\nLITHIUM DEWATERING UNIT:")
         try:
@@ -768,6 +948,57 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError) as e:
             print(f"  Li concentration in concentrated solids: Error accessing properties - {type(e).__name__}")
     
+    if hasattr(m.fs, 'li_mixer'):
+        print(f"\nLITHIUM MIXER (MOTHER LIQUOR COLLECTION):")
+        try:
+            print(f"  From lithium carbonate reactor (clarified outlet):")
+            _stream_summary(m.fs.li_mixer.from_reactor_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  From lithium dewatering overflow:")
+            _stream_summary(m.fs.li_mixer.from_dewatering_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Mixed outlet (dilute Li mother liquor):")
+            _stream_summary(m.fs.li_mixer.mixed_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+
+    if hasattr(m.fs, 'mother_liquor_separator'):
+        print(f"\nMOTHER LIQUOR SEPARATOR:")
+        try:
+            if hasattr(m.fs, 'mother_liquor_recycle_fraction'):
+                recycle_frac = value(m.fs.mother_liquor_recycle_fraction)
+                print(f"  Recycle fraction: {recycle_frac*100:.1f}%  |  Purge fraction: {(1-recycle_frac)*100:.1f}%")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Inlet (mother liquor):")
+            _stream_summary(m.fs.mother_liquor_separator.mixed_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Recycle stream (returned to brine feed loop):")
+            _stream_summary(m.fs.mother_liquor_separator.recycle_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Purge stream (dilute Li brine purge):")
+            _stream_summary(m.fs.mother_liquor_separator.purge_state[0], indent="    ")
+            # Li loss in purge
+            try:
+                li_purge = value(m.fs.mother_liquor_separator.purge_state[0].flow_mol_phase_comp["Liq", "Li"])
+                li_feed = value(m.fs.brine_feed.properties[0].flow_mol_phase_comp["Liq", "Li"])
+                if li_feed > 0:
+                    li_loss_pct = li_purge / li_feed * 100
+                    print(f"    Li lost in purge vs. feed: {li_loss_pct:.2f}%")
+            except Exception:
+                pass
+        except (AttributeError, TypeError, KeyError):
+            pass
+
     if hasattr(m.fs, 'boron_extraction'):
         print(f"\nBORON EXTRACTION:")
         print(f"  Number of stages: {m.fs.boron_extraction.config.number_of_finite_elements}")
@@ -857,6 +1088,8 @@ def display_results(m, show_costing=False):
     total_power = 0
     if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump.control_volume, 'work'):
         total_power += value(m.fs.brine_pump.control_volume.work[0])
+    if hasattr(m.fs, 'second_pump') and hasattr(m.fs.second_pump.control_volume, 'work'):
+        total_power += value(m.fs.second_pump.control_volume.work[0])
     if hasattr(m.fs, 'boron_pump') and hasattr(m.fs.boron_pump.control_volume, 'work'):
         total_power += value(m.fs.boron_pump.control_volume.work[0])
     if hasattr(m.fs, 'soda_ash_vacuum_filter') and hasattr(m.fs.soda_ash_vacuum_filter, 'electricity_consumption'):
