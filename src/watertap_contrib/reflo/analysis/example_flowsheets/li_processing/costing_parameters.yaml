@@ -7,6 +7,8 @@ reactor_cost:
   capital_a_parameter: 0.0
   capital_b_parameter: 33443.530748339814
   capital_n_exponent: 0.5584671382207098
+  v_min_m3: 0.266904
+  v_max_m3: 3.701765
   _metadata:
     material: Stainless
     method: specific

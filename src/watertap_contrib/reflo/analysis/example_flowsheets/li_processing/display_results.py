@@ -82,7 +82,10 @@ def display_costing_results(m):
         print(f"  Storage Tank Capital Cost: ${value(m.fs.brine_storage.costing.capital_cost):,.0f}")
     
     if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump, 'costing'):
-        print(f"  Pump Capital Cost: ${value(m.fs.brine_pump.costing.capital_cost):,.0f}")
+        print(f"  Brine Pump Capital Cost: ${value(m.fs.brine_pump.costing.capital_cost):,.0f}")
+    
+    if hasattr(m.fs, 'second_pump') and hasattr(m.fs.second_pump, 'costing'):
+        print(f"  Second Pump Capital Cost: ${value(m.fs.second_pump.costing.capital_cost):,.0f}")
     
     if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'costing'):
         print(f"  Soda Ash Reactor Capital Cost: ${value(m.fs.soda_ash_reactor.costing.capital_cost):,.0f}")
@@ -118,6 +121,8 @@ def display_costing_results(m):
             total_capital_cost += value(m.fs.brine_storage.costing.capital_cost)
         if hasattr(m.fs, 'brine_pump') and hasattr(m.fs.brine_pump, 'costing'):
             total_capital_cost += value(m.fs.brine_pump.costing.capital_cost)
+        if hasattr(m.fs, 'second_pump') and hasattr(m.fs.second_pump, 'costing'):
+            total_capital_cost += value(m.fs.second_pump.costing.capital_cost)
         if hasattr(m.fs, 'soda_ash_reactor') and hasattr(m.fs.soda_ash_reactor, 'costing'):
             total_capital_cost += value(m.fs.soda_ash_reactor.costing.capital_cost)
         if hasattr(m.fs, 'lime_reactor') and hasattr(m.fs.lime_reactor, 'costing'):
@@ -144,6 +149,11 @@ def display_costing_results(m):
         pump_power = value(m.fs.brine_pump.control_volume.work[0])
         pump_power_kw = pump_power / 1000
         total_power_kw += pump_power_kw
+    
+    if hasattr(m.fs, 'second_pump') and hasattr(m.fs.second_pump.control_volume, 'work'):
+        second_pump_power = value(m.fs.second_pump.control_volume.work[0])
+        second_pump_power_kw = second_pump_power / 1000
+        total_power_kw += second_pump_power_kw
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter') and hasattr(m.fs.soda_ash_vacuum_filter, 'electricity_consumption'):
         dewatering_power_kw = value(m.fs.soda_ash_vacuum_filter.electricity_consumption[0])
