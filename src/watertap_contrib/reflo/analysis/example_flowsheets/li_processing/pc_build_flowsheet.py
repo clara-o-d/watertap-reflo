@@ -746,7 +746,7 @@ def fix_unit_model_variables(m):
     # Fix outlet temperatures of MixingType.none mixers — no energy balance is written
     # so the mixed_state temperature is otherwise unconstrained.
     T_ref = 298.15 * units.K
-    for mixer_name in ["recycle_mixer", "soda_ash_mixer", "lime_mixer", "li_mixer"]:
+    for mixer_name in ["recycle_mixer", "soda_ash_mixer", "lime_mixer", "li_mixer", "softening_waste_mixer"]:
         if hasattr(m.fs, mixer_name):
             getattr(m.fs, mixer_name).mixed_state[0].temperature.fix(T_ref)
 
@@ -819,10 +819,6 @@ def initialize_flowsheet(m):
         m.fs.soda_ash_centrifuge.report()
         print(f"DOF after soda ash centrifuge: {degrees_of_freedom(m)}")
 
-        print("\n4b-waste. Propagating state to soda ash waste product...")
-        propagate_state(m.fs.soda_ash_centrifuge_to_waste)
-        m.fs.soda_ash_waste.initialize()
-        print(f"DOF after soda ash waste: {degrees_of_freedom(m)}")
 
         print("\n4c. Propagating state to soda ash mixer...")
         propagate_state(m.fs.soda_ash_reactor_outlet_to_mixer)
@@ -855,11 +851,6 @@ def initialize_flowsheet(m):
         m.fs.lime_centrifuge.report()
         print(f"DOF after lime centrifuge: {degrees_of_freedom(m)}")
 
-        print("\n5b-waste. Propagating state to lime waste product...")
-        propagate_state(m.fs.lime_centrifuge_to_waste)
-        m.fs.lime_waste.initialize()
-        print(f"DOF after lime waste: {degrees_of_freedom(m)}")
-
         print("\n5c. Propagating state to lime mixer...")
         propagate_state(m.fs.lime_reactor_outlet_to_mixer)
         propagate_state(m.fs.lime_press_filter_overflow_to_mixer)
@@ -867,6 +858,14 @@ def initialize_flowsheet(m):
         m.fs.lime_mixer.initialize()
         m.fs.lime_mixer.report()
         print(f"DOF after lime mixer: {degrees_of_freedom(m)}")
+
+        print("\n5d. Propagating state to softening waste mixer and product...")
+        propagate_state(m.fs.soda_ash_centrifuge_to_waste_mixer)
+        propagate_state(m.fs.lime_centrifuge_to_waste_mixer)
+        m.fs.softening_waste_mixer.initialize()
+        propagate_state(m.fs.softening_waste_mixer_to_waste)
+        m.fs.softening_waste.initialize()
+        print(f"DOF after softening waste: {degrees_of_freedom(m)}")
 
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         print("\n6. Propagating state to lithium carbonate reactor...")
@@ -1327,11 +1326,13 @@ def build_flowsheet(stage=5):
             property_package=m.fs.brine_props,
         )
         
-        m.fs.soda_ash_waste = Product(
+        m.fs.softening_waste_mixer = Mixer(
             property_package=m.fs.brine_props,
+            inlet_list=["from_soda_ash", "from_lime"],
+            energy_mixing_type=MixingType.none,
         )
-        
-        m.fs.lime_waste = Product(
+
+        m.fs.softening_waste = Product(
             property_package=m.fs.brine_props,
         )
     
@@ -1374,8 +1375,9 @@ def build_flowsheet(stage=5):
         m.fs.lithium_reactor_outlet_to_mixer = Arc(source=m.fs.lithium_carbonate_reactor.outlet, destination=m.fs.li_mixer.from_reactor)
         m.fs.li_dewatering_to_mixer = Arc(source=m.fs.li_dewatering.overflow, destination=m.fs.li_mixer.from_dewatering)
         m.fs.li_mixer_to_mother_liquor = Arc(source=m.fs.li_mixer.outlet, destination=m.fs.mother_liquor_separator.inlet)
-        m.fs.soda_ash_centrifuge_to_waste = Arc(source=m.fs.soda_ash_centrifuge.underflow, destination=m.fs.soda_ash_waste.inlet)
-        m.fs.lime_centrifuge_to_waste = Arc(source=m.fs.lime_centrifuge.underflow, destination=m.fs.lime_waste.inlet)
+        m.fs.soda_ash_centrifuge_to_waste_mixer = Arc(source=m.fs.soda_ash_centrifuge.underflow, destination=m.fs.softening_waste_mixer.from_soda_ash)
+        m.fs.lime_centrifuge_to_waste_mixer = Arc(source=m.fs.lime_centrifuge.underflow, destination=m.fs.softening_waste_mixer.from_lime)
+        m.fs.softening_waste_mixer_to_waste = Arc(source=m.fs.softening_waste_mixer.outlet, destination=m.fs.softening_waste.inlet)
     
     TransformationFactory("network.expand_arcs").apply_to(m)
     

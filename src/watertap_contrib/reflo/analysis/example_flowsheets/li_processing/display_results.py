@@ -856,17 +856,21 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
 
-    if hasattr(m.fs, 'soda_ash_waste'):
-        print(f"\nSODA ASH WASTE PRODUCT (CENTRIFUGE UNDERFLOW):")
+    if hasattr(m.fs, 'softening_waste_mixer'):
+        print(f"\nSOFTENING WASTE MIXER (SODA ASH + LIME CENTRIFUGE UNDERFLOWS):")
         try:
-            _stream_summary(m.fs.soda_ash_waste.properties[0], indent="  ")
-            # Key precipitate-associated ions
-            for comp, label in [("Mg", "Mg"), ("Ca", "Ca"), ("Na", "Na")]:
-                try:
-                    flow = value(m.fs.soda_ash_waste.properties[0].flow_mol_phase_comp["Liq", comp])
-                    print(f"  {label} molar flow: {flow:.4e} mol/s")
-                except Exception:
-                    pass
+            print(f"  From soda ash centrifuge underflow:")
+            _stream_summary(m.fs.softening_waste_mixer.from_soda_ash_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  From lime centrifuge underflow:")
+            _stream_summary(m.fs.softening_waste_mixer.from_lime_state[0], indent="    ")
+        except (AttributeError, TypeError, KeyError):
+            pass
+        try:
+            print(f"  Combined outlet:")
+            _stream_summary(m.fs.softening_waste_mixer.mixed_state[0], indent="    ")
         except (AttributeError, TypeError, KeyError):
             pass
 
@@ -921,14 +925,13 @@ def display_results(m, show_costing=False):
         except (AttributeError, TypeError, KeyError):
             pass
 
-    if hasattr(m.fs, 'lime_waste'):
-        print(f"\nLIME WASTE PRODUCT (CENTRIFUGE UNDERFLOW):")
+    if hasattr(m.fs, 'softening_waste'):
+        print(f"\nSOFTENING WASTE PRODUCT (COMBINED SODA ASH + LIME SOLIDS):")
         try:
-            _stream_summary(m.fs.lime_waste.properties[0], indent="  ")
-            # Key precipitate-associated ions
-            for comp, label in [("Mg", "Mg"), ("Ca", "Ca"), ("SO4", "SO4")]:
+            _stream_summary(m.fs.softening_waste.properties[0], indent="  ")
+            for comp, label in [("Mg", "Mg"), ("Ca", "Ca"), ("Na", "Na"), ("SO4", "SO4")]:
                 try:
-                    flow = value(m.fs.lime_waste.properties[0].flow_mol_phase_comp["Liq", comp])
+                    flow = value(m.fs.softening_waste.properties[0].flow_mol_phase_comp["Liq", comp])
                     print(f"  {label} molar flow: {flow:.4e} mol/s")
                 except Exception:
                     pass

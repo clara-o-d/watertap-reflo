@@ -228,15 +228,15 @@ def save_results(m, filename="li_processing_results.csv"):
         except (AttributeError, TypeError, KeyError):
             pass
 
-    # ------------------------------------------------------------------ Soda ash waste product
-    results["Soda Ash Waste"] = {}
-    if hasattr(m.fs, 'soda_ash_waste'):
+    # ------------------------------------------------------------------ Softening waste product (combined soda ash + lime)
+    results["Softening Waste"] = {}
+    if hasattr(m.fs, 'softening_waste'):
         try:
-            results["Soda Ash Waste"].update(_stream_dict(m.fs.soda_ash_waste.properties[0], "Soda Ash Waste"))
-            for comp in ["Mg", "Ca", "Na"]:
+            results["Softening Waste"].update(_stream_dict(m.fs.softening_waste.properties[0], "Softening Waste"))
+            for comp in ["Mg", "Ca", "Na", "SO4"]:
                 try:
-                    flow = value(m.fs.soda_ash_waste.properties[0].flow_mol_phase_comp["Liq", comp])
-                    results["Soda Ash Waste"][f"{comp} Flow (mol/s)"] = flow
+                    flow = value(m.fs.softening_waste.properties[0].flow_mol_phase_comp["Liq", comp])
+                    results["Softening Waste"][f"{comp} Flow (mol/s)"] = flow
                 except Exception:
                     pass
         except (AttributeError, TypeError, KeyError):
@@ -317,19 +317,6 @@ def save_results(m, filename="li_processing_results.csv"):
         except (AttributeError, TypeError, KeyError):
             pass
 
-    # ------------------------------------------------------------------ Lime waste product
-    results["Lime Waste"] = {}
-    if hasattr(m.fs, 'lime_waste'):
-        try:
-            results["Lime Waste"].update(_stream_dict(m.fs.lime_waste.properties[0], "Lime Waste"))
-            for comp in ["Mg", "Ca", "SO4"]:
-                try:
-                    flow = value(m.fs.lime_waste.properties[0].flow_mol_phase_comp["Liq", comp])
-                    results["Lime Waste"][f"{comp} Flow (mol/s)"] = flow
-                except Exception:
-                    pass
-        except (AttributeError, TypeError, KeyError):
-            pass
 
     # ------------------------------------------------------------------ Lithium carbonate reactor
     results["Lithium Carbonate Reactor"] = {}
