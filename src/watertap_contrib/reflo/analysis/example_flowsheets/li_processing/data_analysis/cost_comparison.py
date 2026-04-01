@@ -21,15 +21,15 @@ import numpy as np
 WATERTAP_CAPEX = {
     "Storage tank":               291_988,
     "Brine pump":                  27_400,
-    "Second pump":                257_096,
-    "Soda ash reactor":        45_776_844,
-    "Lime reactor":            40_931_580,
-    "Li\u2082CO\u2083 reactor": 29_444_242,
+    "Second pump":                201_219,
+    "Soda ash reactor":        37_607_768,
+    "Lime reactor":            33_337_850,
+    "Li\u2082CO\u2083 reactor": 24_392_529,
     "Soda ash vacuum filter":     385_890,
-    "Soda ash centrifuge":      2_425_844,
-    "Lime press filter":        3_084_193,
-    "Lime centrifuge":          2_329_293,
-    "Li dewatering":            3_004_145,
+    "Soda ash centrifuge":      3_882_001,
+    "Lime press filter":        7_633_556,
+    "Lime centrifuge":          2_789_429,
+    "Li dewatering":           15_863_431,
 }
 
 TIC = 2.0

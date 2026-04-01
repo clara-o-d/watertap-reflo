@@ -568,39 +568,44 @@ def modify_flowsheet(m):
             return fs.soda_ash_solution_molality * fs.lithium_carbonate_reactor.flow_mass_reagent["H2O"] * na2co3_mw == fs.lithium_carbonate_reactor.flow_mass_reagent["Na2CO3"]
         
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
-        m.fs.soda_ash_vacuum_filter_ion_split_fraction = pyo.Param(
-            initialize=0.05,
+        # Cake solids fractions (dry solids / wet cake mass) from design data.
+        # These inform the liquid retention and are used to set physically consistent
+        # split fractions: dissolved ions follow the liquid to overflow, while
+        # precipitate-forming ions (Mg/Ca at soda ash and lime, Li at dewatering)
+        # predominantly report to the underflow cake.
+        m.fs.soda_ash_vacuum_filter_cake_solids_fraction = pyo.Param(
+            initialize=0.30,
             mutable=True,
             units=pyunits.dimensionless,
-            doc="Ion split fraction to overflow for soda ash vacuum filter unit"
+            doc="Mass fraction of dry solids in wet cake from soda ash vacuum filter"
         )
-        
-        m.fs.soda_ash_centrifuge_ion_split_fraction = pyo.Param(
-            initialize=0.05,
-            mutable=True,
-            units=pyunits.dimensionless,
-            doc="Ion split fraction to overflow for soda ash centrifuge unit"
-        )
-        
-        m.fs.lime_press_filter_ion_split_fraction = pyo.Param(
-            initialize=0.05,
-            mutable=True,
-            units=pyunits.dimensionless,
-            doc="Ion split fraction to overflow for lime press filter unit"
-        )
-        
-        m.fs.lime_centrifuge_ion_split_fraction = pyo.Param(
-            initialize=0.05,
-            mutable=True,
-            units=pyunits.dimensionless,
-            doc="Ion split fraction to overflow for lime centrifuge unit"
-            )
 
-        m.fs.lithium_dewatering_ion_split_fraction = pyo.Param(
-            initialize=0.05,
+        m.fs.soda_ash_centrifuge_cake_solids_fraction = pyo.Param(
+            initialize=0.40,
             mutable=True,
             units=pyunits.dimensionless,
-            doc="Ion split fraction to overflow for lithium dewatering unit"
+            doc="Mass fraction of dry solids in wet cake from soda ash centrifuge"
+        )
+
+        m.fs.lime_press_filter_cake_solids_fraction = pyo.Param(
+            initialize=0.30,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Mass fraction of dry solids in wet cake from lime press filter"
+        )
+
+        m.fs.lime_centrifuge_cake_solids_fraction = pyo.Param(
+            initialize=0.40,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Mass fraction of dry solids in wet cake from lime centrifuge"
+        )
+
+        m.fs.li_dewatering_cake_solids_fraction = pyo.Param(
+            initialize=0.25,
+            mutable=True,
+            units=pyunits.dimensionless,
+            doc="Mass fraction of dry solids in wet cake from lithium dewatering unit"
         )
 
         m.fs.mother_liquor_recycle_fraction = pyo.Var(
@@ -628,47 +633,110 @@ def fix_unit_model_variables(m):
         m.fs.second_pump.efficiency_pump[0].fix(0.75)
     
     if hasattr(m.fs, 'soda_ash_reactor'):
-        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.5)
+        m.fs.soda_ash_reactor.waste_mass_frac_precipitate.fix(0.10)
     
     if hasattr(m.fs, 'lime_reactor'):
-        m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.5)
+        m.fs.lime_reactor.waste_mass_frac_precipitate.fix(0.10)
     
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
-        m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.5)
+        m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate.fix(0.10)
     
     if hasattr(m.fs, 'soda_ash_vacuum_filter'):
-        # Dewatering unit split fractions: overflow gets clarified liquid, underflow gets concentrated solids
-        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
+        # Dewatering unit split fractions.
+        #
+        # Each dewatering unit receives the *waste* port of the upstream StoichiometricReactor,
+        # which in physical reality is a slurry of solid precipitate plus mother-liquor liquid.
+        # Although the aqueous property package only tracks the dissolved phase, we treat the
+        # stream as the full slurry for the purpose of setting split fractions.
+        #
+        # Physical basis for dissolved-ion split fraction to overflow (filtrate):
+        #
+        #   Given feed slurry solids mass fraction  x_f  and target cake solids mass fraction
+        #   x_c, a simple single-stage mass balance (assuming all solids report to cake) gives:
+        #
+        #       f_diss = (x_c - x_f) / (x_c * (1 - x_f))
+        #
+        #   x_f for the first unit in each train = waste_mass_frac_precipitate of the reactor.
+        #   x_f for the second unit (centrifuge) = x_c of the first unit (its feed IS the cake).
+        #   x_c for each unit = the corresponding cake_solids_fraction parameter.
+        #
+        #   Physical constraint: x_c > x_f  (the unit CONCENTRATES solids).
+        #   If this is violated the formula is undefined → check parameter values.
+        #
+        # Precipitate-forming ions (Mg/Ca at soda ash and lime; Li at lithium dewatering):
+        #   In physical reality these exist predominantly as solid precipitate in the slurry
+        #   and report almost entirely to the underflow cake.  Even though the property package
+        #   represents them as dissolved, we assign them a small residual carryover fraction
+        #   equal to the dissolved split scaled by a small precipitate_carryover factor, which
+        #   captures the trace dissolved fraction that exits with the filtrate.
 
-        m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
+        def _diss_split(x_f, x_c, label):
+            if x_c <= x_f:
+                raise ValueError(
+                    f"Dewatering unit '{label}': cake solids fraction ({x_c:.4f}) must be "
+                    f"greater than feed slurry solids fraction ({x_f:.4f}).  "
+                    f"Reduce waste_mass_frac_precipitate or increase cake_solids_fraction."
+                )
+            return (x_c - x_f) / (x_c * (1.0 - x_f))
+
+        # Small residual dissolved carryover for precipitate-forming ions in the filtrate.
+        # These ions are overwhelmingly solid in the cake; this factor accounts for the tiny
+        # dissolved fraction that escapes with the retained mother liquor.
+        PRECIP_CARRYOVER = 0.02
+
+        ion_list = ["Na", "K", "Li", "Cl", "SO4", "B", "H", "OH", "HCO3", "CO3", "Mg", "Ca"]
+        soda_ash_precip_ions = {"Mg", "Ca"}
+        lime_precip_ions     = {"Mg", "Ca"}
+        li_precip_ions       = {"Li"}
+
+        # --- Soda ash dewatering train ---
+        # Reactor waste (x_f) → vacuum filter (x_c = VF cake solids) → centrifuge (x_c = CF cake solids)
+        x_f_sa   = pyo.value(m.fs.soda_ash_reactor.waste_mass_frac_precipitate)
+        x_c_sa_vf = pyo.value(m.fs.soda_ash_vacuum_filter_cake_solids_fraction)
+        x_c_sa_cf = pyo.value(m.fs.soda_ash_centrifuge_cake_solids_fraction)
+
+        sa_vf_diss = _diss_split(x_f_sa,    x_c_sa_vf, "soda_ash_vacuum_filter")
+        sa_cf_diss = _diss_split(x_c_sa_vf, x_c_sa_cf, "soda_ash_centrifuge")
+
+        # --- Lime dewatering train ---
+        x_f_lm    = pyo.value(m.fs.lime_reactor.waste_mass_frac_precipitate)
+        x_c_lm_pf = pyo.value(m.fs.lime_press_filter_cake_solids_fraction)
+        x_c_lm_cf = pyo.value(m.fs.lime_centrifuge_cake_solids_fraction)
+
+        lm_pf_diss = _diss_split(x_f_lm,    x_c_lm_pf, "lime_press_filter")
+        lm_cf_diss = _diss_split(x_c_lm_pf, x_c_lm_cf, "lime_centrifuge")
+
+        # --- Lithium dewatering (single stage) ---
+        x_f_li   = pyo.value(m.fs.lithium_carbonate_reactor.waste_mass_frac_precipitate)
+        x_c_li   = pyo.value(m.fs.li_dewatering_cake_solids_fraction)
+
+        li_diss = _diss_split(x_f_li, x_c_li, "li_dewatering")
+
+        # Apply split fractions
+        m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", "H2O"].fix(sa_vf_diss)
         for ion in ion_list:
-            m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", ion].fix(
-                m.fs.soda_ash_vacuum_filter_ion_split_fraction.value
-            )
-        
-        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.95)
+            frac = PRECIP_CARRYOVER if ion in soda_ash_precip_ions else sa_vf_diss
+            m.fs.soda_ash_vacuum_filter.split_fraction[0, "overflow", ion].fix(frac)
+
+        m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", "H2O"].fix(sa_cf_diss)
         for ion in ion_list:
-            m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", ion].fix(
-                m.fs.soda_ash_centrifuge_ion_split_fraction.value
-            )
-        
-        m.fs.lime_press_filter.split_fraction[0, "overflow", "H2O"].fix(0.95)
+            frac = PRECIP_CARRYOVER if ion in soda_ash_precip_ions else sa_cf_diss
+            m.fs.soda_ash_centrifuge.split_fraction[0, "overflow", ion].fix(frac)
+
+        m.fs.lime_press_filter.split_fraction[0, "overflow", "H2O"].fix(lm_pf_diss)
         for ion in ion_list:
-            m.fs.lime_press_filter.split_fraction[0, "overflow", ion].fix(
-                m.fs.lime_press_filter_ion_split_fraction.value
-            )
-        
-        m.fs.lime_centrifuge.split_fraction[0, "overflow", "H2O"].fix(0.95)
+            frac = PRECIP_CARRYOVER if ion in lime_precip_ions else lm_pf_diss
+            m.fs.lime_press_filter.split_fraction[0, "overflow", ion].fix(frac)
+
+        m.fs.lime_centrifuge.split_fraction[0, "overflow", "H2O"].fix(lm_cf_diss)
         for ion in ion_list:
-            m.fs.lime_centrifuge.split_fraction[0, "overflow", ion].fix(
-                m.fs.lime_centrifuge_ion_split_fraction.value
-            )
-        
-        m.fs.li_dewatering.split_fraction[0, "overflow", "H2O"].fix(0.95)
+            frac = PRECIP_CARRYOVER if ion in lime_precip_ions else lm_cf_diss
+            m.fs.lime_centrifuge.split_fraction[0, "overflow", ion].fix(frac)
+
+        m.fs.li_dewatering.split_fraction[0, "overflow", "H2O"].fix(li_diss)
         for ion in ion_list:
-            m.fs.li_dewatering.split_fraction[0, "overflow", ion].fix(
-                m.fs.lithium_dewatering_ion_split_fraction.value
-            )
+            frac = PRECIP_CARRYOVER if ion in li_precip_ions else li_diss
+            m.fs.li_dewatering.split_fraction[0, "overflow", ion].fix(frac)
         
         recycle_frac = pyo.value(m.fs.mother_liquor_recycle_fraction)
         m.fs.mother_liquor_separator.split_fraction[0, "recycle", "H2O"].fix(recycle_frac)

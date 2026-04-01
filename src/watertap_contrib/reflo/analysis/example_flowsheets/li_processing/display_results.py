@@ -418,25 +418,28 @@ def display_results(m, show_costing=False):
                 except (AttributeError, TypeError, KeyError):
                     pass
         
-        if hasattr(m.fs, 'soda_ash_vacuum_filter_ion_split_fraction'):
-            print(f"\n  Ion Split Fraction (Soda Ash Vacuum Filter): {value(m.fs.soda_ash_vacuum_filter_ion_split_fraction):.6f} to overflow")
-            print(f"    ({value(1-m.fs.soda_ash_vacuum_filter_ion_split_fraction):.6f} to underflow)")
-        
-        if hasattr(m.fs, 'soda_ash_centrifuge_ion_split_fraction'):
-            print(f"\n  Ion Split Fraction (Soda Ash Centrifuge): {value(m.fs.soda_ash_centrifuge_ion_split_fraction):.6f} to overflow")
-            print(f"    ({value(1-m.fs.soda_ash_centrifuge_ion_split_fraction):.6f} to underflow)")
-        
-        if hasattr(m.fs, 'lime_press_filter_ion_split_fraction'):
-            print(f"\n  Ion Split Fraction (Lime Press Filter): {value(m.fs.lime_press_filter_ion_split_fraction):.6f} to overflow")
-            print(f"    ({value(1-m.fs.lime_press_filter_ion_split_fraction):.6f} to underflow)")
-        
-        if hasattr(m.fs, 'lime_centrifuge_ion_split_fraction'):
-            print(f"\n  Ion Split Fraction (Lime Centrifuge): {value(m.fs.lime_centrifuge_ion_split_fraction):.6f} to overflow")
-            print(f"    ({value(1-m.fs.lime_centrifuge_ion_split_fraction):.6f} to underflow)")
-        
-        if hasattr(m.fs, 'lithium_dewatering_ion_split_fraction'):
-            print(f"\n  Ion Split Fraction (Lithium Dewatering): {value(m.fs.lithium_dewatering_ion_split_fraction):.6f} to overflow")
-            print(f"    ({value(1-m.fs.lithium_dewatering_ion_split_fraction):.6f} to underflow)")
+        if hasattr(m.fs, 'soda_ash_dissolved_ion_split_fraction'):
+            print(f"\n  Soda Ash Dewatering Train Split Fractions:")
+            print(f"    Dissolved ions to overflow: {value(m.fs.soda_ash_dissolved_ion_split_fraction):.4f}  (Na, K, Li, Cl, SO4, B, etc.)")
+            print(f"    Precipitate ions (Mg, Ca) to overflow: {value(m.fs.soda_ash_precipitate_ion_split_fraction):.4f}")
+            if hasattr(m.fs, 'soda_ash_vacuum_filter_cake_solids_fraction'):
+                print(f"    Vacuum filter cake solids: {value(m.fs.soda_ash_vacuum_filter_cake_solids_fraction)*100:.0f}%")
+                print(f"    Centrifuge cake solids: {value(m.fs.soda_ash_centrifuge_cake_solids_fraction)*100:.0f}%")
+
+        if hasattr(m.fs, 'lime_dissolved_ion_split_fraction'):
+            print(f"\n  Lime Dewatering Train Split Fractions:")
+            print(f"    Dissolved ions to overflow: {value(m.fs.lime_dissolved_ion_split_fraction):.4f}  (Na, K, Li, Cl, SO4, B, etc.)")
+            print(f"    Precipitate ions (Mg, Ca) to overflow: {value(m.fs.lime_precipitate_ion_split_fraction):.4f}")
+            if hasattr(m.fs, 'lime_press_filter_cake_solids_fraction'):
+                print(f"    Press filter cake solids: {value(m.fs.lime_press_filter_cake_solids_fraction)*100:.0f}%")
+                print(f"    Centrifuge cake solids: {value(m.fs.lime_centrifuge_cake_solids_fraction)*100:.0f}%")
+
+        if hasattr(m.fs, 'li_dewatering_dissolved_ion_split_fraction'):
+            print(f"\n  Lithium Dewatering Split Fractions:")
+            print(f"    Dissolved ions to overflow: {value(m.fs.li_dewatering_dissolved_ion_split_fraction):.4f}  (Na, K, Cl, SO4, B, etc.)")
+            print(f"    Precipitate ion (Li) to overflow: {value(m.fs.li_dewatering_precipitate_ion_split_fraction):.4f}")
+            if hasattr(m.fs, 'li_dewatering_cake_solids_fraction'):
+                print(f"    Cake solids: {value(m.fs.li_dewatering_cake_solids_fraction)*100:.0f}%")
 
         if hasattr(m.fs, 'mother_liquor_recycle_fraction'):
             print(f"\n  Mother Liquor Recycle Fraction: {value(m.fs.mother_liquor_recycle_fraction)*100:.1f}% recycled, {(1-value(m.fs.mother_liquor_recycle_fraction))*100:.1f}% purged")
@@ -711,40 +714,43 @@ def display_results(m, show_costing=False):
     if hasattr(m.fs, 'lithium_carbonate_reactor'):
         print(f"\nLITHIUM CARBONATE PRECIPITATION REACTOR:")
         try:
+            # Full feed composition into the lithium carbonate reactor
             if hasattr(m.fs.lithium_carbonate_reactor, 'dissolution_reactor'):
-                flow_vol_in = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
-                flow_L_s = value(pyunits.convert(flow_vol_in, to_units=pyunits.L/pyunits.s))
-                flow_m3_h = value(pyunits.convert(flow_vol_in, to_units=pyunits.m**3/pyunits.hour))
-                print(f"  Inlet volumetric flow: {flow_L_s:.2f} L/s ({flow_m3_h:.1f} m³/h)")
+                feed_state = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0]
+                try:
+                    fv_L_s = value(pyunits.convert(feed_state.flow_vol, to_units=pyunits.L / pyunits.s))
+                    fv_m3_h = value(pyunits.convert(feed_state.flow_vol, to_units=pyunits.m**3 / pyunits.hour))
+                except Exception:
+                    fv_L_s = value(pyunits.convert(feed_state.flow_vol_phase["Liq"], to_units=pyunits.L / pyunits.s))
+                    fv_m3_h = value(pyunits.convert(feed_state.flow_vol_phase["Liq"], to_units=pyunits.m**3 / pyunits.hour))
+                print(f"  Feed composition (before Na2CO3 addition):")
+                print(f"    Volumetric flow: {fv_L_s:.3f} L/s ({fv_m3_h:.1f} m³/h)")
+                for comp in ["Li", "Na", "K", "Mg", "Ca", "Cl", "SO4", "HCO3", "CO3", "B", "H", "OH"]:
+                    try:
+                        mol_s = value(feed_state.flow_mol_phase_comp["Liq", comp])
+                        mw = _MW.get(comp)
+                        if mw is not None and fv_L_s > 0:
+                            conc_mol_L = mol_s / fv_L_s
+                            mg_L = conc_mol_L * mw * 1e6
+                            print(f"    {comp:>5}: {mol_s:.4e} mol/s  |  {conc_mol_L:.4f} mol/L  |  {mg_L:.1f} mg/L")
+                        else:
+                            print(f"    {comp:>5}: {mol_s:.4e} mol/s")
+                    except (AttributeError, KeyError):
+                        pass
 
-            # Li molarity at lithium carbonate reactor inlet (mol/L)
+            # HCO3:Li molar ratio after Na2CO3 dissolution but before Li2CO3 precipitation
             try:
-                li_mol_s = None
-                flow_vol = None
-
                 if hasattr(m.fs.lithium_carbonate_reactor, "precipitation_reactor"):
-                    li_mol_s = m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_mol_phase_comp[
-                        "Liq", "Li"
-                    ]
-                    flow_vol = m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0].flow_vol
-                elif hasattr(m.fs.lithium_carbonate_reactor, "dissolution_reactor"):
-                    li_mol_s = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_mol_phase_comp[
-                        "Liq", "Li"
-                    ]
-                    # Prefer total volumetric flow if present, otherwise use liquid-phase volumetric flow
-                    if hasattr(m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0], "flow_vol"):
-                        flow_vol = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol
-                    else:
-                        flow_vol = m.fs.lithium_carbonate_reactor.dissolution_reactor.properties_in[0].flow_vol_phase["Liq"]
-
-                if li_mol_s is not None and flow_vol is not None:
-                    flow_vol_L_s = pyunits.convert(flow_vol, to_units=pyunits.L / pyunits.s)
-                    if value(flow_vol_L_s) > 0:
-                        li_conc = pyunits.convert(li_mol_s / flow_vol_L_s, to_units=pyunits.mol / pyunits.L)
-                        print(f"  Li molarity entering reactor: {value(li_conc):.4f} mol/L")
+                    mid_state = m.fs.lithium_carbonate_reactor.precipitation_reactor.properties_in[0]
+                    hco3_mid = value(mid_state.flow_mol_phase_comp["Liq", "HCO3"])
+                    li_mid = value(mid_state.flow_mol_phase_comp["Liq", "Li"])
+                    if li_mid > 0:
+                        hco3_li_ratio = hco3_mid / li_mid
+                        print(f"  HCO3:Li molar ratio (post-dissolution, pre-precipitation): {hco3_li_ratio:.4f}")
+                        print(f"    (HCO3 = {hco3_mid:.4e} mol/s, Li = {li_mid:.4e} mol/s)")
             except (AttributeError, TypeError, KeyError, ZeroDivisionError):
                 pass
-            
+
             if hasattr(m.fs.lithium_carbonate_reactor, 'flow_mass_reagent'):
                 reagent_flow = m.fs.lithium_carbonate_reactor.flow_mass_reagent['Na2CO3']
                 flow_kg_s = value(pyunits.convert(reagent_flow, to_units=pyunits.kg/pyunits.s))
