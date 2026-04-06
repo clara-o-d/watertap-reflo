@@ -29,6 +29,8 @@ def process_costing(m):
         m.fs.lime_centrifuge.costing.initialize()
     if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'costing'):
         m.fs.li_dewatering.costing.initialize()
+    if hasattr(m.fs, 'softening_waste') and hasattr(m.fs.softening_waste, 'costing'):
+        m.fs.softening_waste.costing.initialize()
     
     m.fs.costing.cost_process()
 

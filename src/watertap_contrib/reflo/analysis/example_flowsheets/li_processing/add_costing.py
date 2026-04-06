@@ -11,6 +11,7 @@ Adds capital and operating costs for:
 - Lime press filter unit (belt filter press)
 - Lime centrifuge unit (centrifuge)
 - Lithium dewatering unit (belt filter press)
+- Softening waste Product block (waste handling: capital + OPEX vs dry salt, USD/metric tonne)
 """
 
 import math
@@ -35,6 +36,14 @@ def load_costing_parameters(yaml_path=None):
     with open(yaml_path, 'r') as f:
         params = yaml.safe_load(f)
     return params
+
+
+def _yaml_float(mapping, key, default=0.0):
+    """YAML values may be numpy scalars or null; Pyomo Var initialize() needs native float."""
+    v = mapping.get(key, default)
+    if v is None:
+        return float(default)
+    return float(v)
 
 def build_rdvf_cost_params(costing_package, params=None):
     if params is None:
@@ -104,6 +113,143 @@ def make_rdvf_costing_method(number_of_drums=2, cost_electricity_flow=True, para
     def costing_method(blk):
         cost_rdvf_custom(blk, number_of_drums, cost_electricity_flow, params)
     return costing_method
+
+
+def _dry_salt_mass_flow_kg_s(props, water_component_name="H2O"):
+    """Mass flow of dry salt / solids (liquid phase, excluding water) [kg/s]."""
+    return sum(
+        props.flow_mass_phase_comp["Liq", j]
+        for j in props.params.component_list
+        if j != water_component_name
+    )
+
+
+def build_waste_handling_cost_params(costing_package, params=None):
+    """Attach global waste-handling correlation parameters to the costing package (dry metric tonne basis)."""
+    if params is None:
+        params = load_costing_parameters()
+    wh_params = params.get("waste_handling", {})
+
+    if not hasattr(costing_package, "waste_handling"):
+        costing_package.waste_handling = Block()
+
+        costing_package.waste_handling.capital_fixed_usd = Var(
+            initialize=_yaml_float(wh_params, "capital_fixed_usd", 0.0),
+            doc="Fixed capital adder for waste handling (before TIC)",
+            units=pyunits.USD_2023,
+        )
+        costing_package.waste_handling.capital_fixed_usd.fix()
+
+        # USD per (metric tonne dry salt / s) — same as USD * s / tonne
+        _per_dry_tonne_rate_units = pyunits.USD_2023 * pyunits.s / pyunits.tonne
+        cap_init = wh_params.get("capital_usd_per_dry_metric_ton_salt_rate")
+        if cap_init is None:
+            cap_init = wh_params.get("capital_per_dry_metric_ton_salt_rate")
+        if cap_init is None:
+            cap_init = wh_params.get("capital_per_flow_vol", 0.0)
+        if cap_init is None:
+            cap_init = 0.0
+        else:
+            cap_init = float(cap_init)
+        costing_package.waste_handling.capital_usd_per_dry_metric_ton_salt_rate = Var(
+            initialize=cap_init,
+            doc="Capital coefficient [USD] per [metric tonne dry salt / s] (dry = liquid phase mass excluding water)",
+            units=_per_dry_tonne_rate_units,
+        )
+        costing_package.waste_handling.capital_usd_per_dry_metric_ton_salt_rate.fix()
+
+
+def cost_waste_product(blk, cost_dry_salt_mass_flow=True, params=None):
+    """
+    Costing for the softening waste Product block (IDAES Product).
+
+    Default economics (dry salt = liquid-phase mass excluding ``water_component_name``, typically H2O):
+
+    - Capital: TIC * (capital_fixed_usd
+      + capital_usd_per_dry_metric_ton_salt_rate * ṁ_dry [metric tonne/s]).
+    - Operating: cost_flow on ṁ_dry [kg/s] at ``waste_handling`` cost registered as $/kg dry salt
+      (= operating_cost_usd_per_dry_metric_ton_salt / 1000).
+
+    Replace or extend by deactivating ``capital_cost_constraint`` (and optionally the mass-flow
+    registration) and adding custom constraints on ``blk.capital_cost`` / other components.
+    """
+    if params is None:
+        params = load_costing_parameters()
+    build_waste_handling_cost_params(blk.costing_package, params)
+
+    make_capital_cost_var(blk)
+    blk.costing_package.add_cost_factor(blk, "TIC")
+
+    t0 = blk.flowsheet().time.first()
+    props = blk.unit_model.properties[t0]
+    wh = blk.costing_package.waste_handling
+    wh_params = params.get("waste_handling", {})
+    water_name = wh_params.get("water_component_name", "H2O")
+
+    m_dot_dry = _dry_salt_mass_flow_kg_s(props, water_component_name=water_name)
+    m_dot_dry_tonnes_s = pyunits.convert(m_dot_dry, to_units=pyunits.tonne / pyunits.s)
+
+    blk.capital_cost_constraint = Constraint(
+        expr=blk.capital_cost
+        == blk.cost_factor
+        * pyunits.convert(
+            wh.capital_fixed_usd
+            + wh.capital_usd_per_dry_metric_ton_salt_rate * m_dot_dry_tonnes_s,
+            to_units=blk.costing_package.base_currency,
+        )
+    )
+
+    if cost_dry_salt_mass_flow:
+        blk.costing_package.cost_flow(m_dot_dry, "waste_handling")
+
+
+def make_waste_product_costing_method(params=None, cost_dry_salt_mass_flow=None):
+    """Factory for :func:`cost_waste_product` (WaterTAP costing_method hook)."""
+
+    if params is None:
+        params = load_costing_parameters()
+    wh = params.get("waste_handling", {})
+    if cost_dry_salt_mass_flow is None:
+        cost_dry_salt_mass_flow = wh.get(
+            "cost_dry_salt_mass_flow", wh.get("cost_mass_flow", True)
+        )
+
+    def costing_method(blk):
+        cost_waste_product(
+            blk, cost_dry_salt_mass_flow=cost_dry_salt_mass_flow, params=params
+        )
+
+    return costing_method
+
+
+def register_waste_handling_flow_cost(m, params=None):
+    """
+    Register ``waste_handling`` flow type before attaching ``UnitModelCostingBlock`` to ``softening_waste``.
+
+    ``m.fs.waste_handling_cost`` is [currency]/kg **dry salt** (metric tonne basis / 1000).
+    """
+    if params is None:
+        params = load_costing_parameters()
+    if not hasattr(m.fs, "softening_waste"):
+        return
+    wh_params = params.get("waste_handling", {})
+    per_tonne = wh_params.get("operating_cost_usd_per_dry_metric_ton_salt")
+    if per_tonne is not None:
+        per_kg = float(per_tonne) / 1000.0
+    elif wh_params.get("operating_cost_per_kg") is not None:
+        per_kg = _yaml_float(wh_params, "operating_cost_per_kg", 0.02)
+    else:
+        per_kg = 0.02
+    m.fs.waste_handling_cost = Param(
+        initialize=per_kg,
+        mutable=True,
+        units=pyunits.USD_2023 / pyunits.kg,
+        doc="Waste handling variable cost per kg dry salt (excludes water; from $/dry metric tonne)",
+    )
+    m.fs.costing.register_flow_type("waste_handling", m.fs.waste_handling_cost)
+    # For reporting (display_results): dry-salt mass excludes this species
+    m.fs.waste_handling_water_component_name = wh_params.get("water_component_name", "H2O")
+
 
 def add_flow_costs(m, params=None):
     if params is None:
@@ -226,13 +372,6 @@ def build_reactor_cost_params(costing_package, params=None):
             units=pyunits.USD_1991 / (pyunits.m**3)**reactor_params['capital_n_exponent'],
         )
         costing_package.reactor_cost_params.capital_b_parameter.fix()
-        
-        costing_package.reactor_cost_params.capital_n_exponent = Var(
-            initialize=reactor_params['capital_n_exponent'],
-            doc="Exponent (n) in reactor capital cost correlation",
-            units=pyunits.dimensionless,
-        )
-        costing_package.reactor_cost_params.capital_n_exponent.fix()
 
 def apply_dewatering_split_costing(m):
     """Replace dewatering capital cost constraints with split-unit versions when flow exceeds equipment max capacity."""
@@ -355,7 +494,6 @@ def apply_dewatering_split_costing(m):
                     )
                 )
 
-
 def add_costing(m, yaml_path=None):
     """Add costing blocks to all unit models and register flow costs."""
     params = load_costing_parameters(yaml_path)
@@ -365,6 +503,8 @@ def add_costing(m, yaml_path=None):
     m.fs.costing.base_currency = pyunits.USD_2023
     
     build_reactor_cost_params(m.fs.costing, params)
+    # Must register waste_handling flow before UnitModelCostingBlock on softening_waste (uses cost_flow).
+    register_waste_handling_flow_cost(m, params)
 
     m.fs.brine_storage.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.brine_pump.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
@@ -421,6 +561,11 @@ def add_costing(m, yaml_path=None):
                 "dewatering_type": DewateringType.filter_belt_press,
                 "cost_electricity_flow": True,
             },
+        )
+
+        m.fs.softening_waste.costing = UnitModelCostingBlock(
+            flowsheet_costing_block=m.fs.costing,
+            costing_method=make_waste_product_costing_method(params=params),
         )
     
     add_flow_costs(m, params)

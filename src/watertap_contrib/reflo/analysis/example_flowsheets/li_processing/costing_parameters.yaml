@@ -21,6 +21,16 @@ flow_costs:
   soda_ash_cost: 0.5
   lime_cost: 0.3
   process_water_cost: 0.00025
+# Softening waste Product block — economics vs dry salt (non-H2O mass in the inlet stream).
+# Capital: TIC * (capital_fixed_usd + capital_usd_per_dry_metric_ton_salt_rate * ṁ_dry),
+#   ṁ_dry = sum_j flow_mass_phase_comp[Liq,j] for j != H2O [metric tonne dry salt / s].
+# Variable OPEX: cost_flow on ṁ_dry [kg/s] at operating_cost_usd_per_dry_metric_ton_salt / 1000 [$/kg dry salt].
+waste_handling:
+  capital_fixed_usd: 0.0
+  capital_usd_per_dry_metric_ton_salt_rate: 1.0e6
+  operating_cost_usd_per_dry_metric_ton_salt: 20.0
+  cost_dry_salt_mass_flow: true
+  water_component_name: H2O
 general:
   plant_lifetime: 35
   wacc: 0.1

@@ -1,4 +1,10 @@
-"""Display module for lithium processing flowsheet results."""
+"""Display module for lithium processing flowsheet results.
+
+Costing output includes the softening waste Product block when present: capital
+follows ``costing_parameters.yaml`` → ``waste_handling`` (fixed + per metric
+tonne dry salt/s, after TIC; dry salt = non-H2O liquid mass), and variable OPEX
+uses the ``waste_handling`` flow type at $/dry metric tonne of salt (stored as $/kg dry salt).
+"""
 
 from math import log
 from pyomo.environ import units as pyunits, value
@@ -60,7 +66,7 @@ def _stream_summary(state, indent="  "):
             pass
 
 def display_costing_results(m):
-    """Display costing results including capital costs, operating costs, and LCOLi metrics."""
+    """Display costing results including capital costs, operating costs, LCOLi metrics, and softening waste handling."""
     if not hasattr(m.fs, 'costing'):
         print("\nNo costing information available. Run add_costing() first.")
         return
@@ -75,6 +81,25 @@ def display_costing_results(m):
     print(f"  Electricity cost: ${value(m.fs.costing.electricity_cost):.3f}/kWh")
     print(f"  Utilization factor: {value(m.fs.costing.utilization_factor):.1%}")
     print(f"  Base currency: {m.fs.costing.base_currency}")
+    if hasattr(m.fs.costing, "waste_handling"):
+        try:
+            wh = m.fs.costing.waste_handling
+            cf = value(wh.capital_fixed_usd)
+            cp = value(wh.capital_usd_per_dry_metric_ton_salt_rate)
+            print(f"  Waste handling (capital correlation on fs.softening_waste):")
+            print(f"    capital_cost = TIC * (capital_fixed_usd + capital_usd_per_dry_metric_ton_salt_rate * ṁ_dry)")
+            _wn = getattr(m.fs, "waste_handling_water_component_name", "H2O")
+            print(f"    ṁ_dry = inlet liquid mass flow excluding {_wn} [metric tonne dry salt / s]")
+            print(f"    capital_fixed_usd: ${cf:,.0f}")
+            print(f"    capital_usd_per_dry_metric_ton_salt_rate: ${cp:,.0f} per (metric tonne dry salt / s)")
+        except (AttributeError, TypeError, ValueError):
+            pass
+    if hasattr(m.fs, "waste_handling_cost"):
+        try:
+            usd_per_kg = value(m.fs.waste_handling_cost)
+            print(f"  Waste handling (variable OPEX): ${usd_per_kg * 1000:.2f}/dry metric tonne salt (${usd_per_kg:.5f}/kg dry salt; cost_flow type 'waste_handling')")
+        except (AttributeError, TypeError, ValueError):
+            pass
     
     print(f"\nUNIT MODEL CAPITAL COSTS:")
     
@@ -111,6 +136,9 @@ def display_costing_results(m):
     if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'costing'):
         print(f"  Lithium Dewatering Unit Capital Cost: ${value(m.fs.li_dewatering.costing.capital_cost):,.0f}")
     
+    if hasattr(m.fs, 'softening_waste') and hasattr(m.fs.softening_waste, 'costing'):
+        print(f"  Softening Waste Product (waste handling) Capital Cost: ${value(m.fs.softening_waste.costing.capital_cost):,.0f}")
+    
     # Total capital cost (flowsheet level)
     if hasattr(m.fs.costing, 'total_capital_cost'):
         total_capital_cost = value(m.fs.costing.total_capital_cost)
@@ -139,6 +167,8 @@ def display_costing_results(m):
             total_capital_cost += value(m.fs.lime_centrifuge.costing.capital_cost)
         if hasattr(m.fs, 'li_dewatering') and hasattr(m.fs.li_dewatering, 'costing'):
             total_capital_cost += value(m.fs.li_dewatering.costing.capital_cost)
+        if hasattr(m.fs, 'softening_waste') and hasattr(m.fs.softening_waste, 'costing'):
+            total_capital_cost += value(m.fs.softening_waste.costing.capital_cost)
         
         print(f"\n  TOTAL CAPITAL COST: ${total_capital_cost:,.0f}")
     
@@ -224,6 +254,23 @@ def display_costing_results(m):
         except (AttributeError, TypeError, KeyError):
             pass
     
+    annual_waste_handling_cost = 0.0
+    if hasattr(m.fs, "softening_waste") and hasattr(m.fs, "waste_handling_cost"):
+        try:
+            props = m.fs.softening_waste.properties[0]
+            water_name = getattr(m.fs, "waste_handling_water_component_name", "H2O")
+            dry_mass_flow = sum(
+                props.flow_mass_phase_comp["Liq", j]
+                for j in props.params.component_list
+                if j != water_name
+            )
+            annual_waste_handling_cost = value(dry_mass_flow) * 31536000 * value(m.fs.waste_handling_cost)
+            dry_tonnes_yr = value(dry_mass_flow) * 31536000 / 1000.0
+            print(f"  Annual waste handling cost (dry salt basis @ waste_handling $/dry tonne): ${annual_waste_handling_cost:,.0f}")
+            print(f"    (approx. {dry_tonnes_yr:,.0f} dry metric tonnes salt/year)")
+        except (AttributeError, TypeError, KeyError, ValueError):
+            pass
+    
     total_opex = 0
     if total_power_kw > 0:
         total_opex += annual_electricity_cost
@@ -251,6 +298,7 @@ def display_costing_results(m):
                 total_opex += h2o_flow * 31536000 * value(m.fs.process_water_cost)
     except (AttributeError, TypeError, KeyError):
         pass
+    total_opex += annual_waste_handling_cost
     
     print(f"\n  TOTAL ANNUAL OPERATING COST: ${total_opex:,.0f}")
     
@@ -286,7 +334,11 @@ def display_costing_results(m):
     print("="*60)
 
 def display_results(m, show_costing=False):
-    """Display comprehensive flowsheet results including feed conditions, reactor outputs, and process metrics."""
+    """Display comprehensive flowsheet results including feed conditions, reactor outputs, and process metrics.
+
+    With ``show_costing=True``, also prints ``display_costing_results`` (including softening waste
+    capital and waste_handling OPEX when those blocks exist).
+    """
     print("\n" + "="*60)
     print("LITHIUM CARBONATE PROCESSING PLANT RESULTS")
     print("="*60)
@@ -927,6 +979,8 @@ def display_results(m, show_costing=False):
 
     if hasattr(m.fs, 'softening_waste'):
         print(f"\nSOFTENING WASTE PRODUCT (COMBINED SODA ASH + LIME SOLIDS):")
+        if hasattr(m.fs.softening_waste, 'costing'):
+            print(f"  Costing attached: capital (TIC × correlation vs dry tonne/s) and variable OPEX (flow type 'waste_handling', $/dry metric tonne salt); see costing section when show_costing=True.")
         try:
             _stream_summary(m.fs.softening_waste.properties[0], indent="  ")
             for comp, label in [("Mg", "Mg"), ("Ca", "Ca"), ("Na", "Na"), ("SO4", "SO4")]:
